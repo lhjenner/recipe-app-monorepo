@@ -1,0 +1,36 @@
+:root {
+    /* Light theme defaults */
+    --color-background: #fbf9f5;
+    --color-surface: white;
+    --color-primary: #4a7c59;
+    --color-primary-hover: #2c3a30;
+    --color-danger: #c94a4a;
+    --color-danger-hover: #8c2d2d;
+    --color-disabled: #b3b3b3;
+    --color-text: #1e1e1e;
+    --color-text-muted: #434343;
+    --color-focus: #d5f523;
+}
+
+:root[data-theme='dark'] {
+    /* Dark theme overrides */
+    --color-background: #1e1e1e;
+    --color-surface: #2c2c2c;
+    --color-primary: #4a7c59;
+    --color-primary-hover: #516757;
+    --color-danger: #c94a4a;
+    --color-danger-hover: #b43e3e;
+    --color-disabled: #4a4a4a;
+    --color-text: #e4e9e3;
+    --color-text-muted: #c6c7c6;
+}
+
+body {
+    background-color: var(--color-background);
+    color: var(--color-text);
+}
+
+:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+}
