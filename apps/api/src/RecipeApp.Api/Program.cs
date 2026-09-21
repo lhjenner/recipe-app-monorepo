@@ -1,8 +1,12 @@
+using RecipeApp.Api.Auth;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddControllers();
+builder.Services.AddScoped<AuthService>();
 
 var app = builder.Build();
 
@@ -14,4 +18,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.MapControllers();
+
 app.Run();
+
+// Makes Program visible to the test project (top-level statements make it internal otherwise)
+public partial class Program;
