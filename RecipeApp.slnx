@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/apps/" />
+  <Folder Name="/apps/api/" />
+  <Folder Name="/apps/api/src/">
+    <Project Path="apps/api/src/RecipeApp.Api/RecipeApp.Api.csproj" />
+  </Folder>
+  <Folder Name="/apps/api/tests/">
+    <Project Path="apps/api/tests/RecipeApp.Api.UnitTests/RecipeApp.Api.UnitTests.csproj" />
+  </Folder>
+</Solution>

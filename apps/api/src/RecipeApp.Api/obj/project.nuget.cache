@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "+0mkkktd6pA=",
+  "success": true,
+  "projectFilePath": "C:\\projects\\recipe-app-monorepo\\apps\\api\\src\\RecipeApp.Api\\RecipeApp.Api.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\lance_wgv1o9l\\.nuget\\packages\\microsoft.aspnetcore.openapi\\10.0.12\\microsoft.aspnetcore.openapi.10.0.12.nupkg.sha512",
+    "C:\\Users\\lance_wgv1o9l\\.nuget\\packages\\microsoft.openapi\\2.12.0\\microsoft.openapi.2.12.0.nupkg.sha512"
+  ],
+  "logs": []
+}
