@@ -23,12 +23,12 @@ public class AuthServiceTests
 
         var sut = new AuthService(_users, _hasher); // sut = "system under test"
 
-        // ACT: call the method that doesn't exist yet.
+        // ACT
         var result = await sut.RegisterAsync(
             new RegisterRequest("new@example.com", "password123"),
             CancellationToken.None);
 
-        // ASSERT: the DTO shape from our discussion — Id, Email, CreatedAtUtc.
+        // ASSERT
         result.Email.Should().Be("new@example.com");
         result.Id.Should().NotBeEmpty();
 
