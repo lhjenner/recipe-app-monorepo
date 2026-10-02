@@ -11,3 +11,5 @@ appsettings.Local.json
 .vscode/
 .idea/
 *.user
+bin/
+obj/
