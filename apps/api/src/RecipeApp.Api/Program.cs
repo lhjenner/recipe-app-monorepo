@@ -1,4 +1,5 @@
 using RecipeApp.Api.Auth;
+using RecipeApp.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,10 +8,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

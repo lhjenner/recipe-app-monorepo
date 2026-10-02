@@ -9,6 +9,11 @@ public class AuthService(IUserRepository users, IPasswordHasher hasher)
 {
     public async Task<UserDto> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
+        if (await users.ExistsByEmailAsync(request.Email, cancellationToken))
+        {
+            throw new DuplicateEmailException();
+        }
+
         User user = new()
         {
             Id = Guid.NewGuid(),
