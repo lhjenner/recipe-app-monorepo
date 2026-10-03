@@ -13,3 +13,5 @@ appsettings.Local.json
 *.user
 bin/
 obj/
+node_modules/
+dist/
