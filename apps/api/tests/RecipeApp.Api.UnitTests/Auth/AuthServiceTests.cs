@@ -18,7 +18,7 @@ public class AuthServiceTests
         // "When asked if this email exists, say no."
         _users.ExistsByEmailAsync("new@example.com", Arg.Any<CancellationToken>())
               .Returns(false);
-        // "When asked to hash any password, return this pretend hash."
+        // "When asked to hash this password, return this pretend hash."
         _hasher.Hash("password123").Returns("hashed-password");
 
         var sut = new AuthService(_users, _hasher); // sut = "system under test"
@@ -32,8 +32,7 @@ public class AuthServiceTests
         result.Email.Should().Be("new@example.com");
         result.Id.Should().NotBeEmpty();
 
-        // And the AC-17 guarantee: the service must have told the repository
-        // to save the HASH, never the plaintext.
+        // Verify the service passes the hasher output to persistence.
         await _users.Received(1).AddAsync(
             Arg.Is<User>(u => u.PasswordHash == "hashed-password"),
             Arg.Any<CancellationToken>());
