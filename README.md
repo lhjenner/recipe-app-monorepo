@@ -6,8 +6,8 @@ A learning project for a full-stack recipe and meal-planning application. The re
 
 - The login page implements client-side form validation for AC-01 to AC-03. Login is not connected to an API yet.
 - The API has a registration endpoint and service logic for duplicate checking, but its tests inject substitute repository and password-hasher implementations. Production persistence, password hashing, and account registration are not wired up yet.
-- EF Core migrations, PostgreSQL, Docker Compose, and Reqnroll BDD tests are planned, but are not configured in the repository yet.
-- The current API component tests use xUnit and `WebApplicationFactory` with NSubstitute.
+- API component tests use Reqnroll/Gherkin on the xUnit runner and call the API through `WebApplicationFactory`. The current registration scenarios use NSubstitute for repository and password-hasher dependencies.
+- EF Core migrations, production persistence and hashing, and Dockerized PostgreSQL test infrastructure are still planned.
 
 ## Repository Structure
 
@@ -17,7 +17,7 @@ apps/
   api/
     src/RecipeApp.Api/                  ASP.NET Core API (.NET 10)
     tests/RecipeApp.Api.UnitTests/      xUnit unit tests
-    tests/RecipeApp.Api.ComponentTests/ xUnit HTTP component tests
+    tests/RecipeApp.Api.ComponentTests/ Reqnroll API component scenarios
   web/
     src/                                React and TypeScript app
     tests/e2e/                          Playwright browser tests
