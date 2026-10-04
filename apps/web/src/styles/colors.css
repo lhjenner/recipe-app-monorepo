@@ -10,6 +10,28 @@
     --color-text: #1e1e1e;
     --color-text-muted: #434343;
     --color-focus: #d5f523;
+
+    /* Brand and contrast */
+    --color-on-brand: #fff;
+    --color-brand-panel: #416b56;
+    --color-brand-highlight: #e1f39b;
+    --color-link: #315b46;
+    --color-link-hover: #203b2c;
+
+    /* Form and divider colors */
+    --color-input-border: #a9b5aa;
+    --color-border-subtle: #e1e7df;
+
+    /* Decorative effects */
+    --color-pattern-line: color-mix(in srgb, var(--color-primary-hover) 3%, transparent);
+    --color-on-brand-muted: color-mix(in srgb, var(--color-on-brand) 76%, transparent);
+    --color-on-brand-copy: color-mix(in srgb, var(--color-on-brand) 84%, transparent);
+    --color-panel-line: color-mix(in srgb, var(--color-on-brand) 9%, transparent);
+    --color-panel-outline: color-mix(in srgb, var(--color-on-brand) 28%, transparent);
+    --color-panel-glow-outer: color-mix(in srgb, var(--color-on-brand) 5%, transparent);
+    --color-panel-glow-inner: color-mix(in srgb, var(--color-on-brand) 4%, transparent);
+    --color-card-shadow: rgb(35 53 43 / 10%);
+    --color-footer-wash: color-mix(in srgb, var(--color-on-brand) 72%, transparent);
 }
 
 :root[data-theme='dark'] {
@@ -23,6 +45,12 @@
     --color-disabled: #4a4a4a;
     --color-text: #e4e9e3;
     --color-text-muted: #c6c7c6;
+    --color-link: #b4e1c1;
+    --color-link-hover: #d6f0dd;
+    --color-input-border: #647568;
+    --color-border-subtle: #465248;
+    --color-card-shadow: rgb(0 0 0 / 30%);
+    --color-footer-wash: color-mix(in srgb, var(--color-primary-hover) 80%, transparent);
 }
 
 body {

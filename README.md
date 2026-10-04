@@ -1,94 +1,68 @@
-# Recipe & Grocery List Monorepo
+# Recipe App Monorepo
 
-A modern, containerized full-stack application for managing recipes and automatically compiling aggregate grocery lists. Built with a Clean Architecture C# API, a TypeScript web frontend, and containerized local development workflows.
+A learning project for a full-stack recipe and meal-planning application. The repository currently contains an ASP.NET Core API scaffold, a React and TypeScript web app, automated tests, and the authentication PRD.
 
----
+## Current Status
 
-## 🏗 System Architecture & Monorepo Structure
+- The login page implements client-side form validation for AC-01 to AC-03. Login is not connected to an API yet.
+- The API has a registration endpoint and service logic for duplicate checking, but its tests inject substitute repository and password-hasher implementations. Production persistence, password hashing, and account registration are not wired up yet.
+- EF Core migrations, PostgreSQL, Docker Compose, and Reqnroll BDD tests are planned, but are not configured in the repository yet.
+- The current API component tests use xUnit and `WebApplicationFactory` with NSubstitute.
 
-This project is organized as a monorepo containing application services, automated testing suites, infrastructure configuration, and technical specifications:
+## Repository Structure
 
-<pre>
-recipe-app-monorepo/
-├── apps/
-│   ├── api/                        # .NET 8 Web API
-│   │   ├── src/                    # Application & Domain Logic (Clean Architecture)
-│   │   └── tests/                  # Backend Automated Test Suites
-│   │       ├── Api.UnitTests/      # xUnit Unit Tests (Fast, Isolated)
-│   │       └── Api.ComponentTests/ # Reqnroll BDD Feature Specs (Gherkin)
-│   │
-│   └── web/                        # TypeScript Web Application
-│       ├── src/                    # Application & UI Components
-│       └── tests/                  # Frontend Automated Test Suites
-│           ├── e2e/                # Playwright Browser Automation (TypeScript)
-│           └── unit/               # Component & Helper Unit Tests
-│
-├── tests/
-│   └── performance/                # Apache JMeter (.jmx) Load & Stress Tests
-│
-├── docs/
-│   └── prd/                        # Product Requirements Documents (Docs-as-Code)
-│
-├── .github/                        # Copilot Rules & CI/CD Actions Workflows
-├── scripts/                        # Local Dev & Automation PowerShell Scripts
-├── docker-compose.yml              # Local Multi-Container Setup (API + PostgreSQL)
-└── README.md
-</pre>
+```text
+RecipeApp.slnx
+apps/
+  api/
+    src/RecipeApp.Api/                  ASP.NET Core API (.NET 10)
+    tests/RecipeApp.Api.UnitTests/      xUnit unit tests
+    tests/RecipeApp.Api.ComponentTests/ xUnit HTTP component tests
+  web/
+    src/                                React and TypeScript app
+    tests/e2e/                          Playwright browser tests
+docs/prd/                               Product requirements documents
+tests/performance/                      Reserved for performance tests
+```
 
+## Prerequisites
 
-## 🛠 Tech Stack & Tooling
+- .NET 10 SDK
+- Node.js and npm
+- Chromium for Playwright browser tests
 
-* **Backend:** C# / .NET 8 Web API, Entity Framework Core, PostgreSQL
-* **Frontend:** TypeScript, Modular CSS Architecture
-* **Testing & Quality Assurance:**
-  * **Unit & Integration:** xUnit, FluentAssertions, Moq
-  * **Component & BDD:** Reqnroll (Gherkin feature specs)
-  * **End-to-End (E2E):** Playwright (TypeScript)
-  * **Performance & Load:** Apache JMeter
-* **DevOps & Infrastructure:** Docker, Docker Compose, PowerShell, GitHub Actions CI/CD
+Docker will be needed when the planned PostgreSQL-backed development and test environments are added.
 
+## Run Locally
 
-## 🚀 Quickstart & Local Development
+Run backend tests from the repository root:
 
-### Prerequisites
-- Docker Desktop
-- .NET 8 SDK
-- Node.js & pnpm
-- PowerShell 7+
+```powershell
+dotnet test
+```
 
-### Environment Setup
-1. Clone the repository:
-   <pre>git clone https://github.com/YOUR_USERNAME/recipe-app-monorepo.git
-   cd recipe-app-monorepo</pre>
+Install frontend dependencies from the repository root:
 
-2. Configure Environment Variables:
-   Copy the .env.example template to create your local environment file:
-   <pre>cp .env.example .env </pre>
+```powershell
+npm --prefix apps/web install
+```
 
-3. Orchestrate Local Services:
-   Run the PowerShell setup script to launch local containerized services (API & PostgreSQL database):
-   <pre>./scripts/start-dev.ps1</pre>
+Run the web app, browser tests, build, or lint from the repository root:
 
----
+```powershell
+npm --prefix apps/web run dev
+npm --prefix apps/web run test:e2e
+npm --prefix apps/web run build
+npm --prefix apps/web run lint
+```
 
-## 🧪 Running Automated Tests
+Install Playwright's Chromium browser once, from `apps/web`:
 
-### Backend Automation
-- Unit Tests (xUnit):
-  <pre>dotnet test apps/api/tests/Api.UnitTests</pre>
-- BDD Component Tests (Reqnroll):
-  <pre>dotnet test apps/api/tests/Api.ComponentTests</pre>
+```powershell
+cd apps/web
+npx playwright install chromium
+```
 
-### Frontend Automation
-- E2E Browser Tests (Playwright):
-  <pre>cd apps/web && pnpm test:e2e</pre>
+## Requirements and Tracking
 
-### Performance & Load Testing
-- JMeter Load Execution:
-  <pre>jmeter -n -t tests/performance/api-load-test.jmx -l tests/performance/results.jtl</pre>
-
----
-
-## 📄 Product Requirements & Specifications
-
-All product requirements, user stories, and acceptance criteria are managed using a Docs-as-Code approach and version-controlled under `/docs/prd/`. Feature implementation progress is tracked via GitHub Issues and GitHub Projects.
+Authentication requirements and acceptance criteria are in [PRD 01: Authentication & Login](docs/prd/01-authentication-and-login.md). The PRD links to its GitHub epic and story issues. Use the acceptance-criterion IDs to keep tests and implementation traceable to those requirements.

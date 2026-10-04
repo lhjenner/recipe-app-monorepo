@@ -3,11 +3,16 @@
 :root {
     --font-family-heading: 'Fredoka', sans-serif;
     --font-family-body: 'Plus Jakarta Sans', sans-serif;
+    --font-size-2xs: 10px;
     --font-size-xs: 12px;
     --font-size-sm: 14px;
     --font-size-md: 16px;
     --font-size-lg: 18px;
     --font-size-xl: 20px;
+    --font-size-2xl: 26px;
+    --font-size-3xl: 32px;
+    --font-size-display: 58px;
+    --font-size-display-compact: 38px;
 
     --font-weight-light: 300;
     --font-weight-regular: 400;
@@ -16,6 +21,11 @@
 
     --line-height-body: 1.5;
     --line-height-heading: 1.2;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -29,4 +39,9 @@ h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-family-heading);
     font-weight: var(--font-weight-bold);
     line-height: var(--line-height-heading);
+}
+
+button,
+input {
+  font: inherit;
 }
