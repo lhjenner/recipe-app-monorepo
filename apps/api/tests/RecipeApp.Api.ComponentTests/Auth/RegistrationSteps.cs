@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
+using BCrypt.Net;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
-using NSubstitute;
 using Reqnroll;
 using RecipeApp.Api.Auth;
 
@@ -14,18 +14,13 @@ public sealed class RegistrationSteps(RegistrationApiContext context)
     public void GivenTheEmailIsAvailableForRegistration(string email)
     {
         context.Email = email;
-        context.UserRepository
-            .ExistsByEmailAsync(email, Arg.Any<CancellationToken>())
-            .Returns(false);
     }
 
     [Given("the email {string} is already registered")]
-    public void GivenTheEmailIsAlreadyRegistered(string email)
+    public async Task GivenTheEmailIsAlreadyRegistered(string email)
     {
         context.Email = email;
-        context.UserRepository
-            .ExistsByEmailAsync(email, Arg.Any<CancellationToken>())
-            .Returns(true);
+        await context.SeedExistingAccountAsync(email);
     }
 
     [When("I submit registration with password {string}")]
@@ -34,6 +29,15 @@ public sealed class RegistrationSteps(RegistrationApiContext context)
         context.Response = await context.Client.PostAsJsonAsync(
             "/api/auth/register",
             new RegisterRequest(context.Email, password));
+    }
+
+    [When("I submit registration with email {string} and password {string}")]
+    public async Task WhenISubmitRegistrationWithEmailAndPassword(string email, string password)
+    {
+        context.Email = email;
+        context.Response = await context.Client.PostAsJsonAsync(
+            "/api/auth/register",
+            new RegisterRequest(email, password));
     }
 
     [Then("the response status is {int}")]
@@ -52,6 +56,16 @@ public sealed class RegistrationSteps(RegistrationApiContext context)
         user.Id.Should().NotBeEmpty();
     }
 
+    [Then("the stored password is a BCrypt hash for {string}")]
+    public async Task ThenTheStoredPasswordIsABCryptHashFor(string password)
+    {
+        var user = await context.FindUserAsync(context.Email);
+
+        user.Should().NotBeNull();
+        user!.PasswordHash.Should().NotBe(password);
+        BCrypt.Net.BCrypt.Verify(password, user.PasswordHash).Should().BeTrue();
+    }
+
     [Then("the response is an RFC 7807 problem details response")]
     public async Task ThenTheResponseIsAProblemDetailsResponse()
     {
@@ -63,6 +77,19 @@ public sealed class RegistrationSteps(RegistrationApiContext context)
         problem.Should().NotBeNull();
         problem!.Status.Should().Be(409);
         problem.Title.Should().Be("Email already registered");
+    }
+
+    [Then("the response contains validation errors for {string} and {string}")]
+    public async Task ThenTheResponseContainsValidationErrors(string firstField, string secondField)
+    {
+        Response.Content.Headers.ContentType?.MediaType
+            .Should().Be("application/problem+json");
+
+        var problem = await Response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+
+        problem.Should().NotBeNull();
+        problem!.Errors.Should().ContainKey(firstField);
+        problem.Errors.Should().ContainKey(secondField);
     }
 
     private HttpResponseMessage Response => context.Response
