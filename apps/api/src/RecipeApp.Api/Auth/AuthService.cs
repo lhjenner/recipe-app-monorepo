@@ -5,7 +5,8 @@ public class AuthService(IUserRepository users, IPasswordHasher hasher)
 {
     public async Task<UserDto> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
-        if (await users.ExistsByEmailAsync(request.Email, cancellationToken))
+        var email = request.Email.Trim().ToLowerInvariant();
+        if (await users.ExistsByEmailAsync(email, cancellationToken))
         {
             throw new DuplicateEmailException();
         }
@@ -13,7 +14,7 @@ public class AuthService(IUserRepository users, IPasswordHasher hasher)
         User user = new()
         {
             Id = Guid.NewGuid(),
-            Email = request.Email,
+            Email = email,
             PasswordHash = hasher.Hash(request.Password),
             CreatedAtUtc = DateTime.UtcNow
         };

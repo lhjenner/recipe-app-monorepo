@@ -1,6 +1,6 @@
 namespace RecipeApp.Api.Auth;
 
-// The database entity — this maps to a table row via EF Core (later).
+// The database entity mapped to the Users table by AuthDbContext.
 // A class (not a record) because it has identity and will be mutated
 // (e.g. FailedLoginAttempts increments, LockedUntilUtc gets set).
 // Guid is the "strong type" for Id per the PRD (not a primitive string).

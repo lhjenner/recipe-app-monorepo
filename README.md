@@ -5,9 +5,10 @@ A learning project for a full-stack recipe and meal-planning application. The re
 ## Current Status
 
 - The login page implements client-side form validation for AC-01 to AC-03. Login is not connected to an API yet.
-- The API has a registration endpoint and service logic for duplicate checking, but its tests inject substitute repository and password-hasher implementations. Production persistence, password hashing, and account registration are not wired up yet.
-- API component tests use Reqnroll/Gherkin on the xUnit runner and call the API through `WebApplicationFactory`. The current registration scenarios use NSubstitute for repository and password-hasher dependencies.
-- EF Core migrations, production persistence and hashing, and Dockerized PostgreSQL test infrastructure are still planned.
+- The API registration endpoint persists users through EF Core/PostgreSQL and hashes passwords with BCrypt. Login is not connected to an API yet.
+- API component tests use Reqnroll/Gherkin on the xUnit runner. Each registration scenario starts an isolated PostgreSQL container with Testcontainers and calls the API through `WebApplicationFactory`.
+- The registration scenarios cover successful persistence and BCrypt hashing, duplicate-email `409` Problem Details, and malformed input validation.
+- Running the API against a persistent local database requires a PostgreSQL connection string supplied through .NET User Secrets or an environment variable. Component tests provide their own container connection string.
 
 ## Repository Structure
 
@@ -30,8 +31,31 @@ tests/performance/                      Reserved for performance tests
 - .NET 10 SDK
 - Node.js and npm
 - Chromium for Playwright browser tests
+- Docker Desktop (required for PostgreSQL-backed API component tests)
 
-Docker will be needed when the planned PostgreSQL-backed development and test environments are added.
+The component test suite starts and removes its own PostgreSQL containers; no manually running test database is needed.
+
+To run the API against a persistent local PostgreSQL instance, initialize User Secrets and set its connection string:
+
+```powershell
+dotnet user-secrets init --project apps/api/src/RecipeApp.Api
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=recipe_app;Username=postgres;Password=<local-password>" --project apps/api/src/RecipeApp.Api
+```
+
+The API project includes an EF Core migration. Restore the repository-local EF CLI tool with `dotnet tool restore` before running migration commands.
+
+After configuring a local PostgreSQL connection string, restore the tool and apply migrations with:
+
+```powershell
+dotnet tool restore
+dotnet ef database update --project apps/api/src/RecipeApp.Api --startup-project apps/api/src/RecipeApp.Api
+```
+
+Create future schema migrations with:
+
+```powershell
+dotnet ef migrations add AddFeatureName --project apps/api/src/RecipeApp.Api --startup-project apps/api/src/RecipeApp.Api
+```
 
 ## Run Locally
 

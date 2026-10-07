@@ -1,48 +1,80 @@
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using NSubstitute;
 using RecipeApp.Api.Auth;
+using RecipeApp.Api.Infrastructure.Persistence;
+using Testcontainers.PostgreSql;
 
 namespace RecipeApp.Api.ComponentTests.Auth;
 
-public sealed class RegistrationApiContext : IDisposable
+public sealed class RegistrationApiContext : IAsyncDisposable
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:17-alpine")
+        .WithDatabase("recipeapp_test")
+        .WithUsername("postgres")
+        .WithPassword("postgres")
+        .Build();
 
-    public RegistrationApiContext()
-    {
-        UserRepository = Substitute.For<IUserRepository>();
-        PasswordHasher = Substitute.For<IPasswordHasher>();
-        PasswordHasher.Hash(Arg.Any<string>()).Returns("hashed-password");
+    private WebApplicationFactory<Program>? _factory;
 
-        _factory = new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureTestServices(services =>
-                {
-                    services.AddSingleton(UserRepository);
-                    services.AddSingleton(PasswordHasher);
-                });
-            });
-
-        Client = _factory.CreateClient();
-    }
-
-    public IUserRepository UserRepository { get; }
-
-    public IPasswordHasher PasswordHasher { get; }
-
-    public HttpClient Client { get; }
+    public HttpClient Client { get; private set; } = null!;
 
     public string Email { get; set; } = string.Empty;
 
     public HttpResponseMessage? Response { get; set; }
 
-    public void Dispose()
+    public async Task StartAsync()
+    {
+        await _database.StartAsync();
+
+        _factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+                builder.UseSetting("ConnectionStrings:DefaultConnection", _database.GetConnectionString()));
+
+        Client = _factory.CreateClient();
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        await database.Database.MigrateAsync();
+    }
+
+    public async Task SeedExistingAccountAsync(string email)
+    {
+        await using var scope = _factory!.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
+        await users.AddAsync(new User
+        {
+            Id = Guid.NewGuid(),
+            Email = normalizedEmail,
+            PasswordHash = hasher.Hash("existing-password"),
+            CreatedAtUtc = DateTime.UtcNow
+        }, CancellationToken.None);
+    }
+
+    public async Task<User?> FindUserAsync(string email)
+    {
+        await using var scope = _factory!.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
+        return await database.Users
+            .AsNoTracking()
+            .SingleOrDefaultAsync(user => user.Email == normalizedEmail);
+    }
+
+    public async ValueTask DisposeAsync()
     {
         Response?.Dispose();
-        Client.Dispose();
-        _factory.Dispose();
+        Client?.Dispose();
+
+        if (_factory is not null)
+        {
+            await _factory.DisposeAsync();
+        }
+
+        await _database.DisposeAsync();
     }
 }
