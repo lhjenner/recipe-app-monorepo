@@ -8,12 +8,14 @@ A learning project for a full-stack recipe and meal-planning application. The re
 - The API registration endpoint persists users through EF Core/PostgreSQL and hashes passwords with BCrypt. Login is not connected to an API yet.
 - API component tests use Reqnroll/Gherkin on the xUnit runner. Each registration scenario starts an isolated PostgreSQL container with Testcontainers and calls the API through `WebApplicationFactory`.
 - The registration scenarios cover successful persistence and BCrypt hashing, duplicate-email `409` Problem Details, and malformed input validation.
-- Running the API against a persistent local database requires a PostgreSQL connection string supplied through .NET User Secrets or an environment variable. Component tests provide their own container connection string.
+- Running the API locally uses a persistent PostgreSQL container managed by Docker Compose. Component tests use separate disposable Testcontainers databases.
 
 ## Repository Structure
 
 ```text
 RecipeApp.slnx
+.env.example
+compose.yaml
 apps/
   api/
     src/RecipeApp.Api/                  ASP.NET Core API (.NET 10)
@@ -31,25 +33,41 @@ tests/performance/                      Reserved for performance tests
 - .NET 10 SDK
 - Node.js and npm
 - Chromium for Playwright browser tests
-- Docker Desktop (required for PostgreSQL-backed API component tests)
+- Docker Desktop (required for local PostgreSQL and API component tests)
 
-The component test suite starts and removes its own PostgreSQL containers; no manually running test database is needed.
+The API's local database and the component-test databases are separate. Reqnroll scenarios start and remove their own PostgreSQL containers; they do not touch the persistent local database.
 
-To run the API against a persistent local PostgreSQL instance, initialize User Secrets and set its connection string:
+Create a local environment file from the template, then replace the sample password with a local-only value:
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+If port 5432 is already in use, change `POSTGRES_PORT` in `.env` to a free local port and use that port in the User Secrets connection string.
+
+Start PostgreSQL. Compose publishes it only on localhost and stores data in a named volume:
+
+```powershell
+docker compose up -d postgres
+docker compose ps
+```
+
+Initialize .NET User Secrets once, then store the connection string using the same values as `.env`:
 
 ```powershell
 dotnet user-secrets init --project apps/api/src/RecipeApp.Api
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=recipe_app;Username=postgres;Password=<local-password>" --project apps/api/src/RecipeApp.Api
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=recipe_app;Username=recipe_app;Password=replace-this-with-a-local-password" --project apps/api/src/RecipeApp.Api
 ```
 
-The API project includes an EF Core migration. Restore the repository-local EF CLI tool with `dotnet tool restore` before running migration commands.
-
-After configuring a local PostgreSQL connection string, restore the tool and apply migrations with:
+Replace the example password in the command with the one in `.env`. Then restore the local EF CLI tool, apply the migration, and run the API:
 
 ```powershell
 dotnet tool restore
 dotnet ef database update --project apps/api/src/RecipeApp.Api --startup-project apps/api/src/RecipeApp.Api
+dotnet run --project apps/api/src/RecipeApp.Api
 ```
+
+Stop the database with `docker compose down`; the named volume keeps its data for next time. Don’t remove the volume unless you intend to erase the local database.
 
 Create future schema migrations with:
 
