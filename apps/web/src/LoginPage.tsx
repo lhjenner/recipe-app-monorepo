@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { z } from 'zod';
 import './styles/login.css';
 
@@ -40,10 +41,10 @@ function LoginPage() {
   return (
     <div className="login-shell">
       <header className="login-header">
-        <a className="brand" href="/" aria-label="Recipe App home">
+        <Link className="brand" to="/" aria-label="Recipe App home">
           <span className="brand-mark" aria-hidden="true">R</span>
           <span>Recipe App</span>
-        </a>
+        </Link>
         <span className="header-note">A LITTLE MORE ROOM AT THE TABLE</span>
       </header>
 
@@ -103,8 +104,8 @@ function LoginPage() {
             </form>
 
             <nav className="account-links" aria-label="Account help">
-              <a href="/register">Create account</a>
-              <a href="/forgot-password">Forgot password</a>
+              <Link to="/register">Create account</Link>
+              <Link to="/forgot-password">Forgot password</Link>
             </nav>
           </section>
         </div>

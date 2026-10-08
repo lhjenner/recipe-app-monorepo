@@ -157,6 +157,14 @@
   padding: 56px clamp(32px, 5vw, 64px);
 }
 
+.registration-panel {
+  width: min(100%, 520px);
+  margin-inline: auto;
+  background: var(--color-surface);
+  box-shadow: 0 20px 55px var(--color-card-shadow);
+  animation: reveal-login 420ms ease-out both;
+}
+
 .panel-heading {
   margin-bottom: 32px;
 }
@@ -254,6 +262,10 @@
 
 .account-links a:hover {
   color: var(--color-link-hover);
+}
+
+.registration-links {
+  justify-content: flex-start;
 }
 
 .login-footer {
