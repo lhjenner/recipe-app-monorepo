@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
+import { registerAccount, RegistrationApiError, type RegistrationFieldErrors } from './services/authApi';
 import './styles/login.css';
 
 const registrationSchema = z.object({
@@ -8,21 +9,20 @@ const registrationSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
-type RegistrationField = keyof z.infer<typeof registrationSchema>;
-type RegistrationErrors = Partial<Record<RegistrationField, string>>;
-
 function RegistrationPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<RegistrationErrors>({});
+  const [errors, setErrors] = useState<RegistrationFieldErrors>({});
   const [notice, setNotice] = useState('');
+  const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const result = registrationSchema.safeParse({ email, password });
     if (!result.success) {
-      const nextErrors: RegistrationErrors = {};
+      const nextErrors: RegistrationFieldErrors = {};
       for (const issue of result.error.issues) {
         const field = issue.path[0];
         if ((field === 'email' || field === 'password') && !nextErrors[field]) {
@@ -31,11 +31,32 @@ function RegistrationPage() {
       }
       setErrors(nextErrors);
       setNotice('');
+      setFormError('');
       return;
     }
 
     setErrors({});
-    setNotice('Registration is not connected yet.');
+    setNotice('');
+    setFormError('');
+    setIsSubmitting(true);
+
+    try {
+      await registerAccount(result.data.email, result.data.password);
+      setPassword('');
+      setNotice('Account created. You can now log in.');
+    } catch (error) {
+      if (error instanceof RegistrationApiError) {
+        if (error.fieldErrors) {
+          setErrors(error.fieldErrors);
+        } else {
+          setFormError(error.message);
+        }
+      } else {
+        setFormError('Registration failed. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -56,7 +77,7 @@ function RegistrationPage() {
             <p className="panel-copy">Create an account to start building your kitchen notebook.</p>
           </div>
 
-          <form className="login-form" noValidate onSubmit={handleSubmit}>
+          <form className="login-form" noValidate onSubmit={handleSubmit} aria-busy={isSubmitting}>
             <div className="form-field">
               <label htmlFor="registration-email">Email</label>
               <input
@@ -67,7 +88,11 @@ function RegistrationPage() {
                 value={email}
                 aria-invalid={Boolean(errors.email)}
                 aria-describedby={errors.email ? 'registration-email-error' : undefined}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setErrors((current) => ({ ...current, email: undefined }));
+                  setFormError('');
+                }}
               />
               {errors.email && (
                 <p className="field-error" id="registration-email-error">{errors.email}</p>
@@ -84,14 +109,21 @@ function RegistrationPage() {
                 value={password}
                 aria-invalid={Boolean(errors.password)}
                 aria-describedby={errors.password ? 'registration-password-error' : undefined}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setErrors((current) => ({ ...current, password: undefined }));
+                  setFormError('');
+                }}
               />
               {errors.password && (
                 <p className="field-error" id="registration-password-error">{errors.password}</p>
               )}
             </div>
 
-            <button className="btn btn-primary login-submit" type="submit">Create account</button>
+            <button className="btn btn-primary login-submit" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating account…' : 'Create account'}
+            </button>
+            {formError && <p className="form-error" role="alert">{formError}</p>}
             <p className="form-notice" role="status">{notice}</p>
           </form>
 

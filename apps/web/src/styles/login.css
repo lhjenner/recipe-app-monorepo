@@ -225,6 +225,11 @@
   font-size: var(--font-size-sm);
 }
 
+.form-error {
+  color: var(--color-danger-hover);
+  font-size: var(--font-size-sm);
+}
+
 .login-submit {
   width: 100%;
   min-height: 48px;
