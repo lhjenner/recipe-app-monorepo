@@ -9,6 +9,12 @@ public sealed class UserRepository(AuthDbContext database) : IUserRepository
     public Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken) =>
         database.Users.AnyAsync(user => user.Email == email, cancellationToken);
 
+    public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken) =>
+        database.Users.SingleOrDefaultAsync(user => user.Email == email, cancellationToken);
+
+    public Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        database.Users.SingleOrDefaultAsync(user => user.Id == id, cancellationToken);
+
     public async Task AddAsync(User user, CancellationToken cancellationToken)
     {
         database.Users.Add(user);

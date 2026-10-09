@@ -4,10 +4,10 @@ A learning project for a full-stack recipe and meal-planning application. The re
 
 ## Current Status
 
-- The login page implements client-side form validation for AC-01 to AC-03. Login is not connected to an API yet.
-- The API registration endpoint persists users through EF Core/PostgreSQL and hashes passwords with BCrypt. Login is not connected to an API yet.
-- API component tests use Reqnroll/Gherkin on the xUnit runner. Each registration scenario starts an isolated PostgreSQL container with Testcontainers and calls the API through `WebApplicationFactory`.
-- The registration scenarios cover successful persistence and BCrypt hashing, duplicate-email `409` Problem Details, and malformed input validation.
+- The registration page validates input and submits to the API. The login page has client-side validation, but its submit flow is not connected to the login API yet.
+- The API registration endpoint persists users through EF Core/PostgreSQL and hashes passwords with BCrypt. Login verifies credentials, stores its authentication ticket server-side, and issues an HttpOnly, Secure, SameSite cookie with a 14-day sliding expiration. `GET /api/auth/me` returns the current user; logout revokes the server-side ticket.
+- API component tests use Reqnroll/Gherkin on the xUnit runner. Each auth scenario starts an isolated PostgreSQL container with Testcontainers and calls the API through `WebApplicationFactory`.
+- The scenarios cover registration persistence and BCrypt hashing, duplicate-email `409` Problem Details, validation, login, cookie security, `/me`, and logout revocation.
 - Running the API locally uses a persistent PostgreSQL container managed by Docker Compose. Component tests use separate disposable Testcontainers databases.
 
 ## Repository Structure
