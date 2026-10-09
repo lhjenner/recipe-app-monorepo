@@ -31,6 +31,7 @@ Feature: Account Login
         And the session cookie is cleared
         When I retry the original session cookie
         Then the request is unauthorized
+        
     Scenario Outline: Reject malformed login requests with validation problem details
         When I submit a login request with email "<email>" and password "<password>"
         Then the response status is 400
