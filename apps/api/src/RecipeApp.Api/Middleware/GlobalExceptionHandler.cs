@@ -12,6 +12,7 @@ public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService
         var (status, title) = exception switch
         {
             DuplicateEmailException => (StatusCodes.Status409Conflict, "Email already registered"),
+            InvalidCredentialsException => (StatusCodes.Status401Unauthorized, "Invalid email or password"),
             _ => (0, string.Empty)
         };
 

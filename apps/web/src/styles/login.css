@@ -157,6 +157,14 @@
   padding: 56px clamp(32px, 5vw, 64px);
 }
 
+.registration-panel {
+  width: min(100%, 520px);
+  margin-inline: auto;
+  background: var(--color-surface);
+  box-shadow: 0 20px 55px var(--color-card-shadow);
+  animation: reveal-login 420ms ease-out both;
+}
+
 .panel-heading {
   margin-bottom: 32px;
 }
@@ -217,6 +225,11 @@
   font-size: var(--font-size-sm);
 }
 
+.form-error {
+  color: var(--color-danger-hover);
+  font-size: var(--font-size-sm);
+}
+
 .login-submit {
   width: 100%;
   min-height: 48px;
@@ -227,6 +240,36 @@
 
 .login-submit:hover {
   color: var(--color-on-brand);
+}
+
+.login-submit-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-width: 150px;
+}
+
+.login-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin-login 700ms linear infinite;
+}
+
+.auth-loading {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  color: var(--color-text-muted);
+}
+
+@keyframes spin-login {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .form-notice {
@@ -254,6 +297,10 @@
 
 .account-links a:hover {
   color: var(--color-link-hover);
+}
+
+.registration-links {
+  justify-content: flex-start;
 }
 
 .login-footer {

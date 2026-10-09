@@ -1,6 +1,6 @@
 namespace RecipeApp.Api.Auth;
 
-// Application service for account registration.
+// Application service for account registration and login.
 public class AuthService(IUserRepository users, IPasswordHasher hasher)
 {
     public async Task<UserDto> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
@@ -20,5 +20,24 @@ public class AuthService(IUserRepository users, IPasswordHasher hasher)
         };
         await users.AddAsync(user, cancellationToken);
         return new UserDto(user.Id, user.Email, user.CreatedAtUtc);
+    }
+
+    public async Task<UserDto> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await users.GetByEmailAsync(email, cancellationToken);
+
+        if (user is null || !hasher.Verify(request.Password, user.PasswordHash))
+        {
+            throw new InvalidCredentialsException();
+        }
+
+        return new UserDto(user.Id, user.Email, user.CreatedAtUtc);
+    }
+
+    public async Task<UserDto?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var user = await users.GetByIdAsync(id, cancellationToken);
+        return user is null ? null : new UserDto(user.Id, user.Email, user.CreatedAtUtc);
     }
 }

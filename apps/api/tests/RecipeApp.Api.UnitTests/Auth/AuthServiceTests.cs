@@ -37,4 +37,78 @@ public class AuthServiceTests
             Arg.Is<User>(u => u.PasswordHash == "hashed-password"),
             Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task LoginAsync_WithValidCredentials_ReturnsUserDto()
+    {
+        // ARRANGE
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "existing@example.com",
+            PasswordHash = "hashed-password"
+        };
+        _users.GetByEmailAsync("existing@example.com", Arg.Any<CancellationToken>())
+              .Returns(user);
+        _hasher.Verify("password123", "hashed-password").Returns(true);
+
+        var sut = new AuthService(_users, _hasher);
+
+        // ACT
+        var result = await sut.LoginAsync(
+            new LoginRequest("existing@example.com", "password123"),
+            CancellationToken.None);
+
+        // ASSERT
+        result.Email.Should().Be("existing@example.com");
+        result.Id.Should().NotBeEmpty();
+        _hasher.Received(1).Verify("password123", "hashed-password");
+        await _users.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoginAsync_WithUnknownEmail_ThrowsGenericInvalidCredentialsException()
+    {
+        // ARRANGE
+        _users.GetByEmailAsync("unknown@example.com", Arg.Any<CancellationToken>())
+              .Returns((User?)null);
+
+        var sut = new AuthService(_users, _hasher);
+
+        // ACT
+        var act = () => sut.LoginAsync(
+            new LoginRequest("unknown@example.com", "password123"),
+            CancellationToken.None);
+
+        // ASSERT
+        var exception = await Assert.ThrowsAsync<InvalidCredentialsException>(act);
+        exception.Message.Should().Be("Invalid email or password");
+        _hasher.DidNotReceive().Verify(Arg.Any<string>(), Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task LoginAsync_WithWrongPassword_ThrowsGenericInvalidCredentialsException()
+    {
+        // ARRANGE
+        _users.GetByEmailAsync("existing@example.com", Arg.Any<CancellationToken>())
+              .Returns(new User
+              {
+                  Id = Guid.NewGuid(),
+                  Email = "existing@example.com",
+                  PasswordHash = "hashed-password"
+              });
+        _hasher.Verify("wrong-password", "hashed-password").Returns(false);
+
+        var sut = new AuthService(_users, _hasher);
+
+        // ACT
+        var act = () => sut.LoginAsync(
+            new LoginRequest("existing@example.com", "wrong-password"),
+            CancellationToken.None);
+
+        // ASSERT
+        var exception = await Assert.ThrowsAsync<InvalidCredentialsException>(act);
+        exception.Message.Should().Be("Invalid email or password");
+        _hasher.Received(1).Verify("wrong-password", "hashed-password");
+    }
 }

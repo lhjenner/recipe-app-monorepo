@@ -7,7 +7,7 @@ using Testcontainers.PostgreSql;
 
 namespace RecipeApp.Api.ComponentTests.Auth;
 
-public sealed class RegistrationApiContext : IAsyncDisposable
+public sealed class ApiAuthContext : IAsyncDisposable
 {
     private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("recipeapp_test")
@@ -21,6 +21,10 @@ public sealed class RegistrationApiContext : IAsyncDisposable
 
     public string Email { get; set; } = string.Empty;
 
+    public string Password { get; set; } = string.Empty;
+
+    public string OriginalSessionCookie { get; set; } = string.Empty;
+
     public HttpResponseMessage? Response { get; set; }
 
     public async Task StartAsync()
@@ -31,14 +35,17 @@ public sealed class RegistrationApiContext : IAsyncDisposable
             .WithWebHostBuilder(builder =>
                 builder.UseSetting("ConnectionStrings:DefaultConnection", _database.GetConnectionString()));
 
-        Client = _factory.CreateClient();
+        Client = _factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         await database.Database.MigrateAsync();
     }
 
-    public async Task SeedExistingAccountAsync(string email)
+    public async Task SeedExistingAccountAsync(string email, string password)
     {
         await using var scope = _factory!.Services.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
@@ -49,7 +56,7 @@ public sealed class RegistrationApiContext : IAsyncDisposable
         {
             Id = Guid.NewGuid(),
             Email = normalizedEmail,
-            PasswordHash = hasher.Hash("existing-password"),
+            PasswordHash = hasher.Hash(password),
             CreatedAtUtc = DateTime.UtcNow
         }, CancellationToken.None);
     }

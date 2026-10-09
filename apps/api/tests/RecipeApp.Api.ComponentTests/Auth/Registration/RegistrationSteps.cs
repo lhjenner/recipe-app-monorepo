@@ -5,10 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 using Reqnroll;
 using RecipeApp.Api.Auth;
 
-namespace RecipeApp.Api.ComponentTests.Auth;
+namespace RecipeApp.Api.ComponentTests.Auth.Registration;
 
 [Binding]
-public sealed class RegistrationSteps(RegistrationApiContext context)
+public sealed class RegistrationSteps(ApiAuthContext context)
 {
     [Given("the email {string} is available for registration")]
     public void GivenTheEmailIsAvailableForRegistration(string email)
@@ -20,7 +20,7 @@ public sealed class RegistrationSteps(RegistrationApiContext context)
     public async Task GivenTheEmailIsAlreadyRegistered(string email)
     {
         context.Email = email;
-        await context.SeedExistingAccountAsync(email);
+        await context.SeedExistingAccountAsync(email, "existing-account-password");
     }
 
     [When("I submit registration with password {string}")]

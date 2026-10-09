@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { z } from 'zod';
+import { AuthApiError, loginAccount, type UserDto } from './services/authApi';
 import './styles/login.css';
 
 const loginSchema = z.object({
@@ -10,13 +12,19 @@ const loginSchema = z.object({
 type LoginField = keyof z.infer<typeof loginSchema>;
 type LoginErrors = Partial<Record<LoginField, string>>;
 
-function LoginPage() {
+interface LoginPageProps {
+  onLoginSuccess: (user: UserDto) => void;
+  sessionNotice: string;
+}
+
+function LoginPage({ onLoginSuccess, sessionNotice }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<LoginErrors>({});
-  const [notice, setNotice] = useState('');
+  const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const result = loginSchema.safeParse({ email, password });
@@ -29,21 +37,40 @@ function LoginPage() {
         }
       }
       setErrors(nextErrors);
-      setNotice('');
+      setFormError('');
       return;
     }
 
     setErrors({});
-    setNotice('Sign-in is not connected yet.');
+    setFormError('');
+    setIsSubmitting(true);
+
+    try {
+      const user = await loginAccount(result.data.email, result.data.password);
+      setPassword('');
+      onLoginSuccess(user);
+    } catch (error) {
+      if (error instanceof AuthApiError) {
+        if (error.fieldErrors) {
+          setErrors(error.fieldErrors);
+        } else {
+          setFormError(error.message);
+        }
+      } else {
+        setFormError('Unable to log in. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
     <div className="login-shell">
       <header className="login-header">
-        <a className="brand" href="/" aria-label="Recipe App home">
+        <Link className="brand" to="/" aria-label="Recipe App home">
           <span className="brand-mark" aria-hidden="true">R</span>
           <span>Recipe App</span>
-        </a>
+        </Link>
         <span className="header-note">A LITTLE MORE ROOM AT THE TABLE</span>
       </header>
 
@@ -67,7 +94,7 @@ function LoginPage() {
               <p className="panel-copy">Enter your email and password to continue.</p>
             </div>
 
-            <form className="login-form" noValidate onSubmit={handleSubmit}>
+            <form className="login-form" noValidate onSubmit={handleSubmit} aria-busy={isSubmitting}>
               <div className="form-field">
                 <label htmlFor="email">Email</label>
                 <input
@@ -78,7 +105,11 @@ function LoginPage() {
                   value={email}
                   aria-invalid={Boolean(errors.email)}
                   aria-describedby={errors.email ? 'email-error' : undefined}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    setErrors((current) => ({ ...current, email: undefined }));
+                    setFormError('');
+                  }}
                 />
                 {errors.email && <p className="field-error" id="email-error">{errors.email}</p>}
               </div>
@@ -93,18 +124,27 @@ function LoginPage() {
                   value={password}
                   aria-invalid={Boolean(errors.password)}
                   aria-describedby={errors.password ? 'password-error' : undefined}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setErrors((current) => ({ ...current, password: undefined }));
+                    setFormError('');
+                  }}
                 />
                 {errors.password && <p className="field-error" id="password-error">{errors.password}</p>}
               </div>
 
-              <button className="btn btn-primary login-submit" type="submit">Log in</button>
-              <p className="form-notice" role="status">{notice}</p>
+              <button className="btn btn-primary login-submit" type="submit" disabled={isSubmitting}>
+                {isSubmitting
+                  ? <span className="login-submit-content"><span className="login-spinner" aria-hidden="true" />Logging in…</span>
+                  : 'Log in'}
+              </button>
+              {formError && <p className="form-error" role="alert">{formError}</p>}
+              <p className="form-notice" role="status">{sessionNotice}</p>
             </form>
 
             <nav className="account-links" aria-label="Account help">
-              <a href="/register">Create account</a>
-              <a href="/forgot-password">Forgot password</a>
+              <Link to="/register">Create account</Link>
+              <Link to="/forgot-password">Forgot password</Link>
             </nav>
           </section>
         </div>
