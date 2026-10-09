@@ -5,7 +5,7 @@ using RecipeApp.Api.Auth;
 
 namespace RecipeApp.Api.Infrastructure.Persistence;
 
-public sealed class PostgresTicketStore(IDbContextFactory<AuthDbContext> databaseFactory) : ITicketStore
+public sealed class PostgresTicketStore(IDbContextFactory<AuthDbContext> databaseFactory, TimeProvider timeProvider) : ITicketStore
 {
     public async Task<string> StoreAsync(AuthenticationTicket ticket)
     {
@@ -46,7 +46,7 @@ public sealed class PostgresTicketStore(IDbContextFactory<AuthDbContext> databas
             return null;
         }
 
-        if (session.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+        if (session.ExpiresAtUtc <= timeProvider.GetUtcNow())
         {
             await database.AuthSessions.Where(item => item.Id == key).ExecuteDeleteAsync();
             return null;
@@ -61,8 +61,8 @@ public sealed class PostgresTicketStore(IDbContextFactory<AuthDbContext> databas
         await database.AuthSessions.Where(item => item.Id == key).ExecuteDeleteAsync();
     }
 
-    private static DateTimeOffset GetExpiration(AuthenticationTicket ticket) =>
+    private DateTimeOffset GetExpiration(AuthenticationTicket ticket) =>
         ticket.Properties.ExpiresUtc
         ?? ticket.Properties.IssuedUtc?.Add(TimeSpan.FromDays(14))
-        ?? DateTimeOffset.UtcNow.Add(TimeSpan.FromDays(14));
+        ?? timeProvider.GetUtcNow().Add(TimeSpan.FromDays(14));
 }

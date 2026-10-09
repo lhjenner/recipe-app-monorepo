@@ -31,3 +31,19 @@ Feature: Account Login
         And the session cookie is cleared
         When I retry the original session cookie
         Then the request is unauthorized
+        
+    Scenario Outline: Reject malformed login requests with validation problem details
+        When I submit a login request with email "<email>" and password "<password>"
+        Then the response status is 400
+        And the response contains a validation error for "<field>"
+
+        Examples:
+            | email             | password    | field    |
+            | not-an-email      | password123 | Email    |
+            |                   | password123 | Email    |
+            | user@example.com  |             | Password |
+
+    Scenario: Reject a login request with no body fields
+        When I submit a login request with an empty JSON body
+        Then the response status is 400
+        And the response contains validation errors for "Email" and "Password"
