@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
-import { registerAccount, RegistrationApiError, type RegistrationFieldErrors } from './services/authApi';
+import { AuthApiError, registerAccount, type AuthFieldErrors } from './services/authApi';
 import './styles/login.css';
 
 const registrationSchema = z.object({
@@ -12,7 +12,7 @@ const registrationSchema = z.object({
 function RegistrationPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<RegistrationFieldErrors>({});
+  const [errors, setErrors] = useState<AuthFieldErrors>({});
   const [notice, setNotice] = useState('');
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,7 +22,7 @@ function RegistrationPage() {
 
     const result = registrationSchema.safeParse({ email, password });
     if (!result.success) {
-      const nextErrors: RegistrationFieldErrors = {};
+      const nextErrors: AuthFieldErrors = {};
       for (const issue of result.error.issues) {
         const field = issue.path[0];
         if ((field === 'email' || field === 'password') && !nextErrors[field]) {
@@ -45,7 +45,7 @@ function RegistrationPage() {
       setPassword('');
       setNotice('Account created. You can now log in.');
     } catch (error) {
-      if (error instanceof RegistrationApiError) {
+      if (error instanceof AuthApiError) {
         if (error.fieldErrors) {
           setErrors(error.fieldErrors);
         } else {

@@ -242,6 +242,36 @@
   color: var(--color-on-brand);
 }
 
+.login-submit-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-width: 150px;
+}
+
+.login-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin-login 700ms linear infinite;
+}
+
+.auth-loading {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  color: var(--color-text-muted);
+}
+
+@keyframes spin-login {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .form-notice {
   min-height: 1.5em;
   margin-top: -14px;

@@ -14,33 +14,33 @@ const problemDetailsSchema = z.object({
 });
 
 export type UserDto = z.infer<typeof userDtoSchema>;
-export type RegistrationField = 'email' | 'password';
-export type RegistrationFieldErrors = Partial<Record<RegistrationField, string>>;
+export type AuthField = 'email' | 'password';
+export type AuthFieldErrors = Partial<Record<AuthField, string>>;
 
-export class RegistrationApiError extends Error {
+export class AuthApiError extends Error {
   readonly status: number;
-  readonly fieldErrors?: RegistrationFieldErrors;
+  readonly fieldErrors?: AuthFieldErrors;
 
   constructor(
     message: string,
     status: number,
-    fieldErrors?: RegistrationFieldErrors,
+    fieldErrors?: AuthFieldErrors,
   ) {
     super(message);
-    this.name = 'RegistrationApiError';
+    this.name = 'AuthApiError';
     this.status = status;
     this.fieldErrors = fieldErrors;
   }
 }
 
-function getFieldErrors(errors: Record<string, string[]> | undefined): RegistrationFieldErrors | undefined {
+function getFieldErrors(errors: Record<string, string[]> | undefined): AuthFieldErrors | undefined {
   if (!errors) {
     return undefined;
   }
 
   const emailError = errors.Email?.[0] ?? errors.email?.[0];
   const passwordError = errors.Password?.[0] ?? errors.password?.[0];
-  const fieldErrors: RegistrationFieldErrors = {};
+  const fieldErrors: AuthFieldErrors = {};
 
   if (emailError) {
     fieldErrors.email = emailError;
@@ -52,40 +52,83 @@ function getFieldErrors(errors: Record<string, string[]> | undefined): Registrat
   return Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined;
 }
 
-export async function registerAccount(email: string, password: string): Promise<UserDto> {
+async function sendJson(path: string, method: 'GET' | 'POST', body?: object): Promise<Response> {
   let response: Response;
 
   try {
-    response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+    response = await fetch(path, {
+      method,
+      credentials: 'same-origin',
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          }),
     });
   } catch {
-    throw new RegistrationApiError(
-      'The registration service is unavailable. Please try again.',
-      0,
-    );
+    throw new AuthApiError('The authentication service is unavailable. Please try again.', 0);
   }
 
-  if (!response.ok) {
-    const problemResult = problemDetailsSchema.safeParse(await response.json().catch(() => null));
-    if (!problemResult.success) {
-      throw new RegistrationApiError('Registration failed. Please try again.', response.status);
-    }
+  return response;
+}
 
-    const problem = problemResult.data;
-    throw new RegistrationApiError(
-      problem.title ?? problem.detail ?? 'Registration failed. Please try again.',
-      problem.status ?? response.status,
-      getFieldErrors(problem.errors),
-    );
+async function readApiError(response: Response, fallback: string): Promise<AuthApiError> {
+  const problemResult = problemDetailsSchema.safeParse(await response.json().catch(() => null));
+  if (!problemResult.success) {
+    return new AuthApiError(fallback, response.status);
   }
 
+  const problem = problemResult.data;
+  return new AuthApiError(
+    problem.title ?? problem.detail ?? fallback,
+    problem.status ?? response.status,
+    getFieldErrors(problem.errors),
+  );
+}
+
+async function readUser(response: Response): Promise<UserDto> {
   const userResult = userDtoSchema.safeParse(await response.json().catch(() => null));
   if (!userResult.success) {
-    throw new RegistrationApiError('The server returned an invalid registration response.', response.status);
+    throw new AuthApiError('The server returned an invalid user response.', response.status);
   }
 
   return userResult.data;
+}
+
+export async function registerAccount(email: string, password: string): Promise<UserDto> {
+  const response = await sendJson('/api/auth/register', 'POST', { email, password });
+  if (!response.ok) {
+    throw await readApiError(response, 'Registration failed. Please try again.');
+  }
+
+  return readUser(response);
+}
+
+export async function loginAccount(email: string, password: string): Promise<UserDto> {
+  const response = await sendJson('/api/auth/login', 'POST', { email, password });
+  if (!response.ok) {
+    throw await readApiError(response, 'Invalid email or password');
+  }
+
+  return readUser(response);
+}
+
+export async function getCurrentUser(): Promise<UserDto | null> {
+  const response = await sendJson('/api/auth/me', 'GET');
+  if (response.status === 401) {
+    return null;
+  }
+  if (!response.ok) {
+    throw await readApiError(response, 'Unable to check the current session.');
+  }
+
+  return readUser(response);
+}
+
+export async function logout(): Promise<void> {
+  const response = await sendJson('/api/auth/logout', 'POST');
+  if (!response.ok) {
+    throw await readApiError(response, 'Unable to log out. Please try again.');
+  }
 }
