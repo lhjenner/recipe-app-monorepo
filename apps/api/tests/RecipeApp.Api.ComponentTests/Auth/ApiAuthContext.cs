@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using RecipeApp.Api.Auth;
@@ -17,6 +18,8 @@ public sealed class ApiAuthContext : IAsyncDisposable
 
     private WebApplicationFactory<Program>? _factory;
 
+    public TestTimeProvider Time { get; } = new();
+
     public HttpClient Client { get; private set; } = null!;
 
     public string Email { get; set; } = string.Empty;
@@ -33,7 +36,11 @@ public sealed class ApiAuthContext : IAsyncDisposable
 
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
-                builder.UseSetting("ConnectionStrings:DefaultConnection", _database.GetConnectionString()));
+            {
+                builder.UseSetting("ConnectionStrings:DefaultConnection", _database.GetConnectionString());
+                builder.ConfigureTestServices(services =>
+                    services.AddSingleton<TimeProvider>(Time));
+            });
 
         Client = _factory.CreateClient(new WebApplicationFactoryClientOptions
         {
