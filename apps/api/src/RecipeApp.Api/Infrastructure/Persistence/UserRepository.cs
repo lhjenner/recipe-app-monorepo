@@ -29,6 +29,13 @@ public sealed class UserRepository(AuthDbContext database) : IUserRepository
         }
     }
 
+    public Task UpdateAsync(User user, CancellationToken cancellationToken)
+    {
+        // Entities from the Get* methods are tracked; attaching is a no-op for them.
+        database.Users.Update(user);
+        return database.SaveChangesAsync(cancellationToken);
+    }
+
     private static bool IsDuplicateEmail(DbUpdateException exception) =>
         exception.InnerException is PostgresException
         {
