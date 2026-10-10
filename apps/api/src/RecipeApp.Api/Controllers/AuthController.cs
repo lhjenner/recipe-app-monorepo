@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RecipeApp.Api.Auth.PasswordReset;
 
 namespace RecipeApp.Api.Auth;
 
@@ -38,6 +39,22 @@ public class AuthController(AuthService authService) : ControllerBase
             new AuthenticationProperties { IsPersistent = true, AllowRefresh = true });
 
         return Ok(user);
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(
+        ForgotPasswordRequest request, PasswordResetService passwordReset, CancellationToken cancellationToken)
+    {
+        await passwordReset.RequestAsync(request.Email, cancellationToken);
+        return Ok();
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(
+        ResetPasswordRequest request, PasswordResetService passwordReset, CancellationToken cancellationToken)
+    {
+        await passwordReset.ResetAsync(request.Token, request.NewPassword, cancellationToken);
+        return NoContent();
     }
 
     [HttpPost("logout")]

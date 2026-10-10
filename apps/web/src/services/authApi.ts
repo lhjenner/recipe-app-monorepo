@@ -16,7 +16,7 @@ const problemDetailsSchema = z.object({
 const serviceUnavailableMessage = 'The authentication service is unavailable. Please try again.';
 
 export type UserDto = z.infer<typeof userDtoSchema>;
-export type AuthField = 'email' | 'password';
+export type AuthField = 'email' | 'password' | 'newPassword';
 export type AuthFieldErrors = Partial<Record<AuthField, string>>;
 
 export class AuthApiError extends Error {
@@ -42,8 +42,12 @@ function getFieldErrors(errors: Record<string, string[]> | undefined): AuthField
 
   const emailError = errors.Email?.[0] ?? errors.email?.[0];
   const passwordError = errors.Password?.[0] ?? errors.password?.[0];
+  const newPasswordError = errors.NewPassword?.[0] ?? errors.newPassword?.[0];
   const fieldErrors: AuthFieldErrors = {};
 
+  if (newPasswordError) {
+    fieldErrors.newPassword = newPasswordError;
+  }
   if (emailError) {
     fieldErrors.email = emailError;
   }
@@ -136,5 +140,19 @@ export async function logout(): Promise<void> {
   const response = await sendJson('/api/auth/logout', 'POST');
   if (!response.ok) {
     throw await readApiError(response, 'Unable to log out. Please try again.');
+  }
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  const response = await sendJson('/api/auth/forgot-password', 'POST', { email });
+  if (!response.ok) {
+    throw await readApiError(response, 'Unable to send the reset link. Please try again.');
+  }
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  const response = await sendJson('/api/auth/reset-password', 'POST', { token, newPassword });
+  if (!response.ok) {
+    throw await readApiError(response, 'This reset link is invalid or has expired.');
   }
 }
