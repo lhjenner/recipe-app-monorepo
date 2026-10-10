@@ -21,7 +21,7 @@ public class AuthServiceTests
         // "When asked to hash this password, return this pretend hash."
         _hasher.Hash("password123").Returns("hashed-password");
 
-        var sut = new AuthService(_users, _hasher); // sut = "system under test"
+        var sut = new AuthService(_users, _hasher, TimeProvider.System); // sut = "system under test"
 
         // ACT
         var result = await sut.RegisterAsync(
@@ -52,7 +52,7 @@ public class AuthServiceTests
               .Returns(user);
         _hasher.Verify("password123", "hashed-password").Returns(true);
 
-        var sut = new AuthService(_users, _hasher);
+        var sut = new AuthService(_users, _hasher, TimeProvider.System);
 
         // ACT
         var result = await sut.LoginAsync(
@@ -73,7 +73,7 @@ public class AuthServiceTests
         _users.GetByEmailAsync("unknown@example.com", Arg.Any<CancellationToken>())
               .Returns((User?)null);
 
-        var sut = new AuthService(_users, _hasher);
+        var sut = new AuthService(_users, _hasher, TimeProvider.System);
 
         // ACT
         var act = () => sut.LoginAsync(
@@ -99,7 +99,7 @@ public class AuthServiceTests
               });
         _hasher.Verify("wrong-password", "hashed-password").Returns(false);
 
-        var sut = new AuthService(_users, _hasher);
+        var sut = new AuthService(_users, _hasher, TimeProvider.System);
 
         // ACT
         var act = () => sut.LoginAsync(

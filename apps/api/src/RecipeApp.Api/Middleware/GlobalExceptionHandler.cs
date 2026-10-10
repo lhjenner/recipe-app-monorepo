@@ -4,7 +4,7 @@ using RecipeApp.Api.Auth;
 
 namespace RecipeApp.Api.Middleware;
 
-public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService) : IExceptionHandler
+public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService, TimeProvider timeProvider) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
@@ -13,6 +13,7 @@ public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService
         {
             DuplicateEmailException => (StatusCodes.Status409Conflict, "Email already registered"),
             InvalidCredentialsException => (StatusCodes.Status401Unauthorized, "Invalid email or password"),
+            AccountLockedException => (StatusCodes.Status423Locked, "Account temporarily locked"),
             _ => (0, string.Empty)
         };
 
@@ -23,6 +24,12 @@ public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService
         }
 
         httpContext.Response.StatusCode = status;
+        if (exception is AccountLockedException locked)
+        {
+            var retryAfter = Math.Max(1, (int)Math.Ceiling((locked.LockedUntilUtc - timeProvider.GetUtcNow().UtcDateTime).TotalSeconds));
+            httpContext.Response.Headers.RetryAfter = retryAfter.ToString();
+        }
+
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
