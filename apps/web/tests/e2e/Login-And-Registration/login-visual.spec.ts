@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mockAuthApi } from './support/mockAuthApi.ts';
+import { mockAuthApi } from '../support/mockAuthApi.ts';
 
 const viewports = [
   { name: 'desktop', size: { width: 1280, height: 800 } },

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { loginRejectsCredentials, mockAuthApi, testUser, validCredentials, type AuthApiMock } from './support/mockAuthApi.ts';
+import { loginRejectsCredentials, mockAuthApi, testUser, validCredentials, type AuthApiMock } from '../support/mockAuthApi.ts';
 
 async function submitLogin(page: import('@playwright/test').Page, email: string, password: string) {
   await page.getByLabel('Email').fill(email);
