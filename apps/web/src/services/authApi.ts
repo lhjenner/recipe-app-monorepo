@@ -13,6 +13,8 @@ const problemDetailsSchema = z.object({
   errors: z.record(z.string(), z.array(z.string())).optional(),
 });
 
+const serviceUnavailableMessage = 'The authentication service is unavailable. Please try again.';
+
 export type UserDto = z.infer<typeof userDtoSchema>;
 export type AuthField = 'email' | 'password';
 export type AuthFieldErrors = Partial<Record<AuthField, string>>;
@@ -67,13 +69,17 @@ async function sendJson(path: string, method: 'GET' | 'POST', body?: object): Pr
           }),
     });
   } catch {
-    throw new AuthApiError('The authentication service is unavailable. Please try again.', 0);
+    throw new AuthApiError(serviceUnavailableMessage, 0);
   }
 
   return response;
 }
 
 async function readApiError(response: Response, fallback: string): Promise<AuthApiError> {
+  if (response.status >= 500) {
+    return new AuthApiError(serviceUnavailableMessage, response.status);
+  }
+
   const problemResult = problemDetailsSchema.safeParse(await response.json().catch(() => null));
   if (!problemResult.success) {
     return new AuthApiError(fallback, response.status);
