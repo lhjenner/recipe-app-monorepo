@@ -23,7 +23,6 @@ jobs:
       failed: ${{ steps.report.outputs.failed }}
       skipped: ${{ steps.report.outputs.skipped }}
       time: ${{ steps.report.outputs.time }}
-      url: ${{ steps.report.outputs.url_html }}
     steps:
       - uses: actions/checkout@v4
 
@@ -91,7 +90,6 @@ jobs:
       failed: ${{ steps.report.outputs.failed }}
       skipped: ${{ steps.report.outputs.skipped }}
       time: ${{ steps.report.outputs.time }}
-      url: ${{ steps.report.outputs.url_html }}
     defaults:
       run:
         working-directory: apps/web
@@ -143,6 +141,9 @@ jobs:
     steps:
       - name: Build summary
         env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           WEB_RESULT: ${{ needs.web.result }}
           BE_RESULT: ${{ needs.backend.result }}
@@ -150,22 +151,28 @@ jobs:
           BE_FAILED: ${{ needs.backend.outputs.failed }}
           BE_SKIPPED: ${{ needs.backend.outputs.skipped }}
           BE_TIME: ${{ needs.backend.outputs.time }}
-          BE_URL: ${{ needs.backend.outputs.url }}
           E2E_RESULT: ${{ needs.e2e.result }}
           E2E_PASSED: ${{ needs.e2e.outputs.passed }}
           E2E_FAILED: ${{ needs.e2e.outputs.failed }}
           E2E_SKIPPED: ${{ needs.e2e.outputs.skipped }}
           E2E_TIME: ${{ needs.e2e.outputs.time }}
-          E2E_URL: ${{ needs.e2e.outputs.url }}
         run: |
           icon() { case "$1" in success) echo "✅";; skipped|cancelled) echo "⚪";; *) echo "❌";; esac; }
+          # The reporter's time output is in milliseconds.
+          secs() { [ -n "$1" ] && awk -v ms="$1" 'BEGIN { printf "%.0f", ms / 1000 }' || echo "–"; }
+          check_url() {
+            gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" \
+              --jq "[.check_runs[] | select(.name == \"$1\")] | first | .html_url // empty"
+          }
+          BE_URL=$(check_url "Backend test results")
+          E2E_URL=$(check_url "Playwright test results")
           {
             echo "## CI test summary"
             echo
             echo "| Suite | Result | Passed | Failed | Skipped | Time (s) | Details |"
             echo "|---|---|---:|---:|---:|---:|---|"
-            echo "| Backend (xUnit + Reqnroll) | $(icon "$BE_RESULT") | ${BE_PASSED:-–} | ${BE_FAILED:-–} | ${BE_SKIPPED:-–} | ${BE_TIME:-–} | [Per-suite results](${BE_URL:-$RUN_URL}) |"
-            echo "| Browser (Playwright) | $(icon "$E2E_RESULT") | ${E2E_PASSED:-–} | ${E2E_FAILED:-–} | ${E2E_SKIPPED:-–} | ${E2E_TIME:-–} | [Per-suite results](${E2E_URL:-$RUN_URL}) |"
+            echo "| Backend (xUnit + Reqnroll) | $(icon "$BE_RESULT") | ${BE_PASSED:-–} | ${BE_FAILED:-–} | ${BE_SKIPPED:-–} | $(secs "$BE_TIME") | [Per-suite results](${BE_URL:-$RUN_URL}) |"
+            echo "| Browser (Playwright) | $(icon "$E2E_RESULT") | ${E2E_PASSED:-–} | ${E2E_FAILED:-–} | ${E2E_SKIPPED:-–} | $(secs "$E2E_TIME") | [Per-suite results](${E2E_URL:-$RUN_URL}) |"
             echo "| Web (lint, type-check, build) | $(icon "$WEB_RESULT") | | | | | [Run log]($RUN_URL) |"
             echo
             echo "Raw \`.trx\` files (\`backend-trx\`) and the Playwright HTML report (\`playwright-report\`) are under **Artifacts** on the [workflow run]($RUN_URL#artifacts)."
