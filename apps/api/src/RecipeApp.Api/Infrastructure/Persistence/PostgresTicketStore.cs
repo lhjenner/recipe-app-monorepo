@@ -46,7 +46,7 @@ public sealed class PostgresTicketStore(IDbContextFactory<AuthDbContext> databas
             return null;
         }
 
-        if (session.ExpiresAtUtc <= timeProvider.GetUtcNow())
+        if (SessionPolicy.IsExpired(session.ExpiresAtUtc, timeProvider.GetUtcNow()))
         {
             await database.AuthSessions.Where(item => item.Id == key).ExecuteDeleteAsync();
             return null;
@@ -62,7 +62,5 @@ public sealed class PostgresTicketStore(IDbContextFactory<AuthDbContext> databas
     }
 
     private DateTimeOffset GetExpiration(AuthenticationTicket ticket) =>
-        ticket.Properties.ExpiresUtc
-        ?? ticket.Properties.IssuedUtc?.Add(TimeSpan.FromDays(14))
-        ?? timeProvider.GetUtcNow().Add(TimeSpan.FromDays(14));
+        SessionPolicy.GetExpiration(ticket, timeProvider.GetUtcNow());
 }

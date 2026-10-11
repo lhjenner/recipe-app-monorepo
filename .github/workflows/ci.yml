@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (xUnit + Reqnroll)
+    runs-on: ubuntu-latest
+    outputs:
+      conclusion: ${{ steps.report.outputs.conclusion }}
+      passed: ${{ steps.report.outputs.passed }}
+      failed: ${{ steps.report.outputs.failed }}
+      skipped: ${{ steps.report.outputs.skipped }}
+      time: ${{ steps.report.outputs.time }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Component tests start PostgreSQL through Testcontainers; Docker is preinstalled on ubuntu-latest.
+      - name: Unit tests
+        run: >
+          dotnet test apps/api/tests/RecipeApp.Api.UnitTests
+          --logger "trx;LogFileName=unit-tests.trx"
+          --results-directory TestResults
+
+      - name: Component (Reqnroll) tests
+        if: ${{ !cancelled() }}
+        run: >
+          dotnet test apps/api/tests/RecipeApp.Api.ComponentTests
+          --logger "trx;LogFileName=component-tests.trx"
+          --results-directory TestResults
+
+      - name: Upload .trx reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-trx
+          path: "**/TestResults/*.trx"
+          if-no-files-found: warn
+
+      - name: Publish test results
+        id: report
+        if: ${{ !cancelled() }}
+        uses: dorny/test-reporter@v1
+        with:
+          name: Backend test results
+          path: "**/TestResults/*.trx"
+          reporter: dotnet-trx
+          fail-on-error: false
+
+  web:
+    name: Web (lint, type-check, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  e2e:
+    name: Browser (Playwright)
+    runs-on: ubuntu-latest
+    outputs:
+      conclusion: ${{ steps.report.outputs.conclusion }}
+      passed: ${{ steps.report.outputs.passed }}
+      failed: ${{ steps.report.outputs.failed }}
+      skipped: ${{ steps.report.outputs.skipped }}
+      time: ${{ steps.report.outputs.time }}
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # Specs mock /api/auth/*, so no backend is needed. JUnit XML feeds the results summary.
+      - name: Run Playwright tests
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE: results/playwright-junit.xml
+          CI: "true"
+        run: npx playwright test --reporter=list,junit,html
+
+      - name: Upload Playwright report and failure artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/results
+            apps/web/test-results
+          if-no-files-found: warn
+
+      - name: Publish test results
+        id: report
+        if: ${{ !cancelled() }}
+        uses: dorny/test-reporter@v1
+        with:
+          name: Playwright test results
+          path: apps/web/results/playwright-junit.xml
+          reporter: java-junit
+          fail-on-error: false
+
+  pr-comment:
+    name: PR summary comment
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [backend, web, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WEB_RESULT: ${{ needs.web.result }}
+          BE_RESULT: ${{ needs.backend.result }}
+          BE_PASSED: ${{ needs.backend.outputs.passed }}
+          BE_FAILED: ${{ needs.backend.outputs.failed }}
+          BE_SKIPPED: ${{ needs.backend.outputs.skipped }}
+          BE_TIME: ${{ needs.backend.outputs.time }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          E2E_PASSED: ${{ needs.e2e.outputs.passed }}
+          E2E_FAILED: ${{ needs.e2e.outputs.failed }}
+          E2E_SKIPPED: ${{ needs.e2e.outputs.skipped }}
+          E2E_TIME: ${{ needs.e2e.outputs.time }}
+        run: |
+          icon() { case "$1" in success) echo "✅";; skipped|cancelled) echo "⚪";; *) echo "❌";; esac; }
+          # The reporter's time output is in milliseconds.
+          secs() { [ -n "$1" ] && awk -v ms="$1" 'BEGIN { printf "%.0f", ms / 1000 }' || echo "–"; }
+          check_url() {
+            gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" \
+              --jq "[.check_runs[] | select(.name == \"$1\")] | first | .html_url // empty"
+          }
+          BE_URL=$(check_url "Backend test results")
+          E2E_URL=$(check_url "Playwright test results")
+          {
+            echo "## CI test summary"
+            echo
+            echo "| Suite | Result | Passed | Failed | Skipped | Time (s) | Details |"
+            echo "|---|---|---:|---:|---:|---:|---|"
+            echo "| Backend (xUnit + Reqnroll) | $(icon "$BE_RESULT") | ${BE_PASSED:-–} | ${BE_FAILED:-–} | ${BE_SKIPPED:-–} | $(secs "$BE_TIME") | [Per-suite results](${BE_URL:-$RUN_URL}) |"
+            echo "| Browser (Playwright) | $(icon "$E2E_RESULT") | ${E2E_PASSED:-–} | ${E2E_FAILED:-–} | ${E2E_SKIPPED:-–} | $(secs "$E2E_TIME") | [Per-suite results](${E2E_URL:-$RUN_URL}) |"
+            echo "| Web (lint, type-check, build) | $(icon "$WEB_RESULT") | | | | | [Run log]($RUN_URL) |"
+            echo
+            echo "Raw \`.trx\` files (\`backend-trx\`) and the Playwright HTML report (\`playwright-report\`) are under **Artifacts** on the [workflow run]($RUN_URL#artifacts)."
+          } > summary.md
+
+      - uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ci-test-summary
+          path: summary.md

@@ -4,9 +4,10 @@ A learning project for a full-stack recipe and meal-planning application. The re
 
 ## Current Status
 
-- The registration and login pages submit through the typed auth API client. Login checks the current session on startup and routes authenticated users to a temporary landing page with logout.
-- The scenarios cover registration persistence and BCrypt hashing, duplicate-email `409` Problem Details, validation, login, cookie security, `/me`, and logout revocation.
-- Reqnroll scenarios cover registration persistence and BCrypt hashing, duplicate-email `409` Problem Details, validation, login, cookie security, `/me`, and logout revocation. Playwright currently covers registration submission/errors and login-page rendering/client validation; browser tests for login submission and session routing remain to be added.
+- The registration, login, forgot-password and reset-password pages submit through the typed auth API client. The app checks the current session on startup and routes authenticated users to a temporary landing page with logout.
+- The API implements registration, login (secure session cookie, 14-day sliding expiry), `/me`, logout, account lockout (5 failures locks the account for 15 minutes, `423` Problem Details) and password reset (hashed, single-use, one-hour tokens delivered through an `IEmailSender`).
+- xUnit unit tests and Reqnroll component scenarios (against a Testcontainers PostgreSQL database) cover these behaviours. Playwright specs cover the login journey, session handling, accessibility, visual layout, registration and password reset against a mocked auth API.
+- GitHub Actions runs all of the above on every pull request (see [Continuous Integration](#continuous-integration)).
 
 ## Repository Structure
 
@@ -14,6 +15,7 @@ A learning project for a full-stack recipe and meal-planning application. The re
 RecipeApp.slnx
 .env.example
 compose.yaml
+.github/workflows/                      CI workflow
 apps/
   api/
     src/RecipeApp.Api/                  ASP.NET Core API (.NET 10)
@@ -102,6 +104,16 @@ Install Playwright's Chromium browser once, from `apps/web`:
 cd apps/web
 npx playwright install chromium
 ```
+
+## Continuous Integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request:
+
+- **Backend:** xUnit unit tests and Reqnroll component tests, with `.trx` reports.
+- **Web:** `npm ci`, lint, and build (which includes the TypeScript type-check).
+- **Browser:** Playwright tests, with a JUnit report and HTML report.
+
+Each pull request gets a summary comment with the totals and links. The raw `.trx` files (`backend-trx`) and the Playwright report (`playwright-report`) are artifacts on the workflow run. Visual snapshots are platform-specific: commit both the `-win32` (local) and `-linux` (CI) baselines when the login layout changes.
 
 ## Requirements and Tracking
 
