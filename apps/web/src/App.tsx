@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout, type UserDto } from './services/authApi';
 import LoginPage from './LoginPage';
+import ForgotPasswordPage from './ForgotPasswordPage';
+import ResetPasswordPage from './ResetPasswordPage';
 import RegistrationPage from './RegistrationPage';
 import TemporaryLandingPage from './TemporaryLandingPage';
 
@@ -70,6 +72,8 @@ function ApplicationRoutes() {
             : <LoginPage onLoginSuccess={handleLoginSuccess} sessionNotice={sessionNotice} />}
       />
       <Route path="/register" element={<RegistrationPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
         path="/home"
         element={!sessionChecked

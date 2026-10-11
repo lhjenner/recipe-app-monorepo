@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using RecipeApp.Api.Auth;
+using RecipeApp.Api.Auth.PasswordReset;
 
 namespace RecipeApp.Api.Middleware;
 
@@ -14,6 +15,7 @@ public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService
             DuplicateEmailException => (StatusCodes.Status409Conflict, "Email already registered"),
             InvalidCredentialsException => (StatusCodes.Status401Unauthorized, "Invalid email or password"),
             AccountLockedException => (StatusCodes.Status423Locked, "Account temporarily locked"),
+            InvalidResetTokenException => (StatusCodes.Status400BadRequest, "Invalid or expired reset token"),
             _ => (0, string.Empty)
         };
 

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RecipeApp.Api.Auth;
+using RecipeApp.Api.Auth.PasswordReset;
 
 namespace RecipeApp.Api.Infrastructure.Persistence;
 
@@ -7,6 +8,7 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : DbC
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<AuthSession> AuthSessions => Set<AuthSession>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,5 +30,15 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : DbC
         session.Property(entity => entity.TicketData).IsRequired();
         session.Property(entity => entity.ExpiresAtUtc).IsRequired();
         session.HasIndex(entity => entity.ExpiresAtUtc);
+
+        var resetToken = modelBuilder.Entity<PasswordResetToken>();
+        resetToken.ToTable("PasswordResetTokens");
+        resetToken.HasKey(entity => entity.Id);
+        resetToken.Property(entity => entity.TokenHash).IsRequired().HasMaxLength(64);
+        resetToken.Property(entity => entity.CreatedAtUtc).IsRequired();
+        resetToken.Property(entity => entity.ExpiresAtUtc).IsRequired();
+        resetToken.HasIndex(entity => entity.TokenHash).IsUnique();
+        resetToken.HasIndex(entity => entity.UserId);
+        resetToken.HasOne<User>().WithMany().HasForeignKey(entity => entity.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }

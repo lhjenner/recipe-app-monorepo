@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using RecipeApp.Api.Auth;
+using RecipeApp.Api.Auth.PasswordReset;
 using RecipeApp.Api.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -19,6 +20,10 @@ public sealed class ApiAuthContext : IAsyncDisposable
     private WebApplicationFactory<Program>? _factory;
 
     public TestTimeProvider Time { get; } = new();
+
+    public IServiceProvider Services => _factory!.Services;
+
+    public CapturingEmailSender Emails { get; } = new();
 
     public HttpClient Client { get; private set; } = null!;
 
@@ -39,7 +44,10 @@ public sealed class ApiAuthContext : IAsyncDisposable
             {
                 builder.UseSetting("ConnectionStrings:DefaultConnection", _database.GetConnectionString());
                 builder.ConfigureTestServices(services =>
-                    services.AddSingleton<TimeProvider>(Time));
+                {
+                    services.AddSingleton<TimeProvider>(Time);
+                    services.AddSingleton<IEmailSender>(Emails);
+                });
             });
 
         Client = _factory.CreateClient(new WebApplicationFactoryClientOptions
