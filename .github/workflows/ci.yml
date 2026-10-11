@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (xUnit + Reqnroll)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Component tests start PostgreSQL through Testcontainers; Docker is preinstalled on ubuntu-latest.
+      - name: Unit tests
+        run: >
+          dotnet test apps/api/tests/RecipeApp.Api.UnitTests
+          --logger "trx;LogFileName=unit-tests.trx"
+          --results-directory TestResults
+
+      - name: Component (Reqnroll) tests
+        if: ${{ !cancelled() }}
+        run: >
+          dotnet test apps/api/tests/RecipeApp.Api.ComponentTests
+          --logger "trx;LogFileName=component-tests.trx"
+          --results-directory TestResults
+
+      - name: Upload .trx reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-trx
+          path: "**/TestResults/*.trx"
+          if-no-files-found: warn
+
+      - name: Publish test results
+        if: ${{ !cancelled() }}
+        uses: dorny/test-reporter@v1
+        with:
+          name: Backend test results
+          path: "**/TestResults/*.trx"
+          reporter: dotnet-trx
+          fail-on-error: false
+
+  web:
+    name: Web (lint, type-check, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  e2e:
+    name: Browser (Playwright)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # Specs mock /api/auth/*, so no backend is needed. JUnit XML feeds the results summary.
+      - name: Run Playwright tests
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE: results/playwright-junit.xml
+          CI: "true"
+        run: npx playwright test --reporter=list,junit,html
+
+      - name: Upload Playwright report and failure artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/results
+            apps/web/test-results
+          if-no-files-found: warn
+
+      - name: Publish test results
+        if: ${{ !cancelled() }}
+        uses: dorny/test-reporter@v1
+        with:
+          name: Playwright test results
+          path: apps/web/results/playwright-junit.xml
+          reporter: java-junit
+          fail-on-error: false
