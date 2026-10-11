@@ -5,7 +5,28 @@
 - Epic: [#2 — Authentication & Login](https://github.com/lhjenner/recipe-app-monorepo/issues/2)
 - Stories: #3 (account creation), #4 (login), #5 (invalid-credentials error), #6 (password reset), #7 (persistent session), #8 (logout)
 - Tasks: #9 (account lockout)
-- Pull Requests: _TBD — link as opened_
+- Pull Requests: #10 (registration endpoint groundwork and login page), #11 (Reqnroll component tests), #12 (PostgreSQL), #13 (local Docker), #14 (registration page), #15 (login/session coverage), #16 (browser login journey), #17 (account lockout), #18 (password reset), #19 (CI workflow)
+
+## Status
+
+All acceptance criteria are implemented and verified by automated tests that run in CI on every pull request. Layers shown are those that currently verify each criterion; the PRD's declared Test Type is in the tables below.
+
+| ID | Status | Verified by |
+|---|---|---|
+| AC-01–03 | Done | Playwright (`login.spec.ts`) |
+| AC-04 | Done | Reqnroll (`Login.feature`), Playwright (`login-journey.spec.ts`) |
+| AC-05 | Done | xUnit (`AuthServiceTests`), Reqnroll, Playwright |
+| AC-06 | Done | xUnit (`LoginRequestValidationTests`), Reqnroll (`Login.feature`) |
+| AC-07–09 | Done | Playwright (`login-journey`, `login-visual`, `login-accessibility`) |
+| AC-10 | Done | Reqnroll (`Login.feature`) |
+| AC-11 | Done | xUnit (`SessionPolicyTests`), Reqnroll (`Session.feature`) |
+| AC-12–13 | Done | Reqnroll (`Session.feature`), Playwright (`session.spec.ts`) |
+| AC-14 | Done | Reqnroll, Playwright (`session.spec.ts`) |
+| AC-15–17 | Done | xUnit (`AuthServiceTests`), Reqnroll (registration) |
+| AC-18–21 | Done | xUnit (`PasswordResetServiceTests`), Reqnroll (`PasswordReset.feature`), Playwright (`password-reset.spec.ts`) |
+| AC-22–24 | Done | xUnit (`AccountLockoutTests`), Reqnroll (`Lockout.feature`) |
+
+**Known limitations (follow-ups):** existing sessions are not revoked when a password is reset (sessions are not yet tied to a user); a small response-time difference between known and unknown emails on forgot-password remains; per-IP rate limiting is still out of scope.
 
 ## Overview & Problem Statement
 
