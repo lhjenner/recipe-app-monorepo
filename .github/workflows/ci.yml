@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   checks: write
+  pull-requests: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -16,6 +17,13 @@ jobs:
   backend:
     name: Backend (xUnit + Reqnroll)
     runs-on: ubuntu-latest
+    outputs:
+      conclusion: ${{ steps.report.outputs.conclusion }}
+      passed: ${{ steps.report.outputs.passed }}
+      failed: ${{ steps.report.outputs.failed }}
+      skipped: ${{ steps.report.outputs.skipped }}
+      time: ${{ steps.report.outputs.time }}
+      url: ${{ steps.report.outputs.url_html }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +54,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish test results
+        id: report
         if: ${{ !cancelled() }}
         uses: dorny/test-reporter@v1
         with:
@@ -76,6 +85,13 @@ jobs:
   e2e:
     name: Browser (Playwright)
     runs-on: ubuntu-latest
+    outputs:
+      conclusion: ${{ steps.report.outputs.conclusion }}
+      passed: ${{ steps.report.outputs.passed }}
+      failed: ${{ steps.report.outputs.failed }}
+      skipped: ${{ steps.report.outputs.skipped }}
+      time: ${{ steps.report.outputs.time }}
+      url: ${{ steps.report.outputs.url_html }}
     defaults:
       run:
         working-directory: apps/web
@@ -110,6 +126,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish test results
+        id: report
         if: ${{ !cancelled() }}
         uses: dorny/test-reporter@v1
         with:
@@ -117,3 +134,44 @@ jobs:
           path: apps/web/results/playwright-junit.xml
           reporter: java-junit
           fail-on-error: false
+
+  pr-comment:
+    name: PR summary comment
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [backend, web, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build summary
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WEB_RESULT: ${{ needs.web.result }}
+          BE_RESULT: ${{ needs.backend.result }}
+          BE_PASSED: ${{ needs.backend.outputs.passed }}
+          BE_FAILED: ${{ needs.backend.outputs.failed }}
+          BE_SKIPPED: ${{ needs.backend.outputs.skipped }}
+          BE_TIME: ${{ needs.backend.outputs.time }}
+          BE_URL: ${{ needs.backend.outputs.url }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          E2E_PASSED: ${{ needs.e2e.outputs.passed }}
+          E2E_FAILED: ${{ needs.e2e.outputs.failed }}
+          E2E_SKIPPED: ${{ needs.e2e.outputs.skipped }}
+          E2E_TIME: ${{ needs.e2e.outputs.time }}
+          E2E_URL: ${{ needs.e2e.outputs.url }}
+        run: |
+          icon() { case "$1" in success) echo "✅";; skipped|cancelled) echo "⚪";; *) echo "❌";; esac; }
+          {
+            echo "## CI test summary"
+            echo
+            echo "| Suite | Result | Passed | Failed | Skipped | Time (s) | Details |"
+            echo "|---|---|---:|---:|---:|---:|---|"
+            echo "| Backend (xUnit + Reqnroll) | $(icon "$BE_RESULT") | ${BE_PASSED:-–} | ${BE_FAILED:-–} | ${BE_SKIPPED:-–} | ${BE_TIME:-–} | [Per-suite results](${BE_URL:-$RUN_URL}) |"
+            echo "| Browser (Playwright) | $(icon "$E2E_RESULT") | ${E2E_PASSED:-–} | ${E2E_FAILED:-–} | ${E2E_SKIPPED:-–} | ${E2E_TIME:-–} | [Per-suite results](${E2E_URL:-$RUN_URL}) |"
+            echo "| Web (lint, type-check, build) | $(icon "$WEB_RESULT") | | | | | [Run log]($RUN_URL) |"
+            echo
+            echo "Raw \`.trx\` files (\`backend-trx\`) and the Playwright HTML report (\`playwright-report\`) are under **Artifacts** on the [workflow run]($RUN_URL#artifacts)."
+          } > summary.md
+
+      - uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ci-test-summary
+          path: summary.md
