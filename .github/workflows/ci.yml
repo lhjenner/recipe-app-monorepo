@@ -63,7 +63,7 @@ jobs:
           fail-on-error: false
 
   web:
-    name: Web (lint, type-check, build)
+    name: Web (unit tests, lint, type-check, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -78,6 +78,7 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
 
       - run: npm ci
+      - run: npm run test
       - run: npm run lint
       - run: npm run build
 
