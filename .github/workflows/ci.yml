@@ -65,6 +65,12 @@ jobs:
   web:
     name: Web (lint, type-check, build)
     runs-on: ubuntu-latest
+    outputs:
+      unit_conclusion: ${{ steps.unit-report.outputs.conclusion }}
+      unit_passed: ${{ steps.unit-report.outputs.passed }}
+      unit_failed: ${{ steps.unit-report.outputs.failed }}
+      unit_skipped: ${{ steps.unit-report.outputs.skipped }}
+      unit_time: ${{ steps.unit-report.outputs.time }}
     defaults:
       run:
         working-directory: apps/web
@@ -78,7 +84,31 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
 
       - run: npm ci
-      - run: npm run test
+      - name: Run Vitest tests
+        run: >
+          npm run test --
+          --reporter=default
+          --reporter=junit
+          --outputFile.junit=results/vitest-junit.xml
+
+      - name: Upload Vitest report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-junit
+          path: apps/web/results/vitest-junit.xml
+          if-no-files-found: warn
+
+      - name: Publish Vitest results
+        id: unit-report
+        if: ${{ !cancelled() }}
+        uses: dorny/test-reporter@v1
+        with:
+          name: Frontend unit test results
+          path: apps/web/results/vitest-junit.xml
+          reporter: java-junit
+          fail-on-error: false
+
       - run: npm run lint
       - run: npm run build
 
@@ -147,6 +177,11 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           WEB_RESULT: ${{ needs.web.result }}
+          UNIT_RESULT: ${{ needs.web.outputs.unit_conclusion }}
+          UNIT_PASSED: ${{ needs.web.outputs.unit_passed }}
+          UNIT_FAILED: ${{ needs.web.outputs.unit_failed }}
+          UNIT_SKIPPED: ${{ needs.web.outputs.unit_skipped }}
+          UNIT_TIME: ${{ needs.web.outputs.unit_time }}
           BE_RESULT: ${{ needs.backend.result }}
           BE_PASSED: ${{ needs.backend.outputs.passed }}
           BE_FAILED: ${{ needs.backend.outputs.failed }}
@@ -166,6 +201,7 @@ jobs:
               --jq "[.check_runs[] | select(.name == \"$1\")] | first | .html_url // empty"
           }
           BE_URL=$(check_url "Backend test results")
+          UNIT_URL=$(check_url "Frontend unit test results")
           E2E_URL=$(check_url "Playwright test results")
           {
             echo "## CI test summary"
@@ -173,10 +209,11 @@ jobs:
             echo "| Suite | Result | Passed | Failed | Skipped | Time (s) | Details |"
             echo "|---|---|---:|---:|---:|---:|---|"
             echo "| Backend (xUnit + Reqnroll) | $(icon "$BE_RESULT") | ${BE_PASSED:-–} | ${BE_FAILED:-–} | ${BE_SKIPPED:-–} | $(secs "$BE_TIME") | [Per-suite results](${BE_URL:-$RUN_URL}) |"
+            echo "| Frontend unit (Vitest) | $(icon "$UNIT_RESULT") | ${UNIT_PASSED:-–} | ${UNIT_FAILED:-–} | ${UNIT_SKIPPED:-–} | $(secs "$UNIT_TIME") | [Per-suite results](${UNIT_URL:-$RUN_URL}) |"
             echo "| Browser (Playwright) | $(icon "$E2E_RESULT") | ${E2E_PASSED:-–} | ${E2E_FAILED:-–} | ${E2E_SKIPPED:-–} | $(secs "$E2E_TIME") | [Per-suite results](${E2E_URL:-$RUN_URL}) |"
             echo "| Web (lint, type-check, build) | $(icon "$WEB_RESULT") | | | | | [Run log]($RUN_URL) |"
             echo
-            echo "Raw \`.trx\` files (\`backend-trx\`) and the Playwright HTML report (\`playwright-report\`) are under **Artifacts** on the [workflow run]($RUN_URL#artifacts)."
+            echo "Raw \`.trx\` files (\`backend-trx\`), the Vitest JUnit report (\`vitest-junit\`), and the Playwright HTML report (\`playwright-report\`) are under **Artifacts** on the [workflow run]($RUN_URL#artifacts)."
           } > summary.md
 
       - uses: marocchino/sticky-pull-request-comment@v2
