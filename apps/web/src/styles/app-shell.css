@@ -1,0 +1,100 @@
+.app-shell {
+  min-height: 100svh;
+  background-color: var(--color-background);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 25px,
+    var(--color-pattern-line) 25px,
+    var(--color-pattern-line) 26px
+  );
+}
+
+.app-header {
+  position: relative;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.app-navigation {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-navigation-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-navigation-link {
+  display: inline-block;
+  padding: 6px 0;
+  color: var(--color-on-brand);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.app-navigation-link:hover {
+  color: var(--color-focus);
+}
+
+.app-logout {
+  flex: none;
+  color: var(--color-on-brand);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.app-logout-error {
+  position: absolute;
+  right: clamp(20px, 5vw, 72px);
+  bottom: -24px;
+  z-index: 1;
+  margin: 0;
+  color: var(--color-danger-hover);
+  font-size: var(--font-size-sm);
+}
+
+.app-main {
+  width: min(100%, 1080px);
+  margin: auto;
+  padding: 64px 32px;
+}
+
+.app-page {
+  width: min(100%, 760px);
+  margin-inline: auto;
+  padding: clamp(32px, 5vw, 64px);
+  background: var(--color-surface);
+  box-shadow: 0 20px 55px var(--color-card-shadow);
+}
+
+.app-page h1 {
+  margin: 0 0 12px;
+  color: var(--color-text);
+  font-size: var(--font-size-3xl);
+}
+
+.app-page p {
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 701px) and (max-width: 950px) {
+  .app-navigation {
+    flex-basis: 100%;
+    order: 3;
+  }
+}
+
+@media (max-width: 700px) {
+  .app-main {
+    width: 100%;
+    padding: 28px 16px;
+  }
+}

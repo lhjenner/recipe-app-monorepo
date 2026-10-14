@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import AppShell from './AppShell';
 import { getCurrentUser, logout, type UserDto } from './services/authApi';
 import LoginPage from './LoginPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
 import ResetPasswordPage from './ResetPasswordPage';
 import RegistrationPage from './RegistrationPage';
 import HomePage from './HomePage';
+import NotFoundPage from './NotFoundPage';
+import { navigationItems } from './navigation';
+import StubPage from './StubPage';
 
 function App() {
   return (
@@ -60,6 +64,12 @@ function ApplicationRoutes() {
   }
 
   const checkingSession = <main className="auth-loading" role="status">Checking your session…</main>;
+  const authenticatedApp = !sessionChecked
+    ? checkingSession
+    : user
+      ? <AppShell onLogout={handleLogout} />
+      : <Navigate to="/" replace />;
+  const [homeItem, ...stubItems] = navigationItems;
 
   return (
     <Routes>
@@ -74,15 +84,13 @@ function ApplicationRoutes() {
       <Route path="/register" element={<RegistrationPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route
-        path="/home"
-        element={!sessionChecked
-          ? checkingSession
-          : user
-            ? <HomePage onLogout={handleLogout} />
-            : <Navigate to="/" replace />}
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route element={authenticatedApp}>
+        <Route path={homeItem.route} element={<HomePage pageTitle={homeItem.pageTitle} />} />
+        {stubItems.map((item) => (
+          <Route key={item.route} path={item.route} element={<StubPage pageTitle={item.pageTitle} />} />
+        ))}
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
     </Routes>
   );
 }
