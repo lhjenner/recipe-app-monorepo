@@ -3,7 +3,8 @@
 ## Traceability
 
 - Epic: [#21 — App shell & navigation](https://github.com/lhjenner/recipe-app-monorepo/issues/21)
-- Stories: _to be created from the user stories below_
+- Stories: #24 (Home page), #25 (menu and stub pages), #26 (sticky header), #27 (active item), #28 (mobile flyout), #29 (logout), #30 (route protection)
+- Tasks: #23 (Vitest setup)
 - Pull Requests: _to be added_
 - Depends on: [PRD 01 — Authentication & Login](./01-authentication-and-login.md)
 
@@ -52,7 +53,7 @@ Each criterion is a Given/When/Then scenario. The **Test Type** column declares 
 | ID | Given | When | Then | Test Type |
 |---|---|---|---|---|
 | AC-06 | The user is on a menu destination | The menu is displayed | That item is styled distinctly (colour from `colors.css`), has `aria-current="page"`, and all other items do not | Unit + E2E |
-| AC-07 | The user is on a page whose route starts with an item's route (e.g. a future `/recipes/123/edit`) | The menu is displayed | The item with the **longest matching route prefix** is active (so `/recipes/new` highlights Add Recipe, not Recipe List) | Unit |
+| AC-07 | The user is on a page whose route starts with an item's route (e.g. a future `/recipes/123` or `/recipes/edit`; recipe editing is expected to be inline, so a dedicated edit route may never exist) | The menu is displayed | The item with the **longest matching route prefix** is active (so `/recipes/new` highlights Add Recipe, not Recipe List) | Unit |
 | AC-08 | The active item is displayed | It is clicked (or activated by keyboard) | Nothing happens: no reload, no navigation, no new history entry; the item remains focusable | E2E |
 | AC-09 | A route that matches no menu item (e.g. the 404 page) | The menu is displayed | No item is active | Unit + E2E |
 
@@ -125,7 +126,7 @@ No backend or data changes. Existing endpoints (`GET /api/auth/me`, `POST /api/a
 | Grocery List | `/grocery-list` | Grocery List |
 | Meal Planner | `/meal-planner` | Meal Planner |
 | Food Diary | `/food-diary` | Food Diary |
-| Ingredient Maintenance | `/ingredients` | Ingredient Maintenance |
+| Ingredient Maintenance | `/ingredient-maintenance` | Ingredient Maintenance |
 | Archived Recipes | `/recipes/archived` | Archived Recipes |
 
 Log out is an action, not a route. The login page remains at `/`.
@@ -184,7 +185,7 @@ Role-based selectors (`getByRole('navigation')`, `getByRole('link')`, `getByRole
 
 ## Test Strategy
 
-- **Unit (Vitest):** nav config ordering, longest-prefix active matching (including `/recipes/new` and `/recipes/archived` vs `/recipes`, and no match), `returnTo` validation, logout-failure handling.
+- **Unit (Vitest):** the web project has no frontend unit tests yet. Vitest, React Testing Library, jest-dom and jsdom are installed but unconfigured, so this PRD includes the setup: Vitest config (in `vite.config.ts`, jsdom environment), a `test` script in `package.json`, a jest-dom setup file, and a unit-test step in the CI workflow. Tests cover: nav config ordering, longest-prefix active matching (including `/recipes/new` and `/recipes/archived` vs `/recipes`, and no match), `returnTo` validation, logout-failure handling.
 - **BDD (Reqnroll):** none — no backend changes.
 - **E2E (Playwright):** every criterion marked E2E, using `getByRole` / `data-testid`, no arbitrary timeouts. Desktop and mobile viewport projects. Header-match check (AC-12) as a visual/computed-style comparison against the login banner.
 - **Existing tests to update:** `login-journey.spec.ts` (replace the "You're signed in" heading assertion with Log out visible); review `session.spec.ts` and `login-accessibility.spec.ts`, which navigate to `/home` and click Log out, for any dependency on the removed page's markup.
