@@ -63,7 +63,7 @@ jobs:
           fail-on-error: false
 
   web:
-    name: Web (unit tests, lint, type-check, build)
+    name: Web (lint, type-check, build)
     runs-on: ubuntu-latest
     defaults:
       run:
