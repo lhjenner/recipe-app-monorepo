@@ -1,0 +1,129 @@
+.app-header-mobile {
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+
+.mobile-menu-button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  place-content: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-on-brand);
+  cursor: pointer;
+}
+
+.mobile-menu-button-line {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: currentColor;
+}
+
+.mobile-page-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-header-actions-placeholder {
+  width: 40px;
+  height: 40px;
+}
+
+.mobile-flyout-overlay {
+  position: fixed;
+  z-index: 2;
+  inset: 0;
+  border: 0;
+  background: rgb(0 0 0 / 35%);
+  cursor: pointer;
+}
+
+body.mobile-flyout-open {
+  overflow: hidden;
+}
+
+.mobile-flyout {
+  position: fixed;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  width: min(85vw, 320px);
+  flex-direction: column;
+  padding: 28px 24px 24px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  box-shadow: 12px 0 32px var(--color-card-shadow);
+  animation: flyout-slide-in 200ms ease-out both;
+}
+
+.flyout-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+  color: var(--color-text);
+  font-weight: var(--font-weight-bold);
+}
+
+.flyout-navigation-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flyout-navigation-link {
+  display: block;
+  padding: 10px 8px;
+  border-radius: 4px;
+  color: var(--color-link);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.flyout-navigation-link-active {
+  color: var(--color-primary-hover);
+  background: var(--color-focus);
+}
+
+.flyout-logout {
+  width: 100%;
+  margin-top: auto;
+  color: var(--color-on-brand);
+  font-weight: var(--font-weight-semibold);
+}
+
+.flyout-logout-error {
+  margin: 12px 0 0;
+  color: var(--color-danger-hover);
+  font-size: var(--font-size-sm);
+}
+
+@keyframes flyout-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-flyout {
+    animation: none;
+  }
+}

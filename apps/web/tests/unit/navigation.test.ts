@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { navigationItems } from '../../src/navigation'
+import { getActiveNavigationItem, navigationItems } from '../../src/navigation'
 
 test('lists menu destinations in their required order', () => {
   expect(navigationItems).toEqual([
@@ -12,4 +12,18 @@ test('lists menu destinations in their required order', () => {
     { label: 'Ingredient Maintenance', route: '/ingredient-maintenance', pageTitle: 'Ingredient Maintenance' },
     { label: 'Archived Recipes', route: '/recipes/archived', pageTitle: 'Archived Recipes' },
   ])
+})
+
+test.each([
+  ['/home', 'Home'],
+  ['/recipes', 'Recipe List'],
+  ['/recipes/123', 'Recipe List'],
+  ['/recipes/new', 'Add Recipe'],
+  ['/recipes/new/step-2', 'Add Recipe'],
+  ['/recipes/archived', 'Archived Recipes'],
+  ['/recipes/archived/2026', 'Archived Recipes'],
+  ['/unknown-route', undefined],
+  ['/recipes-legacy', undefined],
+])('finds the longest matching navigation route for %s', (pathname, expectedLabel) => {
+  expect(getActiveNavigationItem(pathname)?.label).toBe(expectedLabel)
 })
