@@ -45,6 +45,8 @@ test.describe('Navigation menu and stub pages', () => {
   });
 
   test('centers the desktop navigation with comfortable link spacing', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 800 });
+
     const navigation = page.getByRole('navigation', { name: 'Main' });
     const navigationBox = await navigation.boundingBox();
     const viewport = page.viewportSize();
