@@ -27,6 +27,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 8px 18px;
   margin: 0;
   padding: 0;
@@ -40,6 +41,7 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .app-navigation-link:hover {

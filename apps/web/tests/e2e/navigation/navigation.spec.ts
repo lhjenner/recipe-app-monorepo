@@ -71,9 +71,12 @@ test.describe('Navigation menu and stub pages', () => {
     await page.setViewportSize({ width: 720, height: 800 });
 
     const header = page.getByTestId('app-header');
+    const navigation = page.getByRole('navigation', { name: 'Main' });
     await expect(header).toBeVisible();
     expect(await header.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(76);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    await expect(navigation.locator('ul')).toHaveCSS('justify-content', 'center');
+    await expect(navigation.getByRole('link', { name: 'Ingredient Maintenance', exact: true })).toHaveCSS('white-space', 'nowrap');
   });
 
   test('AC-31 renders unknown authenticated routes inside the app shell', async ({ page }) => {
