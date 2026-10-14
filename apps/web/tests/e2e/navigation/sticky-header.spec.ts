@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mockAuthApi } from './support/mockAuthApi.ts';
+import { mockAuthApi } from '../support/mockAuthApi.ts';
 
 test.describe('Sticky app header', () => {
   test.beforeEach(async ({ page }) => {

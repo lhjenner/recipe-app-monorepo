@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mockAuthApi } from './support/mockAuthApi.ts';
+import { mockAuthApi } from '../support/mockAuthApi.ts';
 
 test.describe('Active desktop navigation item', () => {
   test.beforeEach(async ({ page }) => {

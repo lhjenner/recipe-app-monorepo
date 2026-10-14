@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mockAuthApi } from './support/mockAuthApi.ts';
+import { mockAuthApi } from '../support/mockAuthApi.ts';
 
 const menuLabels = [
   'Home',
