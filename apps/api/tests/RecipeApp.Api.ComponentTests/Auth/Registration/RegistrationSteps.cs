@@ -26,6 +26,7 @@ public sealed class RegistrationSteps(ApiAuthContext context)
     [When("I submit registration with password {string}")]
     public async Task WhenISubmitRegistrationWithPassword(string password)
     {
+        context.Password = password;
         context.Response = await context.Client.PostAsJsonAsync(
             "/api/auth/register",
             new RegisterRequest(context.Email, password));
