@@ -5,7 +5,7 @@
 - Epic: [#21 — App shell & navigation](https://github.com/lhjenner/recipe-app-monorepo/issues/21)
 - Stories: #24 (Home page), #25 (menu and stub pages), #26 (sticky header), #27 (active item), #28 (mobile flyout), #29 (logout), #30 (route protection)
 - Tasks: #23 (Vitest setup)
-- Pull Requests: _to be added_
+- Pull Requests: [#33 — Replace temporary landing page with permanent Home](https://github.com/lhjenner/recipe-app-monorepo/pull/33)
 - Depends on: [PRD 01 — Authentication & Login](./01-authentication-and-login.md)
 
 ## Overview & Problem Statement
