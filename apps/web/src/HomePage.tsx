@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AuthApiError, type UserDto } from './services/authApi';
+import { AuthApiError } from './services/authApi';
 
-interface TemporaryLandingPageProps {
-  user: UserDto;
+interface HomePageProps {
   onLogout: () => Promise<void>;
 }
 
-function TemporaryLandingPage({ user, onLogout }: TemporaryLandingPageProps) {
+function HomePage({ onLogout }: HomePageProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [error, setError] = useState('');
 
@@ -40,8 +39,8 @@ function TemporaryLandingPage({ user, onLogout }: TemporaryLandingPageProps) {
         <section className="login-panel registration-panel" aria-labelledby="home-heading">
           <div className="panel-heading">
             <p className="eyebrow">YOUR KITCHEN NOTEBOOK</p>
-            <h1 id="home-heading">You're signed in<span>.</span></h1>
-            <p className="panel-copy">Signed in as {user.email}</p>
+            <h1 id="home-heading">Home<span>.</span></h1>
+            <p className="panel-copy">Widgets coming soon</p>
           </div>
 
           {error && <p className="form-error" role="alert">{error}</p>}
@@ -61,4 +60,4 @@ function TemporaryLandingPage({ user, onLogout }: TemporaryLandingPageProps) {
   );
 }
 
-export default TemporaryLandingPage;
+export default HomePage;
