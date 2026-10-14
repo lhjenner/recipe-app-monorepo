@@ -44,6 +44,15 @@ test.describe('Navigation menu and stub pages', () => {
     expect((await logout.boundingBox())!.x).toBeGreaterThan((await navigation.boundingBox())!.x);
   });
 
+  test('centers the desktop navigation with comfortable link spacing', async ({ page }) => {
+    const navigation = page.getByRole('navigation', { name: 'Main' });
+    const navigationBox = await navigation.boundingBox();
+    const viewport = page.viewportSize();
+
+    expect(Math.abs(navigationBox!.x + (navigationBox!.width / 2) - (viewport!.width / 2))).toBeLessThanOrEqual(1);
+    await expect(navigation.locator('ul')).toHaveCSS('column-gap', '18px');
+  });
+
   test('AC-04 navigates to each destination and renders its titled page', async ({ page }) => {
     for (const item of navigationItems) {
       await page.getByRole('link', { name: item.label, exact: true }).click();

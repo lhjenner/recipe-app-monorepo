@@ -27,7 +27,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
+  gap: 8px 18px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -92,6 +92,27 @@
 
 .app-page p {
   color: var(--color-text-muted);
+}
+
+@media (min-width: 1100px) {
+  .app-header {
+    display: flex;
+  }
+
+  .app-navigation {
+    position: absolute;
+    left: 50%;
+    flex: none;
+    transform: translateX(-50%);
+  }
+
+  .app-navigation-list {
+    flex-wrap: nowrap;
+  }
+
+  .app-header .app-logout {
+    margin-left: auto;
+  }
 }
 
 @media (min-width: 701px) and (max-width: 950px) {
