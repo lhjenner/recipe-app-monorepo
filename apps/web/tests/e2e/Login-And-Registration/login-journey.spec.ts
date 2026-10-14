@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { loginRejectsCredentials, mockAuthApi, testUser, validCredentials, type AuthApiMock } from '../support/mockAuthApi.ts';
+import { loginRejectsCredentials, mockAuthApi, validCredentials, type AuthApiMock } from '../support/mockAuthApi.ts';
 
 async function submitLogin(page: import('@playwright/test').Page, email: string, password: string) {
   await page.getByLabel('Email').fill(email);
@@ -15,12 +15,12 @@ test.describe('Login journey', () => {
     await page.goto('/');
   });
 
-  test('AC-04 valid credentials sign the user in and route to the landing page', async ({ page }) => {
+  test('AC-33 valid credentials sign the user in and route to Home', async ({ page }) => {
     await submitLogin(page, validCredentials.email, validCredentials.password);
 
     await expect(page).toHaveURL(/\/home$/);
-    await expect(page.getByRole('heading', { name: /You're signed in/ })).toBeVisible();
-    await expect(page.getByText(`Signed in as ${testUser.email}`)).toBeVisible();
+    await expect(page.getByText('Widgets coming soon')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
     expect(api.loginRequests).toEqual([validCredentials]);
   });
 

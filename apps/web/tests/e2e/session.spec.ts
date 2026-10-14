@@ -1,14 +1,14 @@
 import { expect, test } from '@playwright/test';
-import { mockAuthApi, testUser, validCredentials } from './support/mockAuthApi.ts';
+import { mockAuthApi, validCredentials } from './support/mockAuthApi.ts';
 
 test.describe('Session handling', () => {
-  test('AC-12 a valid session routes straight to the landing page', async ({ page }) => {
+  test('AC-12 a valid session routes straight to Home', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
 
     await page.goto('/');
 
     await expect(page).toHaveURL(/\/home$/);
-    await expect(page.getByText(`Signed in as ${testUser.email}`)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
   });
 
   test('AC-12 no session routes to the login page', async ({ page }) => {
@@ -30,7 +30,7 @@ test.describe('Session handling', () => {
     await page.reload();
 
     await expect(page).toHaveURL(/\/home$/);
-    await expect(page.getByText(`Signed in as ${testUser.email}`)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
   });
 
   test('AC-13 a protected page redirects to login when the session is invalid', async ({ page }) => {
@@ -45,7 +45,7 @@ test.describe('Session handling', () => {
   test('AC-13 an expired session redirects to login on the next load', async ({ page }) => {
     const api = await mockAuthApi(page, { hasSession: true });
     await page.goto('/home');
-    await expect(page.getByText(`Signed in as ${testUser.email}`)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
 
     api.setSession(false);
     await page.reload();

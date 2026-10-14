@@ -5,7 +5,7 @@ import LoginPage from './LoginPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
 import ResetPasswordPage from './ResetPasswordPage';
 import RegistrationPage from './RegistrationPage';
-import TemporaryLandingPage from './TemporaryLandingPage';
+import HomePage from './HomePage';
 
 function App() {
   return (
@@ -79,7 +79,7 @@ function ApplicationRoutes() {
         element={!sessionChecked
           ? checkingSession
           : user
-            ? <TemporaryLandingPage user={user} onLogout={handleLogout} />
+            ? <HomePage onLogout={handleLogout} />
             : <Navigate to="/" replace />}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
