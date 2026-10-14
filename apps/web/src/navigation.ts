@@ -4,6 +4,8 @@ export interface NavigationItem {
   pageTitle: string;
 }
 
+export const MOBILE_BREAKPOINT = 700;
+
 export const navigationItems: readonly NavigationItem[] = [
   { label: 'Home', route: '/home', pageTitle: 'Home' },
   { label: 'Recipe List', route: '/recipes', pageTitle: 'Recipe List' },
@@ -14,3 +16,9 @@ export const navigationItems: readonly NavigationItem[] = [
   { label: 'Ingredient Maintenance', route: '/ingredient-maintenance', pageTitle: 'Ingredient Maintenance' },
   { label: 'Archived Recipes', route: '/recipes/archived', pageTitle: 'Archived Recipes' },
 ];
+
+export function getActiveNavigationItem(pathname: string): NavigationItem | undefined {
+  return navigationItems
+    .filter((item) => pathname === item.route || pathname.startsWith(`${item.route}/`))
+    .sort((first, second) => second.route.length - first.route.length)[0];
+}

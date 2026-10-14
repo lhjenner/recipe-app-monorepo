@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mockAuthApi } from './support/mockAuthApi.ts';
+import { mockAuthApi } from '../support/mockAuthApi.ts';
 
 const navigationItems = [
   { label: 'Home', route: '/home', pageTitle: 'Home' },
@@ -44,6 +44,17 @@ test.describe('Navigation menu and stub pages', () => {
     expect((await logout.boundingBox())!.x).toBeGreaterThan((await navigation.boundingBox())!.x);
   });
 
+  test('centers the desktop navigation with comfortable link spacing', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 800 });
+
+    const navigation = page.getByRole('navigation', { name: 'Main' });
+    const navigationBox = await navigation.boundingBox();
+    const viewport = page.viewportSize();
+
+    expect(Math.abs(navigationBox!.x + (navigationBox!.width / 2) - (viewport!.width / 2))).toBeLessThanOrEqual(1);
+    await expect(navigation.locator('ul')).toHaveCSS('column-gap', '18px');
+  });
+
   test('AC-04 navigates to each destination and renders its titled page', async ({ page }) => {
     for (const item of navigationItems) {
       await page.getByRole('link', { name: item.label, exact: true }).click();
@@ -62,9 +73,12 @@ test.describe('Navigation menu and stub pages', () => {
     await page.setViewportSize({ width: 720, height: 800 });
 
     const header = page.getByTestId('app-header');
+    const navigation = page.getByRole('navigation', { name: 'Main' });
     await expect(header).toBeVisible();
     expect(await header.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(76);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    await expect(navigation.locator('ul')).toHaveCSS('justify-content', 'center');
+    await expect(navigation.getByRole('link', { name: 'Ingredient Maintenance', exact: true })).toHaveCSS('white-space', 'nowrap');
   });
 
   test('AC-31 renders unknown authenticated routes inside the app shell', async ({ page }) => {
