@@ -28,26 +28,38 @@ function ApplicationRoutes() {
   useEffect(() => {
     let isActive = true;
 
-    void getCurrentUser()
-      .then((currentUser) => {
+    async function checkSession() {
+      try {
+        const currentUser = await getCurrentUser();
         if (isActive) {
           setUser(currentUser);
+          setSessionNotice('');
         }
-      })
-      .catch(() => {
+      } catch {
         if (isActive) {
           setUser(null);
           setSessionNotice('We could not check your current session. You can still log in.');
         }
-      })
-      .finally(() => {
+      } finally {
         if (isActive) {
           setSessionChecked(true);
         }
-      });
+      }
+    }
+
+    function handlePageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        setSessionChecked(false);
+        void checkSession();
+      }
+    }
+
+    void checkSession();
+    window.addEventListener('pageshow', handlePageShow);
 
     return () => {
       isActive = false;
+      window.removeEventListener('pageshow', handlePageShow);
     };
   }, []);
 

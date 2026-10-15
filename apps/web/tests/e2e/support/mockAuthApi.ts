@@ -10,12 +10,15 @@ export const validCredentials = { email: testUser.email, password: 'password123'
 
 // Resolves to true when the response should start a session.
 export type LoginHandler = (route: Route) => Promise<boolean>;
+// Resolves to true when the response should end a session.
+export type LogoutHandler = (route: Route) => Promise<boolean>;
 
 export interface AuthApiMock {
   loginRequests: { email: string; password: string }[];
   logoutRequestCount: number;
   setSession: (active: boolean) => void;
   setLoginHandler: (handler: LoginHandler) => void;
+  setLogoutHandler: (handler: LogoutHandler) => void;
 }
 
 const problem = (status: number, title?: string) => ({
@@ -34,10 +37,16 @@ export const loginRejectsCredentials: LoginHandler = async (route) => {
   return false;
 };
 
+export const logoutSucceeds: LogoutHandler = async (route) => {
+  await route.fulfill({ status: 204 });
+  return true;
+};
+
 // A stateful, hermetic stand-in for /api/auth/* so browser journeys need neither the API nor a database.
 export async function mockAuthApi(page: Page, options: { hasSession?: boolean } = {}): Promise<AuthApiMock> {
   let hasSession = options.hasSession ?? false;
   let loginHandler: LoginHandler = loginSucceeds;
+  let logoutHandler: LogoutHandler = logoutSucceeds;
 
   const mock: AuthApiMock = {
     loginRequests: [],
@@ -47,6 +56,9 @@ export async function mockAuthApi(page: Page, options: { hasSession?: boolean } 
     },
     setLoginHandler: (handler) => {
       loginHandler = handler;
+    },
+    setLogoutHandler: (handler) => {
+      logoutHandler = handler;
     },
   };
 
@@ -64,8 +76,9 @@ export async function mockAuthApi(page: Page, options: { hasSession?: boolean } 
 
   await page.route('**/api/auth/logout', async (route) => {
     mock.logoutRequestCount += 1;
-    hasSession = false;
-    await route.fulfill({ status: 204 });
+    if (await logoutHandler(route)) {
+      hasSession = false;
+    }
   });
 
   return mock;

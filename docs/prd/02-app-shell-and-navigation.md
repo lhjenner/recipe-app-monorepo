@@ -5,7 +5,7 @@
 - Epic: [#21 — App shell & navigation](https://github.com/lhjenner/recipe-app-monorepo/issues/21)
 - Stories: #24 (Home page), #25 (menu and stub pages), #26 (sticky header), #27 (active item), #28 (mobile flyout), #29 (logout), #30 (route protection)
 - Tasks: #23 (Vitest setup)
-- Pull Requests: [#33 — Replace temporary landing page with permanent Home](https://github.com/lhjenner/recipe-app-monorepo/pull/33), [#35 — Add navigation menu and stub pages](https://github.com/lhjenner/recipe-app-monorepo/pull/35), [#36 — Make app header sticky](https://github.com/lhjenner/recipe-app-monorepo/pull/36), [#37 — Add active navigation and mobile flyout](https://github.com/lhjenner/recipe-app-monorepo/pull/37)
+- Pull Requests: [#33 — Replace temporary landing page with permanent Home](https://github.com/lhjenner/recipe-app-monorepo/pull/33), [#35 — Add navigation menu and stub pages](https://github.com/lhjenner/recipe-app-monorepo/pull/35), [#36 — Make app header sticky](https://github.com/lhjenner/recipe-app-monorepo/pull/36), [#37 — Add active navigation and mobile flyout](https://github.com/lhjenner/recipe-app-monorepo/pull/37), [#38 — Harden logout session handling](https://github.com/lhjenner/recipe-app-monorepo/pull/38)
 - Depends on: [PRD 01 — Authentication & Login](./01-authentication-and-login.md)
 
 ## Overview & Problem Statement
