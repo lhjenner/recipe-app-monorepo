@@ -2,6 +2,18 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Shared page layout
+
+Authenticated pages share the `.app-main` and `.app-page` layout in
+[app-shell.css](src/styles/app-shell.css). Above 700px, panels fill the available
+viewport width with 32px outer gutters. At 700px and below, the existing mobile
+layout retains 16px outer gutters. Page-specific styles should not override the
+shared panel width.
+
+Browser coverage in [page-layout.spec.ts](tests/e2e/navigation/page-layout.spec.ts)
+checks panel bounds and horizontal overflow across desktop and mobile widths,
+including both sides of the breakpoint.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)

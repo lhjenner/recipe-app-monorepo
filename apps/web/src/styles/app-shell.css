@@ -96,6 +96,13 @@
   color: var(--color-text-muted);
 }
 
+@media (min-width: 701px) {
+  .app-main,
+  .app-page {
+    width: 100%;
+  }
+}
+
 @media (min-width: 1400px) {
   .app-header {
     display: flex;
