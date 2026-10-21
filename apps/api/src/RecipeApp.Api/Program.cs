@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using RecipeApp.Api.Auth;
 using RecipeApp.Api.Auth.PasswordReset;
 using RecipeApp.Api.Infrastructure.Email;
 using RecipeApp.Api.Infrastructure.Persistence;
 using RecipeApp.Api.Infrastructure.Security;
+using RecipeApp.Api.Ingredients;
 using RecipeApp.Api.Lookups;
 using RecipeApp.Api.Middleware;
 
@@ -13,7 +16,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.Converters.Add(
+            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
@@ -35,6 +41,7 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<ILookupService, LookupService>();
+builder.Services.AddScoped<IIngredientReadService, IngredientReadService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ITicketStore, PostgresTicketStore>();
 builder.Services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)

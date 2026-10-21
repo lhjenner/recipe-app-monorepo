@@ -1,0 +1,208 @@
+import { expect, test, type Page, type Route } from '@playwright/test';
+import { mockAuthApi } from '../support/mockAuthApi.ts';
+
+interface StoreState {
+  storeCode: string;
+  state: 'mapped' | 'notStocked' | 'unmapped';
+  departmentName: string | null;
+}
+
+interface IngredientSummary {
+  id: string;
+  name: string;
+  categoryName: string | null;
+  excludeFromGroceryList: boolean;
+  archived: boolean;
+  stores: StoreState[];
+}
+
+const storeDefinitions = [
+  { code: 'new-world-greenmeadows', name: 'New World Greenmeadows', displayOrder: 1 },
+  { code: 'pak-n-save-tamatea', name: "Pak'n Save Tamatea", displayOrder: 2 },
+  { code: 'woolworths-carlyle', name: 'Woolworths Carlyle', displayOrder: 3 },
+];
+
+const supermarkets = [
+  {
+    code: 'new-world',
+    name: 'New World',
+    stores: [storeDefinitions[0]],
+  },
+  {
+    code: 'pak-n-save',
+    name: "Pak'n Save",
+    stores: [storeDefinitions[1]],
+  },
+  {
+    code: 'woolworths',
+    name: 'Woolworths',
+    stores: [storeDefinitions[2]],
+  },
+];
+
+function ingredient(
+  name: string,
+  {
+    categoryName = 'Produce',
+    excludeFromGroceryList = false,
+    archived = false,
+    stores = storeDefinitions.map((store) => ({
+      storeCode: store.code,
+      state: 'unmapped' as const,
+      departmentName: null,
+    })),
+  }: Partial<Omit<IngredientSummary, 'id' | 'name'>> = {},
+): IngredientSummary {
+  return {
+    id: `00000000-0000-7000-8000-${String(name.length).padStart(12, '0')}`,
+    name,
+    categoryName,
+    excludeFromGroceryList,
+    archived,
+    stores,
+  };
+}
+
+async function mockIngredientApi(
+  page: Page,
+  ingredients: IngredientSummary[],
+): Promise<string[]> {
+  const requests: string[] = [];
+  await page.route('**/api/supermarkets', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', json: supermarkets }));
+  await page.route('**/api/ingredients**', async (route: Route) => {
+    const url = new URL(route.request().url());
+    requests.push(url.search);
+    const archived = url.searchParams.get('archived') === 'true';
+    const search = url.searchParams.get('search')?.toLocaleLowerCase() ?? '';
+    const pageNumber = Number(url.searchParams.get('page') ?? 1);
+    const pageSize = Number(url.searchParams.get('pageSize') ?? 25);
+    const filtered = ingredients
+      .filter((item) => item.archived === archived && item.name.toLocaleLowerCase().includes(search))
+      .sort((first, second) => first.name.localeCompare(second.name));
+    const offset = (pageNumber - 1) * pageSize;
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      json: {
+        items: filtered.slice(offset, offset + pageSize),
+        totalCount: filtered.length,
+        page: pageNumber,
+        pageSize,
+      },
+    });
+  });
+  return requests;
+}
+
+test.describe('Ingredient Maintenance list', () => {
+  test('AC-05, AC-08, AC-09, and AC-10 show the desktop table and mapping states', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockIngredientApi(page, [
+      ingredient('Basil', {
+        categoryName: null,
+        excludeFromGroceryList: true,
+        stores: [
+          { storeCode: storeDefinitions[0].code, state: 'mapped', departmentName: 'Produce' },
+          { storeCode: storeDefinitions[1].code, state: 'notStocked', departmentName: null },
+          { storeCode: storeDefinitions[2].code, state: 'unmapped', departmentName: null },
+        ],
+      }),
+    ]);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ingredient-maintenance');
+
+    await expect(page.getByRole('heading', { name: 'Ingredient Maintenance' })).toBeVisible();
+    await expect(page).toHaveTitle('Ingredient Maintenance – Recipe App');
+    const table = page.getByRole('table', { name: 'Ingredients' });
+    await expect(table).toBeVisible();
+    const basilRow = table.getByRole('row', { name: /Basil/ });
+    await expect(table.getByRole('columnheader')).toHaveText([
+      'Ingredient',
+      'Category',
+      'New World Greenmeadows',
+      "Pak'n Save Tamatea",
+      'Woolworths Carlyle',
+      'Actions',
+    ]);
+    await expect(basilRow.getByRole('cell').nth(0)).toHaveText('Missing');
+    await expect(basilRow.getByRole('cell').nth(1)).toHaveText('Produce');
+    await expect(table.getByText('Not stocked')).toBeVisible();
+    await expect(table.getByText('Missing')).toHaveCount(2);
+    await expect(table.getByText('Excluded from grocery list')).toBeVisible();
+    await expect(table.getByRole('button', { name: 'Edit Basil' })).toBeVisible();
+    await expect(table.getByRole('button', { name: 'Archive Basil' })).toBeVisible();
+  });
+
+  test('AC-06 and AC-07 debounce search and show the no-match message', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    const requests = await mockIngredientApi(page, [
+      ingredient('Green Apple'),
+      ingredient('Banana'),
+    ]);
+    await page.goto('/ingredient-maintenance');
+
+    const search = page.getByRole('searchbox', { name: 'Search ingredients' });
+    await search.fill('missing');
+    await expect(page.getByText("No ingredients match 'missing'")).toBeVisible();
+    expect(requests.some((query) => query.includes('search=missing'))).toBe(true);
+  });
+
+  test('AC-05 resets paging after a search and provides pagination controls', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    const ingredients = Array.from({ length: 30 }, (_, index) =>
+      ingredient(`Ingredient ${String(index + 1).padStart(2, '0')}`));
+    const requests = await mockIngredientApi(page, ingredients);
+    await page.goto('/ingredient-maintenance');
+
+    await expect(page.getByText('Page 1 of 2')).toBeVisible();
+    await expect(page.getByText('Showing 1–25 of 30')).toBeVisible();
+    await page.getByRole('button', { name: 'Next page' }).click();
+    await expect(page.getByText('Page 2 of 2')).toBeVisible();
+    await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('ingredient 01');
+    await expect(page.getByText('Page 1 of 1')).toBeVisible();
+    expect(requests.some((query) => query.includes('page=1') && query.includes('search=ingredient'))).toBe(true);
+  });
+
+  test('AC-11 renders cards rather than the table at the mobile breakpoint', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    const requests = await mockIngredientApi(page, Array.from({ length: 30 }, (_, index) =>
+      ingredient(
+        `Ingredient ${String(index + 1).padStart(2, '0')}`,
+        { excludeFromGroceryList: index === 0 },
+      )));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/ingredient-maintenance');
+
+    await expect(page.getByRole('table', { name: 'Ingredients' })).toBeHidden();
+    const card = page.getByRole('article', { name: 'Ingredient 01' });
+    await expect(card).toBeVisible();
+    await expect(card.getByText('New World Greenmeadows')).toBeVisible();
+    await expect(card.getByText('Missing')).toHaveCount(3);
+    await expect(card.getByText('Excluded from grocery list')).toBeVisible();
+    await expect(page.getByText('Page 1 of 2')).toBeVisible();
+    await page.getByRole('button', { name: 'Next page' }).click();
+    await expect(page.getByText('Page 2 of 2')).toBeVisible();
+    await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('ingredient 01');
+    await expect(page.getByText('Page 1 of 1')).toBeVisible();
+    expect(requests.some((query) => query.includes('search=ingredient'))).toBe(true);
+  });
+
+  test('AC-12 loads only archived ingredients and renders a restore action', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    const requests = await mockIngredientApi(page, [
+      ingredient('Active Ingredient'),
+      ingredient('Archived Ingredient', { archived: true }),
+    ]);
+    await page.goto('/ingredient-maintenance');
+    await page.getByRole('checkbox', { name: 'Show archived' }).check();
+
+    const table = page.getByRole('table', { name: 'Ingredients' });
+    await expect(table.getByText('Archived Ingredient')).toBeVisible();
+    await expect(table.getByText('Active Ingredient')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Restore Archived Ingredient' })).toBeVisible();
+    expect(requests.some((query) => query.includes('archived=true'))).toBe(true);
+  });
+});

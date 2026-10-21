@@ -13,6 +13,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<SupermarketChain> SupermarketChains => Set<SupermarketChain>();
     public DbSet<Store> Stores => Set<Store>();
+    public DbSet<Ingredient> Ingredients => Set<Ingredient>();
+    public DbSet<IngredientStoreMapping> IngredientStoreMappings => Set<IngredientStoreMapping>();
+    public DbSet<ProductLink> ProductLinks => Set<ProductLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

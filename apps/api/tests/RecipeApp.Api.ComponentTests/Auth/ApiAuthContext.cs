@@ -35,6 +35,8 @@ public sealed class ApiAuthContext : IAsyncDisposable
 
     public HttpResponseMessage? Response { get; set; }
 
+    public Guid ScenarioIngredientId { get; set; }
+
     public async Task StartAsync()
     {
         await _database.StartAsync();

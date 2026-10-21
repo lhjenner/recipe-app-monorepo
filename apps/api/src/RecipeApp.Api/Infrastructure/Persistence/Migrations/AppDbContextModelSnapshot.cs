@@ -167,6 +167,140 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("Departments", (string)null);
                 });
 
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Ingredient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ArchivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("ExcludeFromGroceryList")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NutritionSource")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("NutritionUpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("OwnerUserId", "NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Ingredients_OwnerUserId_NormalizedName");
+
+                    b.HasIndex("OwnerUserId", "ArchivedAtUtc", "NormalizedName")
+                        .HasDatabaseName("IX_Ingredients_OwnerUserId_ArchivedAtUtc_NormalizedName");
+
+                    b.ToTable("Ingredients", (string)null);
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.IngredientStoreMapping", b =>
+                {
+                    b.Property<Guid>("IngredientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StoreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsNotStocked")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("IngredientId", "StoreId");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("StoreId");
+
+                    b.ToTable("IngredientStoreMappings", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IngredientStoreMappings_DepartmentOrNotStocked", "(\"DepartmentId\" IS NOT NULL AND NOT \"IsNotStocked\") OR (\"DepartmentId\" IS NULL AND \"IsNotStocked\")");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.ProductLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChainId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("IngredientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsPreferred")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("SupportsBothPricingMethods")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("VariantLabel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChainId");
+
+                    b.HasIndex("IngredientId", "ChainId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ProductLinks_IngredientId_ChainId_Preferred")
+                        .HasFilter("\"IsPreferred\" = TRUE");
+
+                    b.HasIndex("IngredientId", "ChainId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ProductLinks_IngredientId_ChainId_Position");
+
+                    b.ToTable("ProductLinks", (string)null);
+                });
+
             modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Store", b =>
                 {
                     b.Property<Guid>("Id")
@@ -296,6 +430,118 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Ingredient", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RecipeApp.Api.Auth.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("RecipeApp.Api.Infrastructure.Persistence.NutritionPer100g", "Nutrition", b1 =>
+                        {
+                            b1.Property<Guid>("IngredientId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<decimal?>("CarbohydrateG")
+                                .HasPrecision(9, 3)
+                                .HasColumnType("numeric(9,3)")
+                                .HasColumnName("CarbohydrateG");
+
+                            b1.Property<decimal?>("EnergyKcal")
+                                .HasPrecision(9, 3)
+                                .HasColumnType("numeric(9,3)")
+                                .HasColumnName("EnergyKcal");
+
+                            b1.Property<decimal?>("FatG")
+                                .HasPrecision(9, 3)
+                                .HasColumnType("numeric(9,3)")
+                                .HasColumnName("FatG");
+
+                            b1.Property<decimal?>("FibreG")
+                                .HasPrecision(9, 3)
+                                .HasColumnType("numeric(9,3)")
+                                .HasColumnName("FibreG");
+
+                            b1.Property<decimal?>("ProteinG")
+                                .HasPrecision(9, 3)
+                                .HasColumnType("numeric(9,3)")
+                                .HasColumnName("ProteinG");
+
+                            b1.Property<decimal?>("SaturatedFatG")
+                                .HasPrecision(9, 3)
+                                .HasColumnType("numeric(9,3)")
+                                .HasColumnName("SaturatedFatG");
+
+                            b1.Property<decimal?>("SodiumMg")
+                                .HasPrecision(9, 3)
+                                .HasColumnType("numeric(9,3)")
+                                .HasColumnName("SodiumMg");
+
+                            b1.Property<decimal?>("SugarG")
+                                .HasPrecision(9, 3)
+                                .HasColumnType("numeric(9,3)")
+                                .HasColumnName("SugarG");
+
+                            b1.HasKey("IngredientId");
+
+                            b1.ToTable("Ingredients");
+
+                            b1.WithOwner()
+                                .HasForeignKey("IngredientId");
+                        });
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Nutrition");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.IngredientStoreMapping", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Ingredient", null)
+                        .WithMany("StoreMappings")
+                        .HasForeignKey("IngredientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.ProductLink", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.SupermarketChain", "Chain")
+                        .WithMany()
+                        .HasForeignKey("ChainId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Ingredient", null)
+                        .WithMany("ProductLinks")
+                        .HasForeignKey("IngredientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Chain");
+                });
+
             modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Store", b =>
                 {
                     b.HasOne("RecipeApp.Api.Infrastructure.Persistence.SupermarketChain", "Chain")
@@ -305,6 +551,13 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Chain");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Ingredient", b =>
+                {
+                    b.Navigation("ProductLinks");
+
+                    b.Navigation("StoreMappings");
                 });
 
             modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.SupermarketChain", b =>

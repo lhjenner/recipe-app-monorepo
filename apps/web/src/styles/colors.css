@@ -7,6 +7,9 @@
     --color-danger: #c94a4a;
     --color-danger-hover: #8c2d2d;
     --color-disabled: #b3b3b3;
+    --color-warning: #754000;
+    --color-warning-surface: #fff2d7;
+    --color-muted-surface: #eef1ed;
     --color-text: #1e1e1e;
     --color-text-muted: #434343;
     --color-focus: #d5f523;
@@ -43,6 +46,9 @@
     --color-danger: #c94a4a;
     --color-danger-hover: #b43e3e;
     --color-disabled: #4a4a4a;
+    --color-warning: #ffd58a;
+    --color-warning-surface: #49391f;
+    --color-muted-surface: #363d38;
     --color-text: #e4e9e3;
     --color-text-muted: #c6c7c6;
     --color-link: #b4e1c1;

@@ -110,7 +110,11 @@ public sealed class LookupEndpointsSteps(ApiAuthContext context)
     {
         context.Email = "another-lookup-user@example.com";
         context.Password = "password123";
-        await context.SeedExistingAccountAsync(context.Email, context.Password);
+        if (await context.FindUserAsync(context.Email) is null)
+        {
+            await context.SeedExistingAccountAsync(context.Email, context.Password);
+        }
+
         context.Response = await context.Client.PostAsJsonAsync(
             "/api/auth/login",
             new LoginRequest(context.Email, context.Password));

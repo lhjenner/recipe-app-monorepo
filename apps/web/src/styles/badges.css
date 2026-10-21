@@ -1,0 +1,33 @@
+.ingredient-missing {
+  display: inline-block;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 40%, transparent);
+  border-radius: 999px;
+  background: var(--color-warning-surface);
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ingredient-not-stocked {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.ingredient-exclusion-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-muted-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .ingredient-exclusion-badge {
+    margin-left: 0;
+  }
+}

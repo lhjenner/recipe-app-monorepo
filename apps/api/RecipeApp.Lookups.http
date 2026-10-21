@@ -1,6 +1,7 @@
 @baseUrl = https://localhost:7209
 @email = user@example.com
 @password =
+@ingredientId = 00000000-0000-7000-8000-000000000000
 
 ### Sign in first; the HTTP client stores the session cookie for later requests
 POST {{baseUrl}}/api/auth/login
@@ -43,3 +44,15 @@ Content-Type: application/json
 
 ### List seeded supermarket chains and stores
 GET {{baseUrl}}/api/supermarkets
+
+### List active ingredients (page size 25 by default)
+GET {{baseUrl}}/api/ingredients?page=1&pageSize=25&archived=false
+
+### Search active ingredients by name
+GET {{baseUrl}}/api/ingredients?search=apple&page=1&pageSize=25&archived=false
+
+### Request a page beyond the last page (400 Problem Details)
+GET {{baseUrl}}/api/ingredients?page=999&pageSize=25
+
+### Read one owned ingredient by ID
+GET {{baseUrl}}/api/ingredients/{{ingredientId}}
