@@ -149,6 +149,14 @@ Small, single-purpose modules, each well under the 200–250 line limit:
 
 Post-login redirect target travels as a `returnTo` query parameter on the login URL, validated as a same-origin relative path (must start with a single `/`, not `//`, no scheme) before use.
 
+### Route protection implementation (#30)
+
+- [`ProtectedRoute`](../../apps/web/src/ProtectedRoute.tsx) hides the app shell until the session check completes and redirects logged-out users to `/?returnTo=...`, preserving the requested pathname, query and fragment. Unknown URLs are protected too.
+- [`LoginRoute`](../../apps/web/src/LoginRoute.tsx) uses the validated destination only after a successful login. Existing sessions visiting login still go to Home. Failed login attempts and reloads retain `returnTo`; successful login replaces the login history entry.
+- [`getSafeReturnTo`](../../apps/web/src/returnTo.ts) rejects external/protocol-relative targets, backslashes, whitespace/control characters and paths that normalize into a protocol-relative target. Invalid or missing targets fall back to `/home`.
+- All API services must use [`apiFetch`](../../apps/web/src/services/apiClient.ts), not raw `fetch`, so authenticated `401` responses notify the app to clear its user state, show a session-expired notice and preserve the current page for re-login. Public auth requests explicitly opt out with `requiresSession: false`; invalid login credentials remain inline errors.
+- Successful, explicit logout does not retain a destination. Non-`401` logout failures remain retryable on the current page.
+
 ### Styling
 
 - **Colours:** all colours, including the active-item and logout colours, are defined as variables in `colors.css`. Reuse existing tokens (`--color-primary-hover`, `--color-focus`, `--color-on-brand`) for the header so it matches the login banner.
@@ -192,3 +200,10 @@ Role-based selectors (`getByRole('navigation')`, `getByRole('link')`, `getByRole
 - **JMeter:** not applicable.
 
 Tests are written **before** implementation (TDD).
+
+Route-protection coverage for #30:
+
+- [`returnTo.test.ts`](../../apps/web/tests/unit/returnTo.test.ts): AC-27 safe destination validation.
+- [`apiClient.test.ts`](../../apps/web/tests/unit/apiClient.test.ts): centralized `401` notifications, public-auth exceptions, other HTTP statuses and network failures.
+- [`route-protection.spec.ts`](../../apps/web/tests/e2e/navigation/route-protection.spec.ts): AC-25 to AC-30 and AC-32, including query/fragment preservation, failed-login retry, session expiry from a non-auth API, expired-session logout, unsafe redirects, delayed session checks and startup service failure.
+- Existing session and logout journeys also verify the new login URL and that explicit logout still lands on `/` without `returnTo`.

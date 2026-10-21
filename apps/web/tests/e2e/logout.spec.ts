@@ -19,6 +19,7 @@ test.describe('Logout', () => {
     await page.getByRole('button', { name: 'Log out' }).click();
 
     await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+    await expect(page).toHaveURL('/');
     expect(api.logoutRequestCount).toBe(1);
     expect(confirmationShown).toBe(false);
   });

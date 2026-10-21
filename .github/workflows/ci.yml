@@ -14,8 +14,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect docs-only PR
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      docs_only: ${{ steps.filter.outputs.docs_only }}
+    steps:
+      - name: Check all changed paths
+        id: filter
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName !== 'pull_request') {
+              core.setOutput('docs_only', 'false');
+              return;
+            }
+
+            const pullRequest = context.payload.pull_request;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...context.repo,
+              pull_number: pullRequest.number,
+              per_page: 100,
+            });
+            // The API caps results at 3,000 files; incomplete lists must run tests.
+            const docsOnly = files.length > 0
+              && files.length === pullRequest.changed_files
+              && files.every((file) => file.filename.startsWith('docs/')
+                && (!file.previous_filename || file.previous_filename.startsWith('docs/')));
+
+            core.setOutput('docs_only', String(docsOnly));
+            core.info(docsOnly ? 'Docs-only PR: skipping tests and summary comment.' : 'Running all CI checks.');
+
   backend:
     name: Backend (xUnit + Reqnroll)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.docs_only != 'true') }}
     runs-on: ubuntu-latest
     outputs:
       conclusion: ${{ steps.report.outputs.conclusion }}
@@ -64,6 +99,8 @@ jobs:
 
   web:
     name: Web (lint, type-check, build)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.docs_only != 'true') }}
     runs-on: ubuntu-latest
     outputs:
       unit_conclusion: ${{ steps.unit-report.outputs.conclusion }}
@@ -114,6 +151,8 @@ jobs:
 
   e2e:
     name: Browser (Playwright)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.docs_only != 'true') }}
     runs-on: ubuntu-latest
     outputs:
       conclusion: ${{ steps.report.outputs.conclusion }}
@@ -166,8 +205,8 @@ jobs:
 
   pr-comment:
     name: PR summary comment
-    if: ${{ always() && github.event_name == 'pull_request' }}
-    needs: [backend, web, e2e]
+    if: ${{ always() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.docs_only != 'true') }}
+    needs: [changes, backend, web, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Build summary
