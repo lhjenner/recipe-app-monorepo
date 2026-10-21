@@ -7,7 +7,7 @@ A learning project for a full-stack recipe and meal-planning application. The re
 - The registration, login, forgot-password and reset-password pages submit through the typed auth API client. The app checks the current session on startup and routes authenticated users to a temporary landing page with logout.
 - The API implements registration, login (secure session cookie, 14-day sliding expiry), `/me`, logout, account lockout (5 failures locks the account for 15 minutes, `423` Problem Details) and password reset (hashed, single-use, one-hour tokens delivered through an `IEmailSender`).
 - xUnit unit tests and Reqnroll component scenarios (against a Testcontainers PostgreSQL database) cover these behaviours. Playwright specs cover the login journey, session handling, accessibility, visual layout, registration and password reset against a mocked auth API.
-- GitHub Actions runs all of the above on every pull request (see [Continuous Integration](#continuous-integration)).
+- GitHub Actions runs all of the above on pull requests unless every changed path is under `docs/` (see [Continuous Integration](#continuous-integration)).
 
 ## Repository Structure
 
@@ -109,11 +109,14 @@ npx playwright install chromium
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request:
 
+- **Docs-only detection:** if every changed path is under `docs/`, the test/build jobs and summary comment are skipped. Changes outside `docs/` (including root READMEs and workflow files), or renames crossing that boundary, run all checks. Detection uses the whole PR, not just its latest commit; incomplete or failed detection also runs all checks.
 - **Backend:** xUnit unit tests and Reqnroll component tests, with `.trx` reports.
 - **Web:** `npm ci`, lint, and build (which includes the TypeScript type-check).
 - **Browser:** Playwright tests, with a JUnit report and HTML report.
 
-Each pull request gets a summary comment with the totals and links. The raw `.trx` files (`backend-trx`) and the Playwright report (`playwright-report`) are artifacts on the workflow run. Visual snapshots are platform-specific: commit both the `-win32` (local) and `-linux` (CI) baselines when the login layout changes.
+PRs that run tests get a summary comment with the totals and links. The raw `.trx` files (`backend-trx`) and the Playwright report (`playwright-report`) are artifacts on the workflow run. Visual snapshots are platform-specific: commit both the `-win32` (local) and `-linux` (CI) baselines when the login layout changes.
+
+The workflow still starts for docs-only PRs, so the three required checks keep their existing names and report as skipped rather than remaining pending. No branch-protection change is needed. Manual workflow runs always execute all checks. There is no push trigger.
 
 ## Requirements and Tracking
 
