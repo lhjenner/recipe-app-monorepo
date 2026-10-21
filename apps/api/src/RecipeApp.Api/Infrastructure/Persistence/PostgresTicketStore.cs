@@ -5,7 +5,7 @@ using RecipeApp.Api.Auth;
 
 namespace RecipeApp.Api.Infrastructure.Persistence;
 
-public sealed class PostgresTicketStore(IDbContextFactory<AuthDbContext> databaseFactory, TimeProvider timeProvider) : ITicketStore
+public sealed class PostgresTicketStore(IDbContextFactory<AppDbContext> databaseFactory, TimeProvider timeProvider) : ITicketStore
 {
     public async Task<string> StoreAsync(AuthenticationTicket ticket)
     {

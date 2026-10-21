@@ -11,7 +11,7 @@ using RecipeApp.Api.Infrastructure.Persistence;
 
 namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(AuthDbContext))]
+    [DbContext(typeof(AppDbContext))]
     [Migration("20261007000106_InitialUserSchema")]
     partial class InitialUserSchema
     {

@@ -4,7 +4,7 @@ using RecipeApp.Api.Auth;
 
 namespace RecipeApp.Api.Infrastructure.Persistence;
 
-public sealed class UserRepository(AuthDbContext database) : IUserRepository
+public sealed class UserRepository(AppDbContext database) : IUserRepository
 {
     public Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken) =>
         database.Users.AnyAsync(user => user.Email == email, cancellationToken);
