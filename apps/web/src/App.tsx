@@ -12,6 +12,7 @@ import { navigationItems } from './navigation';
 import StubPage from './StubPage';
 import ProtectedRoute from './ProtectedRoute';
 import { SESSION_EXPIRED_EVENT } from './services/apiClient';
+import IngredientMaintenancePage from './IngredientMaintenancePage';
 
 function App() {
   return (
@@ -118,7 +119,8 @@ function ApplicationRoutes() {
         </ProtectedRoute>
       }>
         <Route path={homeItem.route} element={<HomePage pageTitle={homeItem.pageTitle} />} />
-        {stubItems.map((item) => (
+        <Route path="/ingredient-maintenance" element={<IngredientMaintenancePage />} />
+        {stubItems.filter((item) => item.route !== '/ingredient-maintenance').map((item) => (
           <Route key={item.route} path={item.route} element={<StubPage pageTitle={item.pageTitle} />} />
         ))}
         <Route path="*" element={<NotFoundPage />} />
