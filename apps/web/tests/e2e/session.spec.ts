@@ -38,7 +38,7 @@ test.describe('Session handling', () => {
 
     await page.goto('/home');
 
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL('/?returnTo=%2Fhome');
     await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   });
 
@@ -50,7 +50,7 @@ test.describe('Session handling', () => {
     api.setSession(false);
     await page.reload();
 
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL('/?returnTo=%2Fhome');
     await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   });
 
@@ -64,6 +64,6 @@ test.describe('Session handling', () => {
     expect(api.logoutRequestCount).toBe(1);
 
     await page.goto('/home');
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL('/?returnTo=%2Fhome');
   });
 });

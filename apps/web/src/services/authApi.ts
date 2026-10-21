@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { apiFetch } from './apiClient';
 
 const userDtoSchema = z.object({
   id: z.uuid(),
@@ -58,13 +59,17 @@ function getFieldErrors(errors: Record<string, string[]> | undefined): AuthField
   return Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined;
 }
 
-async function sendJson(path: string, method: 'GET' | 'POST', body?: object): Promise<Response> {
+async function sendJson(
+  path: string,
+  method: 'GET' | 'POST',
+  { body, requiresSession = false }: { body?: object; requiresSession?: boolean } = {},
+): Promise<Response> {
   let response: Response;
 
   try {
-    response = await fetch(path, {
+    response = await apiFetch(path, {
       method,
-      credentials: 'same-origin',
+      requiresSession,
       ...(body === undefined
         ? {}
         : {
@@ -107,7 +112,7 @@ async function readUser(response: Response): Promise<UserDto> {
 }
 
 export async function registerAccount(email: string, password: string): Promise<UserDto> {
-  const response = await sendJson('/api/auth/register', 'POST', { email, password });
+  const response = await sendJson('/api/auth/register', 'POST', { body: { email, password } });
   if (!response.ok) {
     throw await readApiError(response, 'Registration failed. Please try again.');
   }
@@ -116,7 +121,7 @@ export async function registerAccount(email: string, password: string): Promise<
 }
 
 export async function loginAccount(email: string, password: string): Promise<UserDto> {
-  const response = await sendJson('/api/auth/login', 'POST', { email, password });
+  const response = await sendJson('/api/auth/login', 'POST', { body: { email, password } });
   if (!response.ok) {
     throw await readApiError(response, 'Invalid email or password');
   }
@@ -125,7 +130,7 @@ export async function loginAccount(email: string, password: string): Promise<Use
 }
 
 export async function getCurrentUser(): Promise<UserDto | null> {
-  const response = await sendJson('/api/auth/me', 'GET');
+  const response = await sendJson('/api/auth/me', 'GET', { requiresSession: true });
   if (response.status === 401) {
     return null;
   }
@@ -137,21 +142,21 @@ export async function getCurrentUser(): Promise<UserDto | null> {
 }
 
 export async function logout(): Promise<void> {
-  const response = await sendJson('/api/auth/logout', 'POST');
+  const response = await sendJson('/api/auth/logout', 'POST', { requiresSession: true });
   if (!response.ok) {
     throw await readApiError(response, 'Unable to log out. Please try again.');
   }
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
-  const response = await sendJson('/api/auth/forgot-password', 'POST', { email });
+  const response = await sendJson('/api/auth/forgot-password', 'POST', { body: { email } });
   if (!response.ok) {
     throw await readApiError(response, 'Unable to send the reset link. Please try again.');
   }
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
-  const response = await sendJson('/api/auth/reset-password', 'POST', { token, newPassword });
+  const response = await sendJson('/api/auth/reset-password', 'POST', { body: { token, newPassword } });
   if (!response.ok) {
     throw await readApiError(response, 'This reset link is invalid or has expired.');
   }
