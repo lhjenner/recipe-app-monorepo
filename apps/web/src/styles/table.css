@@ -1,6 +1,4 @@
 .ingredient-maintenance {
-  width: 100%;
-  max-width: none;
   padding: clamp(20px, 3vw, 40px);
 }
 
