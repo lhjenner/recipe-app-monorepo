@@ -11,7 +11,7 @@ using RecipeApp.Api.Infrastructure.Persistence;
 
 namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(AuthDbContext))]
+    [DbContext(typeof(AppDbContext))]
     [Migration("20261009010617_AddServerSideAuthSessions")]
     partial class AddServerSideAuthSessions
     {

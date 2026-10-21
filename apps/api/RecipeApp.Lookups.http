@@ -1,0 +1,45 @@
+@baseUrl = https://localhost:7209
+@email = user@example.com
+@password =
+
+### Sign in first; the HTTP client stores the session cookie for later requests
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### List the current user's categories
+GET {{baseUrl}}/api/categories
+
+### Create a category (or return its existing normalized match)
+POST {{baseUrl}}/api/categories
+Content-Type: application/json
+
+{
+  "name": "Pantry"
+}
+
+### Invalid category name (400)
+POST {{baseUrl}}/api/categories
+Content-Type: application/json
+
+{
+  "name": "   "
+}
+
+### List the current user's departments
+GET {{baseUrl}}/api/departments
+
+### Create a department (or return its existing normalized match)
+POST {{baseUrl}}/api/departments
+Content-Type: application/json
+
+{
+  "name": "Produce"
+}
+
+### List seeded supermarket chains and stores
+GET {{baseUrl}}/api/supermarkets

@@ -5,6 +5,7 @@ using RecipeApp.Api.Auth.PasswordReset;
 using RecipeApp.Api.Infrastructure.Email;
 using RecipeApp.Api.Infrastructure.Persistence;
 using RecipeApp.Api.Infrastructure.Security;
+using RecipeApp.Api.Lookups;
 using RecipeApp.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,8 +30,11 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         };
     });
 builder.Services.AddAuthorization();
-builder.Services.AddDbContextFactory<AuthDbContext>(options =>
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ITicketStore, PostgresTicketStore>();
 builder.Services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)

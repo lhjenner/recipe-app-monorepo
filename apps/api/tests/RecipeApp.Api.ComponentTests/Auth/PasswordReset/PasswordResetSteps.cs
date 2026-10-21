@@ -58,7 +58,7 @@ public sealed partial class PasswordResetSteps(ApiAuthContext context)
         var rawToken = EmailedTokens().Single();
 
         await using var scope = context.Services.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var stored = await database.PasswordResetTokens.AsNoTracking().ToListAsync();
 
         stored.Should().ContainSingle();

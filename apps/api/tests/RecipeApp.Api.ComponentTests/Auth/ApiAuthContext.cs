@@ -56,7 +56,7 @@ public sealed class ApiAuthContext : IAsyncDisposable
         });
 
         await using var scope = _factory.Services.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await database.Database.MigrateAsync();
     }
 
@@ -79,7 +79,7 @@ public sealed class ApiAuthContext : IAsyncDisposable
     public async Task<User?> FindUserAsync(string email)
     {
         await using var scope = _factory!.Services.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var normalizedEmail = email.Trim().ToLowerInvariant();
 
         return await database.Users

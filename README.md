@@ -1,12 +1,13 @@
 # Recipe App Monorepo
 
-A learning project for a full-stack recipe and meal-planning application. The repository currently contains an ASP.NET Core API scaffold, a React and TypeScript web app, automated tests, and the authentication PRD.
+A learning project for a full-stack recipe and meal-planning application. The repository currently contains an ASP.NET Core API, a React and TypeScript web app, automated tests, and product-requirements documents.
 
 ## Current Status
 
 - The registration, login, forgot-password and reset-password pages submit through the typed auth API client. The app checks the current session on startup and routes authenticated users to a temporary landing page with logout.
 - The API implements registration, login (secure session cookie, 14-day sliding expiry), `/me`, logout, account lockout (5 failures locks the account for 15 minutes, `423` Problem Details) and password reset (hashed, single-use, one-hour tokens delivered through an `IEmailSender`).
-- xUnit unit tests and Reqnroll component scenarios (against a Testcontainers PostgreSQL database) cover these behaviours. Playwright specs cover the login journey, session handling, accessibility, visual layout, registration and password reset against a mocked auth API.
+- The API also persists user-owned ingredient categories and departments and serves authenticated supermarket/store reference data from seeded records.
+- xUnit unit tests and Reqnroll component scenarios (against a Testcontainers PostgreSQL database) cover authentication and lookup API behavior. Playwright specs cover the login journey, session handling, accessibility, visual layout, registration and password reset against a mocked auth API.
 - GitHub Actions runs all of the above on pull requests unless every changed path is under `docs/` (see [Continuous Integration](#continuous-integration)).
 
 ## Repository Structure
@@ -75,6 +76,10 @@ Create future schema migrations with:
 dotnet ef migrations add AddFeatureName --project apps/api/src/RecipeApp.Api --startup-project apps/api/src/RecipeApp.Api
 ```
 
+Ingredient import preparation uses this persistent local database, not the temporary PostgreSQL containers used by component tests. Register the destination account through the app's normal registration flow before importing, then use that account's ID from `/api/auth/me`; an ID from the old Firestore app is not a destination owner ID. Apply schema changes explicitly with EF migrations before running an import—the application and import tool do not silently migrate the database.
+
+This local setup is not a production deployment. Production database and API/web hosting, restricted connectivity, production secret injection, backup/restore verification, and deployment procedures must be completed as separate work before production cutover. Importing the local data does not depend on production hosting.
+
 ## Run Locally
 
 Run backend tests from the repository root:
@@ -120,4 +125,4 @@ The workflow still starts for docs-only PRs, so the three required checks keep t
 
 ## Requirements and Tracking
 
-Authentication requirements and acceptance criteria are in [PRD 01: Authentication & Login](docs/prd/01-authentication-and-login.md). The PRD links to its GitHub epic and story issues. Use the acceptance-criterion IDs to keep tests and implementation traceable to those requirements.
+Requirements and acceptance criteria are in [PRD 01: Authentication & Login](docs/prd/01-authentication-and-login.md), [PRD 02: App Shell & Navigation](docs/prd/02-app-shell-and-navigation.md), and [PRD 03: Ingredient Maintenance](docs/prd/03-ingredient-maintenance.md). The PRDs link to their GitHub epic and story issues. Use the acceptance-criterion IDs to keep tests and implementation traceable to those requirements.

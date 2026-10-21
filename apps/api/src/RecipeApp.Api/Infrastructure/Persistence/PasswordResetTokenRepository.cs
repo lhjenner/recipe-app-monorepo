@@ -3,7 +3,7 @@ using RecipeApp.Api.Auth.PasswordReset;
 
 namespace RecipeApp.Api.Infrastructure.Persistence;
 
-public sealed class PasswordResetTokenRepository(AuthDbContext database) : IPasswordResetTokenRepository
+public sealed class PasswordResetTokenRepository(AppDbContext database) : IPasswordResetTokenRepository
 {
     public async Task AddAsync(PasswordResetToken token, CancellationToken cancellationToken)
     {
