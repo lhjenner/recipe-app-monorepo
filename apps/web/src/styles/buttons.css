@@ -12,6 +12,7 @@
     border: none;
     cursor: pointer;
     transition: background-color 150ms ease;
+    text-decoration: none;
 }
 
 .btn-primary {

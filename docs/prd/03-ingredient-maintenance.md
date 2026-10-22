@@ -145,7 +145,7 @@ Each criterion is a Given/When/Then scenario. The **Test Type** column declares 
 | AC-40 | A user | They call `GET /api/categories` or `GET /api/departments` | Their records are returned sorted by name | BDD |
 | AC-41 | A name that already exists for the owner (case-insensitive, whitespace-normalised) | `POST /api/categories` or `/api/departments` is called | `200 OK` with the **existing** record (idempotent create), not a duplicate | BDD |
 | AC-42 | A blank name or one over 100 characters | Created | `400` Problem Details | BDD |
-| AC-43 | Any authenticated user | They call `GET /api/supermarkets` | Seeded chains (Woolworths, New World, Pak'n Save), each with their stores (code, display name, display order), are returned | BDD |
+| AC-43 | Any authenticated user | They call `GET /api/supermarkets` | Seeded chains (Woolworths, New World, Pak'n Save), each with stable IDs and stores (ID, code, display name, display order), are returned | BDD |
 
 ### Standalone Firestore migration — dry-run and classification
 
@@ -233,7 +233,7 @@ All endpoints require authentication, accept and return DTOs (never entities), p
 | `POST` | `/api/ingredients/{id}/restore` | Restore (idempotent) | 204 |
 | `GET` / `POST` | `/api/categories` | List / idempotent create | 200 |
 | `GET` / `POST` | `/api/departments` | List / idempotent create | 200 |
-| `GET` | `/api/supermarkets` | Chains with nested stores | 200 |
+| `GET` | `/api/supermarkets` | Chains and stores with stable IDs, codes, names and display order | 200 |
 
 Archive and restore are state transitions, not deletions, so they are explicit actions rather than `DELETE`.
 

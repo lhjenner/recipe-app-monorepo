@@ -7,7 +7,9 @@ namespace RecipeApp.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/ingredients")]
-public sealed class IngredientsController(IIngredientReadService ingredients) : ControllerBase
+public sealed class IngredientsController(
+    IIngredientReadService ingredients,
+    IIngredientWriteService writes) : ControllerBase
 {
     [HttpGet]
     [EndpointSummary("List ingredients")]
@@ -41,5 +43,72 @@ public sealed class IngredientsController(IIngredientReadService ingredients) : 
     {
         var response = await ingredients.GetByIdAsync(id, cancellationToken);
         return response is null ? NotFound() : Ok(response);
+    }
+
+    [HttpPost]
+    [EndpointSummary("Create an ingredient")]
+    [ProducesResponseType<IngredientDetailResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<IngredientDetailResponse>> Create(
+        IngredientWriteRequest request,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await writes.CreateAsync(request, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    [HttpPut("{id:guid}")]
+    [EndpointSummary("Update an ingredient")]
+    [ProducesResponseType<IngredientDetailResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IngredientDetailResponse>> Update(
+        Guid id,
+        IngredientWriteRequest request,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await writes.UpdateAsync(id, request, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    private ActionResult<IngredientDetailResponse> ToActionResult(IngredientWriteOutcome outcome)
+    {
+        if (outcome.Errors is not null)
+        {
+            return BadRequest(new ValidationProblemDetails(outcome.Errors));
+        }
+
+        if (outcome.StatusCode == StatusCodes.Status404NotFound)
+        {
+            return NotFound();
+        }
+
+        if (outcome.StatusCode == StatusCodes.Status409Conflict)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = outcome.StatusCode,
+                Title = outcome.Title,
+                Detail = outcome.Detail
+            };
+            if (outcome.ArchivedIngredientId is not null)
+            {
+                problem.Extensions["archivedIngredientId"] = outcome.ArchivedIngredientId;
+            }
+
+            return new ObjectResult(problem) { StatusCode = outcome.StatusCode };
+        }
+
+        if (outcome.StatusCode == StatusCodes.Status201Created)
+        {
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = outcome.Ingredient!.Id },
+                outcome.Ingredient);
+        }
+
+        return Ok(outcome.Ingredient);
     }
 }

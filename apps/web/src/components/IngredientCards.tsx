@@ -3,6 +3,7 @@ import type {
   SupermarketStore,
 } from '../services/ingredientsApi';
 import IngredientMappingState from './IngredientMappingState';
+import { Link } from 'react-router-dom';
 
 interface IngredientCardsProps {
   ingredients: IngredientSummary[];
@@ -20,7 +21,11 @@ function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps
         return (
           <article className="ingredient-card" key={ingredient.id} aria-label={ingredient.name}>
             <div className="ingredient-card-heading">
-              <h2>{ingredient.name}</h2>
+              <h2>
+                {archived
+                  ? ingredient.name
+                  : <Link to={`/ingredient-maintenance/${ingredient.id}`}>{ingredient.name}</Link>}
+              </h2>
               {ingredient.excludeFromGroceryList && (
                 <span className="ingredient-exclusion-badge">Excluded from grocery list</span>
               )}
@@ -56,9 +61,9 @@ function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps
                 </button>
               ) : (
                 <>
-                  <button type="button" disabled aria-label={`Edit ${ingredient.name}`}>
+                  <Link to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${ingredient.name}`}>
                     Edit
-                  </button>
+                  </Link>
                   <button type="button" disabled aria-label={`Archive ${ingredient.name}`}>
                     Archive
                   </button>

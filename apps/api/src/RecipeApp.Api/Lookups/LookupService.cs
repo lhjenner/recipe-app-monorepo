@@ -148,11 +148,13 @@ public sealed class LookupService(
 
         return chains
             .Select(chain => new SupermarketChainResponse(
+                chain.Id,
                 chain.Code,
                 chain.Name,
                 chain.Stores
                     .OrderBy(store => store.DisplayOrder)
                     .Select(store => new StoreResponse(
+                        store.Id,
                         store.Code,
                         store.Name,
                         store.DisplayOrder))

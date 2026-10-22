@@ -3,6 +3,7 @@ import type {
   SupermarketStore,
 } from '../services/ingredientsApi';
 import IngredientMappingState from './IngredientMappingState';
+import { Link } from 'react-router-dom';
 
 interface IngredientTableProps {
   ingredients: IngredientSummary[];
@@ -60,9 +61,9 @@ function IngredientTable({ ingredients, stores, archived }: IngredientTableProps
                     </button>
                   ) : (
                     <>
-                      <button type="button" disabled aria-label={`Edit ${ingredient.name}`}>
+                      <Link to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${ingredient.name}`}>
                         Edit
-                      </button>
+                      </Link>
                       <button type="button" disabled aria-label={`Archive ${ingredient.name}`}>
                         Archive
                       </button>

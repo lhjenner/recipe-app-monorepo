@@ -19,6 +19,7 @@ test('requests a paged ingredient list and validates its response', async () => 
       excludeFromGroceryList: false,
       archived: false,
       stores: [{
+        id: '67af7315-c4e5-4f9e-89b3-7c3a71ba11da',
         storeCode: 'new-world-greenmeadows',
         state: 'mapped',
         departmentName: 'Produce',
@@ -86,9 +87,15 @@ test('validates ingredient detail timestamps and nested response data', async ()
 test('validates supermarkets and surfaces RFC problem details', async () => {
   const fetchMock = vi.fn()
     .mockResolvedValueOnce(new Response(JSON.stringify([{
+      id: '19f8486e-7b2c-4e10-949f-ecf0d2039b36',
       code: 'new-world',
       name: 'New World',
-      stores: [{ code: 'new-world-greenmeadows', name: 'New World Greenmeadows', displayOrder: 1 }],
+      stores: [{
+        id: '67af7315-c4e5-4f9e-89b3-7c3a71ba11da',
+        code: 'new-world-greenmeadows',
+        name: 'New World Greenmeadows',
+        displayOrder: 1,
+      }],
     }]), { status: 200 }))
     .mockResolvedValueOnce(new Response(JSON.stringify({
       status: 400,
