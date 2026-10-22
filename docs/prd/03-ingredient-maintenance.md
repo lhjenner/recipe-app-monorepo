@@ -101,6 +101,7 @@ Each criterion is a Given/When/Then scenario. The **Test Type** column declares 
 | AC-11 | A mobile-width viewport (700px or below) | The list loads | Ingredients appear as cards (name, category, each store's mapping state, exclusion badge); no table is rendered; search and paging work as on desktop | E2E |
 | AC-12 | The "Show archived" toggle is on | The list loads | Only archived ingredients are shown, each with a Restore action instead of Archive | BDD + E2E |
 | AC-13 | A page number beyond the last page, or a page size outside 1–100 | The API is called | `400` Problem Details is returned | BDD |
+| AC-72 | An ingredient, category or department stored in lower case (e.g. "salt and pepper", "fruit & veg") | The list shows it as a table row or card | It is displayed in title case ("Salt and Pepper", "Fruit & Veg"): each word's first letter is capitalised, existing capitals such as "BBQ" are kept, and minor joining words (and, of, or, the, …) stay lower case except as the first or last word. Viewing does not change the stored value | Unit + E2E |
 
 ### Create & edit
 
@@ -128,6 +129,7 @@ Each criterion is a Given/When/Then scenario. The **Test Type** column declares 
 | AC-33 | The "Exclude from grocery list" checkbox | Toggled and saved | `ExcludeFromGroceryList` is persisted and shown on reload | BDD + E2E |
 | AC-34 | Ingredient X loaded at version V, then changed elsewhere | X is saved with version V | `409` Problem Details; the form keeps the typed values and shows "This ingredient was changed elsewhere" with a "Reload latest" action | BDD + E2E |
 | AC-35 | The user has unsaved changes | They navigate away from the form | They are asked to confirm discarding changes | E2E |
+| AC-73 | An ingredient whose name, category or departments are stored in lower case | The edit form loads, or the user leaves a Name, Category or Department field | The field shows the AC-72 title-case form, and suggestions are listed in title case. Loading alone does not count as an unsaved change; saving stores the title-cased values | E2E |
 
 ### Archive & restore
 
@@ -213,7 +215,7 @@ Each criterion is a Given/When/Then scenario. The **Test Type** column declares 
 
 **Nutrition** is an owned type `NutritionPer100g` mapped to columns on `Ingredient`: `EnergyKcal`, `ProteinG`, `CarbohydrateG`, `SugarG`, `FatG`, `SaturatedFatG`, `FibreG`, `SodiumMg`. All are `numeric(9,3)`, nullable, and independently optional.
 
-**Name normalisation:** trim, collapse internal whitespace to one space, then lower-case using the invariant culture to produce `NormalizedName`. The display `Name` keeps the user's casing. Imported names are kept exactly as in Firestore (all lowercase); title-casing for display is deferred.
+**Name normalisation:** trim, collapse internal whitespace to one space, then lower-case using the invariant culture to produce `NormalizedName`. The display `Name` keeps the user's casing. Imported names are kept exactly as in Firestore (all lowercase); the web app title-cases names for display (AC-72, AC-73).
 
 ### Ownership & current user
 
@@ -244,6 +246,7 @@ Archive and restore are state transitions, not deletions, so they are explicit a
 - Data fetching and side effects live in hooks (`useIngredientList`, `useIngredient`, `useSupermarkets`, `useLookupList` for categories and departments). Components are presentation-only.
 - Small single-purpose components, each under 200–250 lines: list page, search box, pagination, desktop table, mobile card, mapping-state cell, ingredient form split into sections (details, store mappings, product links, nutrition), a reusable type-ahead with "Create" option, and archive confirmation.
 - Breakpoint: reuse the 700px `MOBILE_BREAKPOINT` from `navigation.ts`.
+- Name display: ingredient, category and department names pass through the shared `toTitleCase` formatter (`titleCase.ts`) wherever they are shown (AC-72, AC-73). Store and chain names are seeded reference data and are shown as stored.
 - Styles: new modular files under `apps/web/src/styles/`: `table.css`, `cards.css`, `forms.css`, `badges.css`. All colours, including the "Missing" warning and "Not stocked" muted state, are variables in `colors.css`.
 
 ### Firestore migration (standalone temporary tool)

@@ -4,6 +4,7 @@ import type {
 } from '../services/ingredientsApi';
 import IngredientMappingState from './IngredientMappingState';
 import { Link } from 'react-router-dom';
+import { toTitleCase } from '../titleCase';
 
 interface IngredientCardsProps {
   ingredients: IngredientSummary[];
@@ -18,13 +19,14 @@ function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps
         const storeStates = new Map(
           ingredient.stores.map((store) => [store.storeCode, store]),
         );
+        const name = toTitleCase(ingredient.name);
         return (
-          <article className="ingredient-card" key={ingredient.id} aria-label={ingredient.name}>
+          <article className="ingredient-card" key={ingredient.id} aria-label={name}>
             <div className="ingredient-card-heading">
               <h2>
                 {archived
-                  ? ingredient.name
-                  : <Link to={`/ingredient-maintenance/${ingredient.id}`}>{ingredient.name}</Link>}
+                  ? name
+                  : <Link to={`/ingredient-maintenance/${ingredient.id}`}>{name}</Link>}
               </h2>
               {ingredient.excludeFromGroceryList && (
                 <span className="ingredient-exclusion-badge">Excluded from grocery list</span>
@@ -35,7 +37,7 @@ function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps
                 <dt>Category</dt>
                 <dd>
                   {ingredient.categoryName
-                    ? ingredient.categoryName
+                    ? toTitleCase(ingredient.categoryName)
                     : <span className="ingredient-missing">Missing</span>}
                 </dd>
               </div>
@@ -56,15 +58,15 @@ function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps
             </dl>
             <div className="ingredient-card-actions">
               {archived ? (
-                <button type="button" disabled aria-label={`Restore ${ingredient.name}`}>
+                <button type="button" disabled aria-label={`Restore ${name}`}>
                   Restore
                 </button>
               ) : (
                 <>
-                  <Link to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${ingredient.name}`}>
+                  <Link to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${name}`}>
                     Edit
                   </Link>
-                  <button type="button" disabled aria-label={`Archive ${ingredient.name}`}>
+                  <button type="button" disabled aria-label={`Archive ${name}`}>
                     Archive
                   </button>
                 </>

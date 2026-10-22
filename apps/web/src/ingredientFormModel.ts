@@ -4,6 +4,7 @@ import type {
   SupermarketChain,
   SupermarketStore,
 } from './services/ingredientsApi';
+import { toTitleCase } from './titleCase';
 
 export const nutritionFields = [
   ['energyKcal', 'Energy (kcal)'],
@@ -63,15 +64,15 @@ export function ingredientToEditorState(
   for (const mapping of ingredient.storeMappings) {
     state.stores[mapping.storeId] = {
       departmentId: mapping.departmentId,
-      departmentName: mapping.departmentName ?? '',
+      departmentName: toTitleCase(mapping.departmentName ?? ''),
       isNotStocked: mapping.state === 'notStocked',
     };
   }
   return {
     ...state,
-    name: ingredient.name,
+    name: toTitleCase(ingredient.name),
     categoryId: ingredient.categoryId,
-    categoryName: ingredient.categoryName ?? '',
+    categoryName: toTitleCase(ingredient.categoryName ?? ''),
     excludeFromGroceryList: ingredient.excludeFromGroceryList,
     nutrition: Object.fromEntries(nutritionFields.map(([field]) => [
       field,

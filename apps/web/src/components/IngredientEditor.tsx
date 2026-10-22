@@ -11,6 +11,7 @@ import type {
   SupermarketChain,
   SupermarketStore,
 } from '../services/ingredientsApi';
+import { toTitleCase } from '../titleCase';
 
 interface IngredientEditorProps {
   value: IngredientEditorState;
@@ -70,6 +71,12 @@ function IngredientEditor({
             value={value.name}
             maxLength={200}
             onChange={(event) => onChange({ ...value, name: event.currentTarget.value })}
+            onBlur={() => {
+              const name = toTitleCase(value.name);
+              if (name !== value.name) {
+                onChange({ ...value, name });
+              }
+            }}
           />
           {errorFor('Name') && <span className="ingredient-field-error">{errorFor('Name')}</span>}
         </label>

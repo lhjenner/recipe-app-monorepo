@@ -175,6 +175,49 @@ test.describe('Ingredient create and edit', () => {
     await expect(page.getByRole('button', { name: 'Reload latest' })).toBeVisible();
   });
 
+  test('loads stored names in title case and title-cases typed values on leaving a field', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockEditorLookups(page);
+    await page.route('**/api/ingredients/00000000-0000-7000-8000-000000000001', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      json: {
+        ...detail('agar agar'),
+        categoryId: '00000000-0000-7000-8000-000000000020',
+        categoryName: 'baking aisle',
+      },
+    }));
+    await page.route('**/api/ingredients?**', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      json: { items: [], totalCount: 0, page: 1, pageSize: 25 },
+    }));
+
+    await page.goto('/ingredient-maintenance/00000000-0000-7000-8000-000000000001');
+    const name = page.getByRole('textbox', { name: 'Name' });
+    await expect(name).toHaveValue('Agar Agar');
+    await expect(page.getByRole('combobox', { name: 'Category' })).toHaveValue('Baking Aisle');
+
+    let prompted = false;
+    page.on('dialog', (dialog) => {
+      prompted = true;
+      void dialog.dismiss();
+    });
+    await name.focus();
+    await name.blur();
+    await page.getByRole('link', { name: 'Home', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+    expect(prompted).toBe(false);
+
+    await page.goto('/ingredient-maintenance/new');
+    const department = page.getByRole('combobox', { name: 'New World Greenmeadows department' });
+    await page.getByRole('textbox', { name: 'Name' }).fill('salt and pepper');
+    await department.fill('fruit & veg');
+    await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('Salt and Pepper');
+    await page.getByRole('textbox', { name: 'Name' }).focus();
+    await expect(department).toHaveValue('Fruit & Veg');
+  });
+
   test('confirms when leaving with unsaved values', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockEditorLookups(page);

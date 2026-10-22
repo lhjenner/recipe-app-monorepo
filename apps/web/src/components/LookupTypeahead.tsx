@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import type { LookupValue } from '../services/ingredientsApi';
+import { toTitleCase } from '../titleCase';
 
 interface LookupTypeaheadProps {
   label?: string;
@@ -34,7 +35,7 @@ function LookupTypeahead({
     setError(null);
     try {
       const created = await onCreate(value.trim().replace(/\s+/g, ' '));
-      onChange(created.id, created.name);
+      onChange(created.id, toTitleCase(created.name));
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to create this option.');
     } finally {
@@ -56,10 +57,16 @@ function LookupTypeahead({
             const match = options.find((option) => normalize(option.name) === normalize(nextValue));
             onChange(match?.id ?? null, nextValue);
           }}
+          onBlur={() => {
+            const formatted = toTitleCase(value);
+            if (formatted !== value) {
+              onChange(selected?.id ?? null, formatted);
+            }
+          }}
         />
       </label>
       <datalist id={listId}>
-        {options.map((option) => <option key={option.id} value={option.name} />)}
+        {options.map((option) => <option key={option.id} value={toTitleCase(option.name)} />)}
       </datalist>
       {!disabled && !selected && value.trim() && (
         <button type="button" onClick={() => void createOption()} disabled={isCreating}>

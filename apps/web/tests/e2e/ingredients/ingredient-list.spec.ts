@@ -140,6 +140,29 @@ test.describe('Ingredient Maintenance list', () => {
     await expect(table.getByRole('button', { name: 'Archive Basil' })).toBeVisible();
   });
 
+  test('shows lowercase stored names, categories, and departments in title case', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockIngredientApi(page, [
+      ingredient('salt and pepper', {
+        categoryName: 'baking aisle',
+        stores: [
+          { storeCode: storeDefinitions[0].code, state: 'mapped', departmentName: 'fruit & veg' },
+          { storeCode: storeDefinitions[1].code, state: 'unmapped', departmentName: null },
+          { storeCode: storeDefinitions[2].code, state: 'unmapped', departmentName: null },
+        ],
+      }),
+    ]);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ingredient-maintenance');
+
+    const row = page.getByRole('table', { name: 'Ingredients' }).getByRole('row', { name: /Salt and Pepper/ });
+    await expect(row.getByRole('rowheader')).toHaveText('Salt and Pepper');
+    await expect(row.getByRole('cell').nth(0)).toHaveText('Baking Aisle');
+    await expect(row.getByRole('cell').nth(1)).toHaveText('Fruit & Veg');
+    await expect(row.getByRole('link', { name: 'Edit Salt and Pepper' })).toBeVisible();
+  });
+
   test('AC-06 and AC-07 debounce search and show the no-match message', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     const requests = await mockIngredientApi(page, [
