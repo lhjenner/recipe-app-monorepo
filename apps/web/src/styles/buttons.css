@@ -12,14 +12,21 @@
     border: none;
     cursor: pointer;
     transition: background-color 150ms ease;
+    text-decoration: none;
 }
 
 .btn-primary {
     background-color: var(--color-primary);
+    color: var(--color-surface);
 }
 
 .btn-primary:hover {
     background-color: var(--color-primary-hover);
+}
+
+.btn-secondary {
+    border: 1px solid var(--color-danger);
+    background-color: var(--color-surface);
 }
 
 .btn-danger {

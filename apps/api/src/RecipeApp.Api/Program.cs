@@ -42,6 +42,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IIngredientReadService, IngredientReadService>();
+builder.Services.AddScoped<IIngredientWriteService, IngredientWriteService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ITicketStore, PostgresTicketStore>();
 builder.Services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
