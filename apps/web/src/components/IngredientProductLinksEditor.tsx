@@ -80,7 +80,7 @@ function IngredientProductLinksEditor({
             <span>Preferred</span>
           </label>
           <button
-            className="ingredient-remove-link"
+            className="btn btn-secondary ingredient-remove-link"
             type="button"
             onClick={() => onChange(links.filter((_, itemIndex) => itemIndex !== index))}
           >
@@ -90,6 +90,7 @@ function IngredientProductLinksEditor({
       ))}
       {errorFor('ProductLinks') && <span className="ingredient-field-error">{errorFor('ProductLinks')}</span>}
       <button
+        className="btn btn-secondary"
         type="button"
         onClick={() => onChange([...links, {
           chainId: chains[0]?.id ?? '',

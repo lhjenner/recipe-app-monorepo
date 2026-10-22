@@ -95,10 +95,10 @@
 }
 
 .ingredient-actions button,
-.ingredient-actions a,
+.ingredient-actions a:not(.btn),
 .ingredient-card-actions button,
-.ingredient-card-actions a,
-.ingredient-pagination button,
+.ingredient-card-actions a:not(.btn),
+.ingredient-pagination button:not(.btn),
 .ingredient-error button {
   min-height: 36px;
   padding: 6px 10px;
@@ -115,8 +115,8 @@
   cursor: not-allowed;
 }
 
-.ingredient-actions a,
-.ingredient-card-actions a {
+.ingredient-actions a:not(.btn),
+.ingredient-card-actions a:not(.btn) {
   display: inline-flex;
   align-items: center;
   min-height: 36px;
@@ -132,7 +132,7 @@
   margin-top: 20px;
 }
 
-.ingredient-pagination button:disabled {
+.ingredient-pagination button:not(.btn):disabled {
   color: var(--color-text-muted);
   cursor: not-allowed;
 }

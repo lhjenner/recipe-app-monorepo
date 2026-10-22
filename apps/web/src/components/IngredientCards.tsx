@@ -63,7 +63,7 @@ function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps
                 </button>
               ) : (
                 <>
-                  <Link to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${name}`}>
+                  <Link className="btn btn-secondary" to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${name}`}>
                     Edit
                   </Link>
                   <button type="button" disabled aria-label={`Archive ${name}`}>

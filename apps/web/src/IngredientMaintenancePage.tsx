@@ -105,6 +105,7 @@ function IngredientMaintenancePage() {
               />
               <nav className="ingredient-pagination" aria-label="Ingredient pages">
                 <button
+                  className="btn btn-secondary"
                   type="button"
                   onClick={() => setPage((current) => current - 1)}
                   disabled={page <= 1}
@@ -114,6 +115,7 @@ function IngredientMaintenancePage() {
                 </button>
                 <span>Page {page} of {pageCount}</span>
                 <button
+                  className="btn btn-secondary"
                   type="button"
                   onClick={() => setPage((current) => current + 1)}
                   disabled={page >= pageCount}

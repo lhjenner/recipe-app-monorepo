@@ -24,6 +24,11 @@
     background-color: var(--color-primary-hover);
 }
 
+.btn-secondary {
+    border: 1px solid var(--color-danger);
+    background-color: var(--color-surface);
+}
+
 .btn-danger {
     background-color: var(--color-danger);
 }

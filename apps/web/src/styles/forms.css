@@ -58,7 +58,7 @@
 }
 
 .ingredient-lookup-field > button,
-.ingredient-product-link button,
+.ingredient-product-link button:not(.btn),
 .ingredient-editor-actions > button:not(.btn) {
   min-height: 40px;
   padding: 8px 12px;

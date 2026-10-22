@@ -63,7 +63,7 @@ function IngredientTable({ ingredients, stores, archived }: IngredientTableProps
                     </button>
                   ) : (
                     <>
-                      <Link to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${name}`}>
+                      <Link className="btn btn-secondary" to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${name}`}>
                         Edit
                       </Link>
                       <button type="button" disabled aria-label={`Archive ${name}`}>
