@@ -1,0 +1,66 @@
+/*
+ * One look for every dropdown: native <select> elements and the LookupTypeahead
+ * combobox share the chevron, and the combobox list mirrors a select's popup.
+ * Imported after forms.css; :is() gives these class-level specificity so they win.
+ */
+:is(select, .combobox-input) {
+  appearance: none;
+  padding-right: 36px;
+  background-image: var(--icon-chevron-down);
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+}
+
+select {
+  cursor: pointer;
+}
+
+select:disabled {
+  cursor: not-allowed;
+}
+
+.combobox {
+  position: relative;
+}
+
+.combobox-toggle {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.combobox-toggle:disabled {
+  cursor: not-allowed;
+}
+
+.combobox-listbox {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  right: 0;
+  left: 0;
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--color-option-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  list-style: none;
+}
+
+.combobox-option {
+  padding: 4px 14px;
+  cursor: default;
+}
+
+.combobox-option.is-active {
+  background: var(--color-option-highlight);
+  color: var(--color-on-option-highlight);
+}

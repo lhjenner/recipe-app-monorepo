@@ -247,7 +247,7 @@ Archive and restore are state transitions, not deletions, so they are explicit a
 - Small single-purpose components, each under 200–250 lines: list page, search box, pagination, desktop table, mobile card, mapping-state cell, ingredient form split into sections (details, store mappings, product links, nutrition), a reusable type-ahead with "Create" option, and archive confirmation.
 - Breakpoint: reuse the 700px `MOBILE_BREAKPOINT` from `navigation.ts`.
 - Name display: ingredient, category and department names pass through the shared `toTitleCase` formatter (`titleCase.ts`) wherever they are shown (AC-72, AC-73). Store and chain names are seeded reference data and are shown as stored.
-- Styles: new modular files under `apps/web/src/styles/`: `table.css`, `cards.css`, `forms.css`, `badges.css`. All colours, including the "Missing" warning and "Not stocked" muted state, are variables in `colors.css`.
+- Styles: new modular files under `apps/web/src/styles/`: `table.css`, `cards.css`, `forms.css`, `badges.css`, `dropdowns.css` (shared chevron and option-list styling for native selects and the type-ahead combobox). All colours, including the "Missing" warning and "Not stocked" muted state, are variables in `colors.css`.
 
 ### Firestore migration (standalone temporary tool)
 

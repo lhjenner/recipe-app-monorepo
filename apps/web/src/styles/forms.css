@@ -27,27 +27,27 @@
 }
 
 .ingredient-form-field,
-.ingredient-lookup-field > label {
+.ingredient-lookup-control {
   display: grid;
   gap: 6px;
 }
 
-.ingredient-form-field input,
-.ingredient-form-field select,
-.ingredient-lookup-field input {
+/* :where() keeps these at class-level specificity so dropdowns.css can add the chevron. */
+.ingredient-form-field :where(input, select),
+.ingredient-lookup-field :where(input) {
   width: 100%;
   min-height: 40px;
   padding: 8px 10px;
   border: 1px solid var(--color-input-border);
   border-radius: 5px;
-  background: var(--color-surface);
+  background-color: var(--color-surface);
   color: var(--color-text);
   font: inherit;
 }
 
 .ingredient-form-field input:disabled,
 .ingredient-lookup-field input:disabled {
-  background: var(--color-muted-surface);
+  background-color: var(--color-muted-surface);
 }
 
 .ingredient-lookup-field {
@@ -57,7 +57,7 @@
   gap: 8px;
 }
 
-.ingredient-lookup-field button,
+.ingredient-lookup-field > button,
 .ingredient-product-link button,
 .ingredient-editor-actions > button:not(.btn) {
   min-height: 40px;

@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import type { LookupValue } from '../services/ingredientsApi';
 import { toTitleCase } from '../titleCase';
 
@@ -25,10 +25,59 @@ function LookupTypeahead({
   onChange,
   onCreate,
 }: LookupTypeaheadProps) {
+  const inputId = useId();
   const listId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const selected = options.find((option) => normalize(option.name) === normalize(value));
+  const [isOpen, setIsOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const query = normalize(value);
+  const selected = options.find((option) => normalize(option.name) === query);
+  const visibleOptions = showAll || !query
+    ? options
+    : options.filter((option) => normalize(option.name).includes(query));
+  const expanded = isOpen && !disabled && visibleOptions.length > 0;
+  const optionId = (index: number) => `${listId}-option-${index}`;
+
+  useEffect(() => {
+    if (expanded && activeIndex >= 0) {
+      document.getElementById(optionId(activeIndex))?.scrollIntoView?.({ block: 'nearest' });
+    }
+  });
+
+  function open() {
+    // Opening from the chevron or keyboard lists everything, like a native select.
+    setShowAll(true);
+    setActiveIndex(selected ? options.indexOf(selected) : -1);
+    setIsOpen(true);
+  }
+
+  function choose(option: LookupValue) {
+    onChange(option.id, toTitleCase(option.name));
+    setIsOpen(false);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!expanded) {
+        open();
+      } else {
+        setActiveIndex((index) => Math.min(index + 1, visibleOptions.length - 1));
+      }
+    } else if (event.key === 'ArrowUp' && expanded) {
+      event.preventDefault();
+      setActiveIndex((index) => Math.max(index - 1, 0));
+    } else if (event.key === 'Enter' && expanded && activeIndex >= 0) {
+      event.preventDefault();
+      choose(visibleOptions[activeIndex]);
+    } else if (event.key === 'Escape' && expanded) {
+      event.preventDefault();
+      setIsOpen(false);
+    }
+  }
 
   async function createOption() {
     setIsCreating(true);
@@ -45,29 +94,80 @@ function LookupTypeahead({
 
   return (
     <div className="ingredient-lookup-field">
-      <label>
-        {label && <span>{label}</span>}
-        <input
-          aria-label={accessibleLabel}
-          disabled={disabled}
-          list={listId}
-          value={value}
-          onChange={(event) => {
-            const nextValue = event.currentTarget.value;
-            const match = options.find((option) => normalize(option.name) === normalize(nextValue));
-            onChange(match?.id ?? null, nextValue);
-          }}
-          onBlur={() => {
-            const formatted = toTitleCase(value);
-            if (formatted !== value) {
-              onChange(selected?.id ?? null, formatted);
-            }
-          }}
-        />
-      </label>
-      <datalist id={listId}>
-        {options.map((option) => <option key={option.id} value={toTitleCase(option.name)} />)}
-      </datalist>
+      <div className="ingredient-lookup-control">
+        {label && <label htmlFor={inputId}>{label}</label>}
+        <div className="combobox">
+          <input
+            ref={inputRef}
+            id={inputId}
+            className="combobox-input"
+            role="combobox"
+            aria-label={accessibleLabel}
+            aria-autocomplete="list"
+            aria-expanded={expanded}
+            aria-controls={expanded ? listId : undefined}
+            aria-activedescendant={expanded && activeIndex >= 0 ? optionId(activeIndex) : undefined}
+            autoComplete="off"
+            disabled={disabled}
+            value={value}
+            onClick={() => {
+              if (!isOpen) {
+                open();
+              }
+            }}
+            onKeyDown={onKeyDown}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              const match = options.find((option) => normalize(option.name) === normalize(nextValue));
+              onChange(match?.id ?? null, nextValue);
+              setShowAll(false);
+              setActiveIndex(-1);
+              setIsOpen(true);
+            }}
+            onBlur={() => {
+              setIsOpen(false);
+              const formatted = toTitleCase(value);
+              if (formatted !== value) {
+                onChange(selected?.id ?? null, formatted);
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="combobox-toggle"
+            tabIndex={-1}
+            aria-label={`Show ${accessibleLabel} options`}
+            disabled={disabled}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              if (expanded) {
+                setIsOpen(false);
+              } else {
+                inputRef.current?.focus();
+                open();
+              }
+            }}
+          />
+          {expanded && (
+            <ul id={listId} className="combobox-listbox" role="listbox" aria-label={accessibleLabel}>
+              {visibleOptions.map((option, index) => (
+                <li
+                  id={optionId(index)}
+                  key={option.id}
+                  className={index === activeIndex ? 'combobox-option is-active' : 'combobox-option'}
+                  role="option"
+                  aria-selected={option.id === selected?.id}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => choose(option)}
+                >
+                  {toTitleCase(option.name)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
       {!disabled && !selected && value.trim() && (
         <button type="button" onClick={() => void createOption()} disabled={isCreating}>
           {isCreating ? 'Creating…' : `Create '${value.trim()}'`}

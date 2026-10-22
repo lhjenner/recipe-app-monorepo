@@ -25,6 +25,12 @@
     --color-input-border: #a9b5aa;
     --color-border-subtle: #e1e7df;
 
+    /* Dropdowns (native selects and comboboxes) */
+    --color-option-border: #767676;
+    --color-option-highlight: var(--color-primary);
+    --color-on-option-highlight: #fff;
+    --icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%231e1e1e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
     /* Decorative effects */
     --color-pattern-line: color-mix(in srgb, var(--color-primary-hover) 3%, transparent);
     --color-on-brand-muted: color-mix(in srgb, var(--color-on-brand) 76%, transparent);
@@ -55,6 +61,8 @@
     --color-link-hover: #d6f0dd;
     --color-input-border: #647568;
     --color-border-subtle: #465248;
+    --color-option-border: #8a958c;
+    --icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23e4e9e3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     --color-card-shadow: rgb(0 0 0 / 30%);
     --color-footer-wash: color-mix(in srgb, var(--color-primary-hover) 80%, transparent);
 }

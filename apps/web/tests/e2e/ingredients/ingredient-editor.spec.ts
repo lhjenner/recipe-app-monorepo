@@ -218,6 +218,54 @@ test.describe('Ingredient create and edit', () => {
     await expect(department).toHaveValue('Fruit & Veg');
   });
 
+  test('picks categories and departments from a styled list by mouse and keyboard', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await page.route('**/api/supermarkets', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', json: supermarkets }));
+    await page.route('**/api/categories', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      json: [
+        { id: '00000000-0000-7000-8000-000000000030', name: 'baking aisle' },
+        { id: '00000000-0000-7000-8000-000000000031', name: 'produce' },
+      ],
+    }));
+    await page.route('**/api/departments', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      json: [
+        { id: '00000000-0000-7000-8000-000000000040', name: 'aisle 7' },
+        { id: '00000000-0000-7000-8000-000000000041', name: 'fruit & veg' },
+      ],
+    }));
+
+    await page.goto('/ingredient-maintenance/new');
+    await expect(page.locator('datalist')).toHaveCount(0);
+
+    const category = page.getByRole('combobox', { name: 'Category' });
+    await category.click();
+    const categoryList = page.getByRole('listbox', { name: 'Category' });
+    await expect(categoryList.getByRole('option')).toHaveText(['Baking Aisle', 'Produce']);
+    await categoryList.getByRole('option', { name: 'Produce' }).click();
+    await expect(category).toHaveValue('Produce');
+    await expect(categoryList).toBeHidden();
+    await expect(page.getByRole('button', { name: "Create 'Produce'" })).toHaveCount(0);
+
+    const department = page.getByRole('combobox', { name: 'New World Greenmeadows department' });
+    await department.fill('veg');
+    const departmentList = page.getByRole('listbox', { name: 'New World Greenmeadows department' });
+    await expect(departmentList.getByRole('option')).toHaveText(['Fruit & Veg']);
+    await department.press('ArrowDown');
+    await department.press('Enter');
+    await expect(department).toHaveValue('Fruit & Veg');
+    await expect(departmentList).toBeHidden();
+
+    await department.press('ArrowDown');
+    await expect(departmentList.getByRole('option')).toHaveCount(2);
+    await department.press('Escape');
+    await expect(departmentList).toBeHidden();
+  });
+
   test('confirms when leaving with unsaved values', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockEditorLookups(page);
@@ -238,8 +286,9 @@ test.describe('Ingredient create and edit', () => {
     await expect(name).toBeVisible();
 
     const linkPrompt = page.waitForEvent('dialog');
-    await page.getByRole('link', { name: 'Home', exact: true }).click();
+    const linkClick = page.getByRole('link', { name: 'Home', exact: true }).click();
     await (await linkPrompt).accept();
+    await linkClick;
     await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   });
 });
