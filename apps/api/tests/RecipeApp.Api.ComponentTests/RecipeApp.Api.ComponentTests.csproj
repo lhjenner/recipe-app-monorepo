@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RecipeApp.Api\RecipeApp.Api.csproj" />
+    <ProjectReference Include="..\..\..\..\tools\FirestoreMigration\FirestoreMigration.csproj" />
   </ItemGroup>
 
 </Project>

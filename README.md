@@ -8,6 +8,7 @@ A learning project for a full-stack recipe and meal-planning application. The re
 - The API implements registration, login (secure session cookie, 14-day sliding expiry), `/me`, logout, account lockout (5 failures locks the account for 15 minutes, `423` Problem Details) and password reset (hashed, single-use, one-hour tokens delivered through an `IEmailSender`).
 - The API also persists user-owned ingredient categories and departments and serves authenticated supermarket/store reference data from seeded records.
 - Ingredient Maintenance now provides authenticated, paged ingredient list and detail APIs, server-side search, archive filtering, and responsive desktop-table/mobile-card list views.
+- The [standalone Firestore ingredient migration tool](tools/FirestoreMigration/README.md) defaults to dry-run, retains explicit invalid-item classifications, and applies individually approved updates atomically.
 - xUnit unit tests and Reqnroll component scenarios (against a Testcontainers PostgreSQL database) cover authentication, lookup and ingredient read API behavior. Playwright specs cover authentication flows and the responsive ingredient list against mocked APIs.
 - GitHub Actions runs all of the above on pull requests unless every changed path is under `docs/` (see [Continuous Integration](#continuous-integration)).
 
@@ -27,6 +28,7 @@ apps/
     src/                                React and TypeScript app
     tests/e2e/                          Playwright browser tests
 docs/prd/                               Product requirements documents
+tools/FirestoreMigration/               Temporary ingredient migration console tool
 tests/performance/                      Reserved for performance tests
 ```
 
