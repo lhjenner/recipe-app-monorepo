@@ -33,6 +33,13 @@ public sealed class IngredientReadSeedSteps(ApiAuthContext context)
         context.ScenarioIngredientId = ingredients[0].Id;
     }
 
+    [Given("the user owns an archived ingredient named {string}")]
+    public async Task GivenTheUserOwnsAnArchivedIngredientNamed(string name)
+    {
+        var ingredients = await SeedIngredientsAsync([(name, true)]);
+        context.ScenarioIngredientId = ingredients[0].Id;
+    }
+
     [Given("another user owns an ingredient named {string}")]
     public async Task GivenAnotherUserOwnsAnIngredientNamed(string name)
     {

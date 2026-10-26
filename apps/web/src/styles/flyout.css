@@ -44,7 +44,7 @@
   z-index: 2;
   inset: 0;
   border: 0;
-  background: rgb(0 0 0 / 35%);
+  background: var(--color-overlay);
   cursor: pointer;
 }
 
@@ -102,7 +102,6 @@ body.mobile-flyout-open {
 .flyout-logout {
   width: 100%;
   margin-top: auto;
-  color: var(--color-on-brand);
   font-weight: var(--font-weight-semibold);
 }
 

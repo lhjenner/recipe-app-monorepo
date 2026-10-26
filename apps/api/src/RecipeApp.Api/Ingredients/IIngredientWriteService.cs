@@ -10,4 +10,12 @@ public interface IIngredientWriteService
         Guid id,
         IngredientWriteRequest request,
         CancellationToken cancellationToken);
+
+    Task<IngredientArchiveOutcome> ArchiveAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<IngredientArchiveOutcome> RestoreAsync(
+        Guid id,
+        CancellationToken cancellationToken);
 }

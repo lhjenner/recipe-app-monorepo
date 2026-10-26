@@ -73,6 +73,57 @@ public sealed class IngredientsController(
         return ToActionResult(outcome);
     }
 
+    [HttpPost("{id:guid}/archive")]
+    [EndpointSummary("Archive an ingredient")]
+    [EndpointDescription("Archives an ingredient owned by the authenticated user without deleting it.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Archive(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await writes.ArchiveAsync(id, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    [HttpPost("{id:guid}/restore")]
+    [EndpointSummary("Restore an ingredient")]
+    [EndpointDescription("Restores an archived ingredient owned by the authenticated user.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Restore(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await writes.RestoreAsync(id, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    private static IActionResult ToActionResult(IngredientArchiveOutcome outcome)
+    {
+        if (outcome.StatusCode == StatusCodes.Status204NoContent)
+        {
+            return new NoContentResult();
+        }
+
+        if (outcome.StatusCode == StatusCodes.Status404NotFound)
+        {
+            return new NotFoundResult();
+        }
+
+        return new ObjectResult(new ProblemDetails
+        {
+            Status = outcome.StatusCode,
+            Title = outcome.Title,
+            Detail = outcome.Detail
+        })
+        {
+            StatusCode = outcome.StatusCode
+        };
+    }
+
     private ActionResult<IngredientDetailResponse> ToActionResult(IngredientWriteOutcome outcome)
     {
         if (outcome.Errors is not null)

@@ -3,8 +3,7 @@
 }
 
 .ingredient-page-heading,
-.ingredient-list-controls,
-.ingredient-pagination {
+.ingredient-list-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -95,11 +94,10 @@
   gap: 8px;
 }
 
-.ingredient-actions button,
+.ingredient-actions button:not(.btn),
 .ingredient-actions a:not(.btn),
-.ingredient-card-actions button,
+.ingredient-card-actions button:not(.btn),
 .ingredient-card-actions a:not(.btn),
-.ingredient-pagination button:not(.btn),
 .ingredient-error button {
   min-height: 36px;
   padding: 6px 10px;
@@ -110,8 +108,8 @@
   font: inherit;
 }
 
-.ingredient-actions button:disabled,
-.ingredient-card-actions button:disabled {
+.ingredient-actions button:not(.btn):disabled,
+.ingredient-card-actions button:not(.btn):disabled {
   opacity: 0.65;
   cursor: not-allowed;
 }
@@ -126,16 +124,6 @@
   border-radius: 5px;
   color: var(--color-text);
   text-decoration: none;
-}
-
-.ingredient-pagination {
-  justify-content: center;
-  margin-top: 20px;
-}
-
-.ingredient-pagination button:not(.btn):disabled {
-  color: var(--color-text-muted);
-  cursor: not-allowed;
 }
 
 .ingredient-empty-state,
@@ -172,9 +160,5 @@
 
   .ingredient-search {
     width: 100%;
-  }
-
-  .ingredient-pagination {
-    justify-content: space-between;
   }
 }

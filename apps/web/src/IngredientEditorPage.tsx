@@ -1,26 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useBlocker, useMatch, useNavigate, useParams } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useMatch, useParams } from 'react-router-dom';
 import IngredientEditor from './components/IngredientEditor';
+import ConfirmDialog from './components/ConfirmDialog';
 import PageTitle from './PageTitle';
 import { useIngredient } from './hooks/useIngredient';
+import { useConfirmDialog } from './hooks/useConfirmDialog';
+import { useIngredientEditorSession } from './hooks/useIngredientEditorSession';
 import { useIngredientLookups } from './hooks/useIngredientLookups';
 import { useSupermarkets } from './hooks/useSupermarkets';
 import {
   createCategory,
   createDepartment,
-  createIngredient,
-  getIngredient,
-  IngredientsApiError,
-  updateIngredient,
   type IngredientDetail,
   type SupermarketChain,
   type SupermarketStore,
 } from './services/ingredientsApi';
-import {
-  createEmptyIngredient,
-  ingredientToEditorState,
-  ingredientWriteRequest,
-} from './ingredientFormModel';
 
 function IngredientEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -88,91 +82,17 @@ function IngredientEditorSession({
   addCategory,
   addDepartment,
 }: IngredientEditorSessionProps) {
-  const navigate = useNavigate();
-  const [form, setForm] = useState(() => ingredient
-    ? ingredientToEditorState(ingredient, stores, chains)
-    : createEmptyIngredient(stores));
-  const [dirty, setDirty] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-  const [archivedIngredientId, setArchivedIngredientId] = useState<string | undefined>();
-  const allowNavigation = useRef(false);
-  const blocker = useBlocker(useCallback(
-    () => dirty && !allowNavigation.current,
-    [dirty],
-  ));
+  const session = useIngredientEditorSession({ id, ingredient, stores, chains });
+  const { confirm, confirmDialog } = useConfirmDialog();
+  const { blocker, error, archivedIngredientId } = session;
 
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      if (window.confirm('Discard unsaved changes?')) {
-        blocker.proceed();
-      } else {
-        blocker.reset();
-      }
-    }
-  }, [blocker, blocker.state, blocker.proceed, blocker.reset]);
-
-  useEffect(() => {
-    if (!dirty) {
-      return;
-    }
-    const confirmUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', confirmUnload);
-    return () => {
-      window.removeEventListener('beforeunload', confirmUnload);
-    };
-  }, [dirty]);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const prepared = ingredientWriteRequest(form, stores, chains);
-    if (Object.keys(prepared.errors).length > 0) {
-      setFieldErrors(prepared.errors);
-      return;
-    }
-
-    setIsSaving(true);
-    setError(null);
-    setFieldErrors({});
-    setArchivedIngredientId(undefined);
-    try {
-      if (id) {
-        await updateIngredient(id, prepared.request);
-      } else {
-        await createIngredient(prepared.request);
-      }
-      setDirty(false);
-      allowNavigation.current = true;
-      navigate('/ingredient-maintenance');
-    } catch (requestError: unknown) {
-      if (requestError instanceof IngredientsApiError) {
-        setFieldErrors(requestError.fieldErrors);
-        setArchivedIngredientId(requestError.archivedIngredientId);
-        setError(requestError.message);
-      } else {
-        setError(requestError instanceof Error ? requestError.message : 'Unable to save this ingredient.');
-      }
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function reloadLatest() {
-    if (!id) {
-      return;
-    }
-    try {
-      const latest = await getIngredient(id);
-      setForm(ingredientToEditorState(latest, stores, chains));
-      setFieldErrors({});
-      setError(null);
-      setDirty(false);
-    } catch (requestError: unknown) {
-      setError(requestError instanceof Error ? requestError.message : 'Unable to reload ingredient.');
+  async function confirmRestore() {
+    if (await confirm({
+      title: 'Restore archived ingredient?',
+      message: 'The archived ingredient with this name will return to your active list. Changes on this form will not be saved.',
+      confirmLabel: 'Restore',
+    })) {
+      await session.restoreArchivedIngredient();
     }
   }
 
@@ -180,29 +100,33 @@ function IngredientEditorSession({
     <>
       {(error || archivedIngredientId) && (
         <div className="ingredient-error" role="alert">
+          {archivedIngredientId && (
+            <p>An archived ingredient with this name exists.</p>
+          )}
           {error && <p>{error}</p>}
           {error?.includes('changed elsewhere') && (
-            <button type="button" onClick={() => void reloadLatest()}>Reload latest</button>
+            <button type="button" onClick={() => void session.reloadLatest()}>Reload latest</button>
           )}
           {archivedIngredientId && (
-            <button type="button" disabled aria-label={`Restore ingredient ${archivedIngredientId}`}>
+            <button
+              type="button"
+              disabled={session.isSaving}
+              onClick={() => void confirmRestore()}
+            >
               Restore
             </button>
           )}
         </div>
       )}
       <IngredientEditor
-        value={form}
+        value={session.form}
         stores={stores}
         chains={chains}
         categories={categories}
         departments={departments}
-        errors={fieldErrors}
-        isSaving={isSaving}
-        onChange={(next) => {
-          setForm(next);
-          setDirty(true);
-        }}
+        errors={session.fieldErrors}
+        isSaving={session.isSaving}
+        onChange={session.updateForm}
         onCreateCategory={async (name) => {
           const category = await createCategory(name);
           addCategory(category);
@@ -213,11 +137,20 @@ function IngredientEditorSession({
           addDepartment(department);
           return department;
         }}
-        onCancel={() => {
-          navigate('/ingredient-maintenance');
-        }}
-        onSubmit={(event) => void submit(event)}
+        onCancel={session.cancel}
+        onSubmit={(event) => void session.submit(event)}
       />
+      <ConfirmDialog
+        open={blocker.state === 'blocked'}
+        title="Discard unsaved changes?"
+        message="Your changes to this ingredient will be lost."
+        confirmLabel="Discard changes"
+        cancelLabel="Keep editing"
+        tone="danger"
+        onConfirm={() => blocker.proceed?.()}
+        onCancel={() => blocker.reset?.()}
+      />
+      {confirmDialog}
     </>
   );
 }

@@ -179,7 +179,7 @@ function IngredientEditor({
         <button className="btn btn-primary" type="submit" disabled={isSaving}>
           {isSaving ? 'Saving…' : 'Save ingredient'}
         </button>
-        <button className="btn btn-secondary" type="button" onClick={onCancel} disabled={isSaving}>Cancel</button>
+        <button className="btn btn-danger-secondary" type="button" onClick={onCancel} disabled={isSaving}>Cancel</button>
       </div>
     </form>
   );

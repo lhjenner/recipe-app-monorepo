@@ -175,6 +175,64 @@ test.describe('Ingredient create and edit', () => {
     await expect(page.getByRole('button', { name: 'Reload latest' })).toBeVisible();
   });
 
+  test('offers to restore the archived ingredient when its name is already in use', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockEditorLookups(page);
+    const archivedId = '00000000-0000-7000-8000-000000000099';
+    const archivedIngredient = {
+      id: archivedId,
+      name: 'Archived Ingredient',
+      categoryName: null,
+      excludeFromGroceryList: false,
+      archived: true,
+      stores: [],
+    };
+    await page.route('**/api/ingredients**', async (route) => {
+      const url = new URL(route.request().url());
+      if (route.request().method() === 'POST' && url.pathname === '/api/ingredients') {
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/problem+json',
+          json: {
+            status: 409,
+            title: 'An archived ingredient with this name exists',
+            detail: 'Restore the archived ingredient before using this name.',
+            archivedIngredientId: archivedId,
+          },
+        });
+        return;
+      }
+      if (route.request().method() === 'POST' && url.pathname.endsWith('/restore')) {
+        archivedIngredient.archived = false;
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        json: {
+          items: archivedIngredient.archived ? [] : [archivedIngredient],
+          totalCount: archivedIngredient.archived ? 0 : 1,
+          page: 1,
+          pageSize: 25,
+        },
+      });
+    });
+
+    await page.goto('/ingredient-maintenance/new');
+    await page.getByRole('textbox', { name: 'Name' }).fill('Archived Ingredient');
+    await page.getByRole('button', { name: 'Save ingredient' }).click();
+    await expect(page.getByRole('alert')).toContainText(
+      'An archived ingredient with this name exists',
+    );
+    await page.getByRole('button', { name: 'Restore' }).click();
+    await page.getByRole('dialog', { name: 'Restore archived ingredient?' })
+      .getByRole('button', { name: 'Restore', exact: true }).click();
+
+    await expect(page.getByRole('heading', { name: 'Ingredient Maintenance' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Ingredients' }).getByText('Archived Ingredient')).toBeVisible();
+  });
+
   test('loads stored names in title case and title-cases typed values on leaving a field', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockEditorLookups(page);
@@ -198,16 +256,11 @@ test.describe('Ingredient create and edit', () => {
     await expect(name).toHaveValue('Agar Agar');
     await expect(page.getByRole('combobox', { name: 'Category' })).toHaveValue('Baking Aisle');
 
-    let prompted = false;
-    page.on('dialog', (dialog) => {
-      prompted = true;
-      void dialog.dismiss();
-    });
     await name.focus();
     await name.blur();
     await page.getByRole('link', { name: 'Home', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Discard unsaved changes?' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
-    expect(prompted).toBe(false);
 
     await page.goto('/ingredient-maintenance/new');
     const department = page.getByRole('combobox', { name: 'New World Greenmeadows department' });
@@ -279,16 +332,15 @@ test.describe('Ingredient create and edit', () => {
     const name = page.getByRole('textbox', { name: 'Name' });
     await name.fill('Unsaved Ingredient');
 
-    const backPrompt = page.waitForEvent('dialog');
+    const discardPrompt = page.getByRole('dialog', { name: 'Discard unsaved changes?' });
     const backNavigation = page.goBack().catch(() => null);
-    await (await backPrompt).dismiss();
+    await discardPrompt.getByRole('button', { name: 'Keep editing' }).click();
     await backNavigation;
-    await expect(name).toBeVisible();
+    await expect(discardPrompt).toBeHidden();
+    await expect(name).toHaveValue('Unsaved Ingredient');
 
-    const linkPrompt = page.waitForEvent('dialog');
-    const linkClick = page.getByRole('link', { name: 'Home', exact: true }).click();
-    await (await linkPrompt).accept();
-    await linkClick;
+    await page.getByRole('link', { name: 'Home', exact: true }).click();
+    await discardPrompt.getByRole('button', { name: 'Discard changes' }).click();
     await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   });
 });

@@ -9,14 +9,7 @@
   background: var(--color-surface);
 }
 
-.ingredient-card-heading {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.ingredient-card-heading h2 {
+.ingredient-card h2 {
   margin: 0;
   font-size: var(--font-size-xl);
 }

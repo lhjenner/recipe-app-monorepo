@@ -6,6 +6,8 @@
 @import './badges.css';
 @import './forms.css';
 @import './dropdowns.css';
+@import './dialogs.css';
+@import './pagination.css';
 
 *,
 *::before,

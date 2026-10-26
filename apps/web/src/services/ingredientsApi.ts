@@ -205,6 +205,7 @@ async function getJson<T>(
     throw new IngredientsApiError(
       problem?.detail ?? problem?.title ?? 'The ingredient request failed. Please try again.',
       response.status,
+      problem?.errors,
     );
   }
 
@@ -275,4 +276,40 @@ export function updateIngredient(
     request,
     ingredientDetailSchema,
   );
+}
+
+async function postIngredientAction(id: string, action: 'archive' | 'restore'): Promise<void> {
+  let response: Response;
+  try {
+    response = await apiFetch(
+      `/api/ingredients/${encodeURIComponent(id)}/${action}`,
+      { method: 'POST', requiresSession: true },
+    );
+  } catch {
+    throw new IngredientsApiError('Unable to reach the ingredient service. Please try again.', 0);
+  }
+
+  if (!response.ok) {
+    const parsedProblem = problemDetailsSchema.safeParse(await response.json().catch(() => null));
+    const problem = parsedProblem.success ? parsedProblem.data : undefined;
+    throw new IngredientsApiError(
+      problem?.detail ?? problem?.title ?? 'The ingredient request failed. Please try again.',
+      response.status,
+    );
+  }
+
+  if (response.status !== 204) {
+    throw new IngredientsApiError(
+      'The server returned an invalid ingredient response.',
+      response.status,
+    );
+  }
+}
+
+export function archiveIngredient(id: string): Promise<void> {
+  return postIngredientAction(id, 'archive');
+}
+
+export function restoreIngredient(id: string): Promise<void> {
+  return postIngredientAction(id, 'restore');
 }

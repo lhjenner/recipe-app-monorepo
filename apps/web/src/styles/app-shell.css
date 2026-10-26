@@ -57,7 +57,6 @@
 
 .app-logout {
   flex: none;
-  color: var(--color-on-brand);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
 }
