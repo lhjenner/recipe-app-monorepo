@@ -45,3 +45,8 @@ public sealed record IngredientWriteOutcome(
     string? Detail = null,
     Guid? ArchivedIngredientId = null,
     Dictionary<string, string[]>? Errors = null);
+
+public sealed record IngredientArchiveOutcome(
+    int StatusCode,
+    string? Title = null,
+    string? Detail = null);

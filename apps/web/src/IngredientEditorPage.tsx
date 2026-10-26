@@ -11,6 +11,7 @@ import {
   createIngredient,
   getIngredient,
   IngredientsApiError,
+  restoreIngredient,
   updateIngredient,
   type IngredientDetail,
   type SupermarketChain,
@@ -176,16 +177,45 @@ function IngredientEditorSession({
     }
   }
 
+  async function restoreArchivedIngredient() {
+    if (!archivedIngredientId
+      || !window.confirm('Restore the archived ingredient with this name?')) {
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      await restoreIngredient(archivedIngredientId);
+      setDirty(false);
+      allowNavigation.current = true;
+      navigate('/ingredient-maintenance');
+    } catch (requestError: unknown) {
+      setError(requestError instanceof Error
+        ? requestError.message
+        : 'Unable to restore this ingredient.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <>
       {(error || archivedIngredientId) && (
         <div className="ingredient-error" role="alert">
+          {archivedIngredientId && (
+            <p>An archived ingredient with this name exists.</p>
+          )}
           {error && <p>{error}</p>}
           {error?.includes('changed elsewhere') && (
             <button type="button" onClick={() => void reloadLatest()}>Reload latest</button>
           )}
           {archivedIngredientId && (
-            <button type="button" disabled aria-label={`Restore ingredient ${archivedIngredientId}`}>
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => void restoreArchivedIngredient()}
+            >
               Restore
             </button>
           )}

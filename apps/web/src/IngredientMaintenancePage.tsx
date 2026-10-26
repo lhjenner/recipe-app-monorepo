@@ -5,6 +5,10 @@ import IngredientTable from './components/IngredientTable';
 import { useIngredientList } from './hooks/useIngredientList';
 import { useSupermarkets } from './hooks/useSupermarkets';
 import { Link } from 'react-router-dom';
+import {
+  archiveIngredient,
+  restoreIngredient,
+} from './services/ingredientsApi';
 
 const PAGE_SIZE = 25;
 
@@ -12,6 +16,12 @@ function IngredientMaintenancePage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [archived, setArchived] = useState(false);
+  const [pendingIngredientId, setPendingIngredientId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [failedAction, setFailedAction] = useState<{
+    id: string;
+    archived: boolean;
+  } | null>(null);
   const ingredientList = useIngredientList({ search, page, pageSize: PAGE_SIZE, archived });
   const supermarkets = useSupermarkets();
   const stores = useMemo(() => supermarkets.data
@@ -23,6 +33,34 @@ function IngredientMaintenancePage() {
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const canShowList = !ingredientList.isLoading && !ingredientList.error
     && !supermarkets.isLoading && !supermarkets.error;
+
+  async function performAction(id: string, shouldBeArchived: boolean) {
+    setPendingIngredientId(id);
+    setActionError(null);
+    setFailedAction(null);
+    try {
+      if (shouldBeArchived) {
+        await archiveIngredient(id);
+      } else {
+        await restoreIngredient(id);
+      }
+      ingredientList.reload();
+    } catch (requestError: unknown) {
+      setActionError(requestError instanceof Error
+        ? requestError.message
+        : 'Unable to update this ingredient. Please try again.');
+      setFailedAction({ id, archived: shouldBeArchived });
+    } finally {
+      setPendingIngredientId(null);
+    }
+  }
+
+  function confirmAction(id: string, name: string, shouldBeArchived: boolean) {
+    const action = shouldBeArchived ? 'archive' : 'restore';
+    if (window.confirm(`${action === 'archive' ? 'Archive' : 'Restore'} ${name}?`)) {
+      void performAction(id, shouldBeArchived);
+    }
+  }
 
   return (
     <>
@@ -74,6 +112,21 @@ function IngredientMaintenancePage() {
             </div>
           )}
 
+          {actionError && (
+            <div className="ingredient-error" role="alert">
+              <p>{actionError}</p>
+              {failedAction && (
+                <button
+                  type="button"
+                  disabled={pendingIngredientId === failedAction.id}
+                  onClick={() => void performAction(failedAction.id, failedAction.archived)}
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
+
           {(ingredientList.isLoading || supermarkets.isLoading) && (
             <p className="ingredient-loading" role="status">Loading ingredients…</p>
           )}
@@ -97,11 +150,17 @@ function IngredientMaintenancePage() {
                 ingredients={ingredients}
                 stores={stores}
                 archived={archived}
+                pendingIngredientId={pendingIngredientId}
+                onArchive={(id, name) => confirmAction(id, name, true)}
+                onRestore={(id, name) => confirmAction(id, name, false)}
               />
               <IngredientCards
                 ingredients={ingredients}
                 stores={stores}
                 archived={archived}
+                pendingIngredientId={pendingIngredientId}
+                onArchive={(id, name) => confirmAction(id, name, true)}
+                onRestore={(id, name) => confirmAction(id, name, false)}
               />
               <nav className="ingredient-pagination" aria-label="Ingredient pages">
                 <button

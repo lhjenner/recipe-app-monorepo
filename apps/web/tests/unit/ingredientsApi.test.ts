@@ -1,9 +1,11 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import {
+  archiveIngredient,
   getIngredient,
   getIngredientList,
   getSupermarkets,
   IngredientsApiError,
+  restoreIngredient,
 } from '../../src/services/ingredientsApi';
 
 afterEach(() => {
@@ -115,4 +117,26 @@ test('validates supermarkets and surfaces RFC problem details', async () => {
     status: 400,
     message: 'Invalid ingredient query',
   });
+});
+
+test('posts archive and restore actions and expects no-content responses', async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetchMock);
+  const id = '00000000-0000-7000-8000-000000000001';
+
+  await archiveIngredient(id);
+  await restoreIngredient(id);
+
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    1,
+    `/api/ingredients/${id}/archive`,
+    expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
+  );
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    2,
+    `/api/ingredients/${id}/restore`,
+    expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
+  );
 });

@@ -54,6 +54,22 @@ public sealed class IngredientWriteSteps(ApiAuthContext context)
             .Should().Be("An ingredient with this name already exists");
     }
 
+    [Then("the response identifies the archived ingredient and offers restore guidance")]
+    public async Task ThenResponseIdentifiesTheArchivedIngredientAndOffersRestoreGuidance()
+    {
+        context.Response!.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        context.Response.Content.Headers.ContentType?.MediaType
+            .Should().Be("application/problem+json");
+        using var document = JsonDocument.Parse(await context.Response.Content.ReadAsStringAsync());
+        var problem = document.RootElement;
+        problem.GetProperty("title").GetString()
+            .Should().Be("An archived ingredient with this name exists");
+        problem.GetProperty("detail").GetString()
+            .Should().Contain("Restore the archived ingredient");
+        problem.GetProperty("archivedIngredientId").GetGuid()
+            .Should().Be(context.ScenarioIngredientId);
+    }
+
     [When("I update only a store mapping")]
     public async Task WhenIUpdateOnlyAStoreMapping()
     {

@@ -10,9 +10,19 @@ interface IngredientTableProps {
   ingredients: IngredientSummary[];
   stores: SupermarketStore[];
   archived: boolean;
+  pendingIngredientId: string | null;
+  onArchive: (id: string, name: string) => void;
+  onRestore: (id: string, name: string) => void;
 }
 
-function IngredientTable({ ingredients, stores, archived }: IngredientTableProps) {
+function IngredientTable({
+  ingredients,
+  stores,
+  archived,
+  pendingIngredientId,
+  onArchive,
+  onRestore,
+}: IngredientTableProps) {
   return (
     <div className="ingredient-table-wrap">
       <table className="ingredient-table" aria-label="Ingredients">
@@ -58,7 +68,12 @@ function IngredientTable({ ingredients, stores, archived }: IngredientTableProps
                 })}
                 <td className="ingredient-actions">
                   {archived ? (
-                    <button type="button" disabled aria-label={`Restore ${name}`}>
+                    <button
+                      type="button"
+                      disabled={pendingIngredientId === ingredient.id}
+                      aria-label={`Restore ${name}`}
+                      onClick={() => onRestore(ingredient.id, name)}
+                    >
                       Restore
                     </button>
                   ) : (
@@ -66,7 +81,12 @@ function IngredientTable({ ingredients, stores, archived }: IngredientTableProps
                       <Link className="btn btn-secondary" to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${name}`}>
                         Edit
                       </Link>
-                      <button type="button" disabled aria-label={`Archive ${name}`}>
+                      <button
+                        type="button"
+                        disabled={pendingIngredientId === ingredient.id}
+                        aria-label={`Archive ${name}`}
+                        onClick={() => onArchive(ingredient.id, name)}
+                      >
                         Archive
                       </button>
                     </>

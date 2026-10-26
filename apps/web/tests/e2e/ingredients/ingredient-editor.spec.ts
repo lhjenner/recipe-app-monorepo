@@ -175,6 +175,63 @@ test.describe('Ingredient create and edit', () => {
     await expect(page.getByRole('button', { name: 'Reload latest' })).toBeVisible();
   });
 
+  test('offers to restore the archived ingredient when its name is already in use', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockEditorLookups(page);
+    const archivedId = '00000000-0000-7000-8000-000000000099';
+    const archivedIngredient = {
+      id: archivedId,
+      name: 'Archived Ingredient',
+      categoryName: null,
+      excludeFromGroceryList: false,
+      archived: true,
+      stores: [],
+    };
+    await page.route('**/api/ingredients**', async (route) => {
+      const url = new URL(route.request().url());
+      if (route.request().method() === 'POST' && url.pathname === '/api/ingredients') {
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/problem+json',
+          json: {
+            status: 409,
+            title: 'An archived ingredient with this name exists',
+            detail: 'Restore the archived ingredient before using this name.',
+            archivedIngredientId: archivedId,
+          },
+        });
+        return;
+      }
+      if (route.request().method() === 'POST' && url.pathname.endsWith('/restore')) {
+        archivedIngredient.archived = false;
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        json: {
+          items: archivedIngredient.archived ? [] : [archivedIngredient],
+          totalCount: archivedIngredient.archived ? 0 : 1,
+          page: 1,
+          pageSize: 25,
+        },
+      });
+    });
+
+    page.on('dialog', (dialog) => dialog.accept());
+    await page.goto('/ingredient-maintenance/new');
+    await page.getByRole('textbox', { name: 'Name' }).fill('Archived Ingredient');
+    await page.getByRole('button', { name: 'Save ingredient' }).click();
+    await expect(page.getByRole('alert')).toContainText(
+      'An archived ingredient with this name exists',
+    );
+    await page.getByRole('button', { name: 'Restore' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Ingredient Maintenance' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Ingredients' }).getByText('Archived Ingredient')).toBeVisible();
+  });
+
   test('loads stored names in title case and title-cases typed values on leaving a field', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockEditorLookups(page);

@@ -10,9 +10,19 @@ interface IngredientCardsProps {
   ingredients: IngredientSummary[];
   stores: SupermarketStore[];
   archived: boolean;
+  pendingIngredientId: string | null;
+  onArchive: (id: string, name: string) => void;
+  onRestore: (id: string, name: string) => void;
 }
 
-function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps) {
+function IngredientCards({
+  ingredients,
+  stores,
+  archived,
+  pendingIngredientId,
+  onArchive,
+  onRestore,
+}: IngredientCardsProps) {
   return (
     <div className="ingredient-cards">
       {ingredients.map((ingredient) => {
@@ -54,7 +64,12 @@ function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps
             </dl>
             <div className="ingredient-card-actions">
               {archived ? (
-                <button type="button" disabled aria-label={`Restore ${name}`}>
+                <button
+                  type="button"
+                  disabled={pendingIngredientId === ingredient.id}
+                  aria-label={`Restore ${name}`}
+                  onClick={() => onRestore(ingredient.id, name)}
+                >
                   Restore
                 </button>
               ) : (
@@ -62,7 +77,12 @@ function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps
                   <Link className="btn btn-secondary" to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${name}`}>
                     Edit
                   </Link>
-                  <button type="button" disabled aria-label={`Archive ${name}`}>
+                  <button
+                    type="button"
+                    disabled={pendingIngredientId === ingredient.id}
+                    aria-label={`Archive ${name}`}
+                    onClick={() => onArchive(ingredient.id, name)}
+                  >
                     Archive
                   </button>
                 </>

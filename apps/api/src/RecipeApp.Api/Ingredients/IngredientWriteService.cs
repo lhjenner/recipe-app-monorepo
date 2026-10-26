@@ -21,6 +21,76 @@ public sealed class IngredientWriteService(
         CancellationToken cancellationToken) =>
         SaveAsync(id, request, cancellationToken);
 
+    public Task<IngredientArchiveOutcome> ArchiveAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        SetArchivedAsync(id, true, cancellationToken);
+
+    public Task<IngredientArchiveOutcome> RestoreAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        SetArchivedAsync(id, false, cancellationToken);
+
+    private async Task<IngredientArchiveOutcome> SetArchivedAsync(
+        Guid id,
+        bool archived,
+        CancellationToken cancellationToken)
+    {
+        var ownerId = currentUser.UserId;
+        await using var database = await databaseFactory.CreateDbContextAsync(cancellationToken);
+        var ingredient = await database.Ingredients
+            .SingleOrDefaultAsync(
+                item => item.Id == id && item.OwnerUserId == ownerId,
+                cancellationToken);
+        if (ingredient is null)
+        {
+            return new IngredientArchiveOutcome(StatusCodes.Status404NotFound);
+        }
+
+        if ((ingredient.ArchivedAtUtc is not null) == archived)
+        {
+            return new IngredientArchiveOutcome(StatusCodes.Status204NoContent);
+        }
+
+        if (!archived && await database.Ingredients.AnyAsync(
+                item => item.OwnerUserId == ownerId
+                    && item.Id != id
+                    && item.NormalizedName == ingredient.NormalizedName,
+                cancellationToken))
+        {
+            return new IngredientArchiveOutcome(
+                StatusCodes.Status409Conflict,
+                "An ingredient with this name already exists",
+                "An active ingredient with this name already exists.");
+        }
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        ingredient.ArchivedAtUtc = archived ? now : null;
+        ingredient.UpdatedAtUtc = now;
+        database.Entry(ingredient).Property(item => item.UpdatedAtUtc).IsModified = true;
+
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new IngredientArchiveOutcome(
+                StatusCodes.Status409Conflict,
+                "Conflict",
+                "This ingredient was changed elsewhere.");
+        }
+        catch (DbUpdateException exception) when (IsIngredientNameConflict(exception))
+        {
+            return new IngredientArchiveOutcome(
+                StatusCodes.Status409Conflict,
+                "An ingredient with this name already exists",
+                "An active ingredient with this name already exists.");
+        }
+
+        return new IngredientArchiveOutcome(StatusCodes.Status204NoContent);
+    }
+
     private async Task<IngredientWriteOutcome> SaveAsync(
         Guid? id,
         IngredientWriteRequest request,

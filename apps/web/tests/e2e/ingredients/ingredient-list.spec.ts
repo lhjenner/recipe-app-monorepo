@@ -76,6 +76,19 @@ async function mockIngredientApi(
     route.fulfill({ status: 200, contentType: 'application/json', json: supermarkets }));
   await page.route('**/api/ingredients**', async (route: Route) => {
     const url = new URL(route.request().url());
+    if (route.request().method() === 'POST') {
+      const [, id, action] = url.pathname.match(/^\/api\/ingredients\/([^/]+)\/(archive|restore)$/) ?? [];
+      const target = ingredients.find((item) => item.id === id);
+      if (!target || !action) {
+        await route.fulfill({ status: 404 });
+        return;
+      }
+      target.archived = action === 'archive';
+      requests.push(`POST ${url.pathname}`);
+      await route.fulfill({ status: 204 });
+      return;
+    }
+
     requests.push(url.search);
     const archived = url.searchParams.get('archived') === 'true';
     const search = url.searchParams.get('search')?.toLocaleLowerCase() ?? '';
@@ -228,6 +241,7 @@ test.describe('Ingredient Maintenance list', () => {
       ingredient('Active Ingredient'),
       ingredient('Archived Ingredient', { archived: true }),
     ]);
+    page.on('dialog', (dialog) => dialog.accept());
     await page.goto('/ingredient-maintenance');
     await page.getByRole('checkbox', { name: 'Show archived' }).check();
 
@@ -236,5 +250,24 @@ test.describe('Ingredient Maintenance list', () => {
     await expect(table.getByText('Active Ingredient')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Restore Archived Ingredient' })).toBeVisible();
     expect(requests.some((query) => query.includes('archived=true'))).toBe(true);
+    await page.getByRole('button', { name: 'Restore Archived Ingredient' }).click();
+    await expect(page.getByText('No archived ingredients.')).toBeVisible();
+    await page.getByRole('checkbox', { name: 'Show archived' }).uncheck();
+    await expect(page.getByRole('table', { name: 'Ingredients' }).getByText('Archived Ingredient')).toBeVisible();
+    expect(requests.some((request) => request.endsWith('/restore'))).toBe(true);
+  });
+
+  test('confirms archive before removing the ingredient from the active list', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    const requests = await mockIngredientApi(page, [ingredient('Archive Me')]);
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toContain('Archive Me');
+      await dialog.accept();
+    });
+    await page.goto('/ingredient-maintenance');
+
+    await page.getByRole('button', { name: 'Archive Archive Me' }).click();
+    await expect(page.getByText('No ingredients yet.')).toBeVisible();
+    expect(requests.some((request) => request.endsWith('/archive'))).toBe(true);
   });
 });

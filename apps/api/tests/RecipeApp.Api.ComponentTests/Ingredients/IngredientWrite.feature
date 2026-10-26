@@ -19,6 +19,12 @@ Feature: Ingredient create and edit APIs
     When I create an ingredient named " green apple "
     Then the response reports an ingredient name conflict
 
+  Scenario: Reject a name held by an archived ingredient with restore guidance
+    Given a logged in user
+    And the user owns an archived ingredient named "Archived Apple"
+    When I create an ingredient named " archived apple "
+    Then the response identifies the archived ingredient and offers restore guidance
+
   Scenario: Child-only edits advance the aggregate version
     Given a logged in user
     And the user owns an ingredient with category, nutrition, product link, and store mappings
