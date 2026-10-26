@@ -206,6 +206,11 @@ test.describe('Ingredient Maintenance list', () => {
     await expect(page.getByRole('table', { name: 'Ingredients' })).toBeHidden();
     const card = page.getByRole('article', { name: 'Ingredient 01' });
     await expect(card).toBeVisible();
+    const heading = card.getByRole('heading', { name: 'Ingredient 01', exact: true });
+    await expect(heading).toBeVisible();
+    await expect(heading.getByRole('link')).toHaveCount(0);
+    await expect(card.getByRole('link', { name: 'Edit Ingredient 01', exact: true }))
+      .toHaveAttribute('href', /\/ingredient-maintenance\/[^/]+$/);
     await expect(card.getByText('New World Greenmeadows')).toBeVisible();
     await expect(card.getByText('Missing')).toHaveCount(3);
     await expect(card.getByText('Excluded from grocery list')).toBeVisible();

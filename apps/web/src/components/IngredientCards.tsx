@@ -23,11 +23,7 @@ function IngredientCards({ ingredients, stores, archived }: IngredientCardsProps
         return (
           <article className="ingredient-card" key={ingredient.id} aria-label={name}>
             <div className="ingredient-card-heading">
-              <h2>
-                {archived
-                  ? name
-                  : <Link to={`/ingredient-maintenance/${ingredient.id}`}>{name}</Link>}
-              </h2>
+              <h2>{name}</h2>
               {ingredient.excludeFromGroceryList && (
                 <span className="ingredient-exclusion-badge">Excluded from grocery list</span>
               )}
