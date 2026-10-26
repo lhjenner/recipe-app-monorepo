@@ -75,8 +75,9 @@
 }
 
 .ingredient-table thead th {
-  background: var(--color-muted-surface);
+  background: var(--color-primary);
   font-weight: var(--font-weight-semibold);
+  color: var(--color-surface);
 }
 
 .ingredient-table tbody tr:last-child > * {
