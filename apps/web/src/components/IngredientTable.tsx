@@ -2,6 +2,7 @@ import type {
   IngredientSummary,
   SupermarketStore,
 } from '../services/ingredientsApi';
+import IngredientCategory from './IngredientCategory';
 import IngredientMappingState from './IngredientMappingState';
 import { Link } from 'react-router-dom';
 import { toTitleCase } from '../titleCase';
@@ -44,16 +45,9 @@ function IngredientTable({
             const name = toTitleCase(ingredient.name);
             return (
               <tr key={ingredient.id}>
-                <th scope="row">
-                  <span>{name}</span>
-                  {ingredient.excludeFromGroceryList && (
-                    <span className="ingredient-exclusion-badge">Excluded from grocery list</span>
-                  )}
-                </th>
+                <th scope="row">{name}</th>
                 <td>
-                  {ingredient.categoryName
-                    ? toTitleCase(ingredient.categoryName)
-                    : <span className="ingredient-missing">Missing</span>}
+                  <IngredientCategory categoryName={ingredient.categoryName} excluded={ingredient.excludeFromGroceryList} />
                 </td>
                 {stores.map((store) => {
                   const mapping = storeStates.get(store.code);
@@ -62,6 +56,7 @@ function IngredientTable({
                       <IngredientMappingState
                         state={mapping?.state ?? 'unmapped'}
                         departmentName={mapping?.departmentName ?? null}
+                        excluded={ingredient.excludeFromGroceryList}
                       />
                     </td>
                   );

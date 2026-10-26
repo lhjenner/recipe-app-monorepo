@@ -9,25 +9,8 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.ingredient-not-stocked {
+.ingredient-not-stocked,
+.ingredient-excluded {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
-}
-
-.ingredient-exclusion-badge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--color-muted-surface);
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-regular);
-  white-space: nowrap;
-}
-
-@media (max-width: 700px) {
-  .ingredient-exclusion-badge {
-    margin-left: 0;
-  }
 }

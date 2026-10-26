@@ -21,3 +21,16 @@ test('labels an unmapped store with visible missing text', () => {
   expect(missing).toBeVisible();
   expect(missing).toHaveClass('ingredient-missing');
 });
+
+test.each([
+  ['mapped', 'Produce'],
+  ['notStocked', null],
+  ['unmapped', null],
+] as const)('shows muted Excluded instead of the %s state for an excluded ingredient', (state, departmentName) => {
+  render(<IngredientMappingState state={state} departmentName={departmentName} excluded />);
+
+  const excluded = screen.getByText('Excluded');
+  expect(excluded).toHaveClass('ingredient-excluded');
+  expect(excluded).toHaveAttribute('title', 'Excluded from grocery list');
+  expect(screen.queryByText(/Missing|Not stocked|Produce/)).not.toBeInTheDocument();
+});

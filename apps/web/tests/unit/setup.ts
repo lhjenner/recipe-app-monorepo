@@ -1,4 +1,9 @@
 import '@testing-library/jest-dom/vitest'
+import { cleanup } from '@testing-library/react'
+import { afterEach } from 'vitest'
+
+// Vitest globals are off, so Testing Library cannot register its own auto-cleanup.
+afterEach(cleanup)
 
 // jsdom does not implement modal <dialog> behaviour, so provide the minimum the components rely on.
 if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.showModal) {

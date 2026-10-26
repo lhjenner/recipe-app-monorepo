@@ -1,9 +1,7 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, test, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { expect, test, vi } from 'vitest';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import { useConfirmDialog, type ConfirmOptions } from '../../src/hooks/useConfirmDialog';
-
-afterEach(cleanup);
 
 function expectDialogClosed() {
   // jsdom has no UA stylesheet for <dialog>, so check the open state rather than visibility.

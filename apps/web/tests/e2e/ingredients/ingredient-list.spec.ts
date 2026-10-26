@@ -119,9 +119,17 @@ test.describe('Ingredient Maintenance list', () => {
     await mockIngredientApi(page, [
       ingredient('Basil', {
         categoryName: null,
-        excludeFromGroceryList: true,
         stores: [
           { storeCode: storeDefinitions[0].code, state: 'mapped', departmentName: 'Produce' },
+          { storeCode: storeDefinitions[1].code, state: 'notStocked', departmentName: null },
+          { storeCode: storeDefinitions[2].code, state: 'unmapped', departmentName: null },
+        ],
+      }),
+      ingredient('Water', {
+        categoryName: null,
+        excludeFromGroceryList: true,
+        stores: [
+          { storeCode: storeDefinitions[0].code, state: 'mapped', departmentName: 'Drinks' },
           { storeCode: storeDefinitions[1].code, state: 'notStocked', departmentName: null },
           { storeCode: storeDefinitions[2].code, state: 'unmapped', departmentName: null },
         ],
@@ -146,9 +154,15 @@ test.describe('Ingredient Maintenance list', () => {
     ]);
     await expect(basilRow.getByRole('cell').nth(0)).toHaveText('Missing');
     await expect(basilRow.getByRole('cell').nth(1)).toHaveText('Produce');
-    await expect(table.getByText('Not stocked')).toBeVisible();
-    await expect(table.getByText('Missing')).toHaveCount(2);
-    await expect(table.getByText('Excluded from grocery list')).toBeVisible();
+    await expect(basilRow.getByText('Not stocked')).toBeVisible();
+    await expect(basilRow.getByText('Missing')).toHaveCount(2);
+    const waterRow = table.getByRole('row', { name: /Water/ });
+    await expect(waterRow.getByRole('rowheader')).toHaveText('Water');
+    for (const cell of [0, 1, 2, 3]) {
+      await expect(waterRow.getByRole('cell').nth(cell)).toHaveText('Excluded');
+    }
+    await expect(waterRow.getByText(/Missing|Not stocked|Drinks/)).toHaveCount(0);
+    await expect(table.getByText('Excluded from grocery list')).toHaveCount(0);
     await expect(table.getByRole('link', { name: 'Edit Basil' })).toBeVisible();
     await expect(table.getByRole('button', { name: 'Archive Basil' })).toBeVisible();
   });
@@ -211,7 +225,10 @@ test.describe('Ingredient Maintenance list', () => {
     const requests = await mockIngredientApi(page, Array.from({ length: 30 }, (_, index) =>
       ingredient(
         `Ingredient ${String(index + 1).padStart(2, '0')}`,
-        { excludeFromGroceryList: index === 0 },
+        {
+          excludeFromGroceryList: index < 2,
+          categoryName: index === 0 ? null : 'Produce',
+        },
       )));
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/ingredient-maintenance');
@@ -225,8 +242,13 @@ test.describe('Ingredient Maintenance list', () => {
     await expect(card.getByRole('link', { name: 'Edit Ingredient 01', exact: true }))
       .toHaveAttribute('href', /\/ingredient-maintenance\/[^/]+$/);
     await expect(card.getByText('New World Greenmeadows')).toBeVisible();
-    await expect(card.getByText('Missing')).toHaveCount(3);
-    await expect(card.getByText('Excluded from grocery list')).toBeVisible();
+    await expect(card.getByText('Excluded', { exact: true })).toHaveCount(4);
+    await expect(card.getByText('Missing')).toHaveCount(0);
+    await expect(card.getByText('Excluded from grocery list')).toHaveCount(0);
+    const categorisedExcludedCard = page.getByRole('article', { name: 'Ingredient 02' });
+    await expect(categorisedExcludedCard.getByText('Produce')).toBeVisible();
+    await expect(categorisedExcludedCard.getByText('Excluded', { exact: true })).toHaveCount(3);
+    await expect(page.getByRole('article', { name: 'Ingredient 03' }).getByText('Missing')).toHaveCount(3);
     await expect(page.getByText('Page 1 of 2')).toBeVisible();
     await page.getByRole('button', { name: 'Next page' }).click();
     await expect(page.getByText('Page 2 of 2')).toBeVisible();

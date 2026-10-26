@@ -2,6 +2,7 @@ import type {
   IngredientSummary,
   SupermarketStore,
 } from '../services/ingredientsApi';
+import IngredientCategory from './IngredientCategory';
 import IngredientMappingState from './IngredientMappingState';
 import { Link } from 'react-router-dom';
 import { toTitleCase } from '../titleCase';
@@ -32,19 +33,12 @@ function IngredientCards({
         const name = toTitleCase(ingredient.name);
         return (
           <article className="ingredient-card" key={ingredient.id} aria-label={name}>
-            <div className="ingredient-card-heading">
-              <h2>{name}</h2>
-              {ingredient.excludeFromGroceryList && (
-                <span className="ingredient-exclusion-badge">Excluded from grocery list</span>
-              )}
-            </div>
+            <h2>{name}</h2>
             <dl className="ingredient-card-details">
               <div>
                 <dt>Category</dt>
                 <dd>
-                  {ingredient.categoryName
-                    ? toTitleCase(ingredient.categoryName)
-                    : <span className="ingredient-missing">Missing</span>}
+                  <IngredientCategory categoryName={ingredient.categoryName} excluded={ingredient.excludeFromGroceryList} />
                 </dd>
               </div>
               {stores.map((store) => {
@@ -56,6 +50,7 @@ function IngredientCards({
                       <IngredientMappingState
                         state={mapping?.state ?? 'unmapped'}
                         departmentName={mapping?.departmentName ?? null}
+                        excluded={ingredient.excludeFromGroceryList}
                       />
                     </dd>
                   </div>
