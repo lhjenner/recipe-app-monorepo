@@ -95,9 +95,9 @@
   gap: 8px;
 }
 
-.ingredient-actions button,
+.ingredient-actions button:not(.btn),
 .ingredient-actions a:not(.btn),
-.ingredient-card-actions button,
+.ingredient-card-actions button:not(.btn),
 .ingredient-card-actions a:not(.btn),
 .ingredient-pagination button:not(.btn),
 .ingredient-error button {
@@ -110,8 +110,8 @@
   font: inherit;
 }
 
-.ingredient-actions button:disabled,
-.ingredient-card-actions button:disabled {
+.ingredient-actions button:not(.btn):disabled,
+.ingredient-card-actions button:not(.btn):disabled {
   opacity: 0.65;
   cursor: not-allowed;
 }

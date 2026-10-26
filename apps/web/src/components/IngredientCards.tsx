@@ -78,6 +78,7 @@ function IngredientCards({
                     Edit
                   </Link>
                   <button
+                    className="btn btn-danger-secondary"
                     type="button"
                     disabled={pendingIngredientId === ingredient.id}
                     aria-label={`Archive ${name}`}

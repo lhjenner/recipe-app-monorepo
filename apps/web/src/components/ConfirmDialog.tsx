@@ -63,7 +63,7 @@ function ConfirmDialog({
         <h2 id={titleId} className="confirm-dialog-title">{title}</h2>
         {message && <p id={messageId} className="confirm-dialog-message">{message}</p>}
         <div className="confirm-dialog-actions">
-          <button ref={cancelRef} className="btn btn-secondary" type="button" onClick={onCancel}>
+          <button ref={cancelRef} className="btn btn-danger-secondary" type="button" onClick={onCancel}>
             {cancelLabel}
           </button>
           <button className={`btn btn-${tone}`} type="button" onClick={onConfirm}>
