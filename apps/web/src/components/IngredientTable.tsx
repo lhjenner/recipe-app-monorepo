@@ -4,7 +4,8 @@ import type {
 } from '../services/ingredientsApi';
 import IngredientCategory from './IngredientCategory';
 import IngredientMappingState from './IngredientMappingState';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { listLocationState } from '../ingredientListLocation';
 import { toTitleCase } from '../titleCase';
 
 interface IngredientTableProps {
@@ -24,6 +25,7 @@ function IngredientTable({
   onArchive,
   onRestore,
 }: IngredientTableProps) {
+  const { search: listSearch } = useLocation();
   return (
     <div className="ingredient-table-wrap">
       <table className="ingredient-table" aria-label="Ingredients">
@@ -73,7 +75,12 @@ function IngredientTable({
                     </button>
                   ) : (
                     <>
-                      <Link className="btn btn-secondary" to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${name}`}>
+                      <Link
+                        className="btn btn-secondary"
+                        to={`/ingredient-maintenance/${ingredient.id}`}
+                        state={listLocationState(listSearch)}
+                        aria-label={`Edit ${name}`}
+                      >
                         Edit
                       </Link>
                       <button

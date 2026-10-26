@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { useIsMobile } from './hooks/useIsMobile';
 import { getActiveNavigationItem, MOBILE_BREAKPOINT, navigationItems, type NavigationItem } from './navigation';
 import { AuthApiError } from './services/authApi';
 import './styles/app-shell.css';
@@ -7,22 +8,6 @@ import './styles/flyout.css';
 
 interface AppShellProps {
   onLogout: () => Promise<void>;
-}
-
-function useIsMobile() {
-  const query = `(max-width: ${MOBILE_BREAKPOINT}px)`;
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia(query).matches);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(query);
-    const updateIsMobile = () => setIsMobile(mediaQuery.matches);
-
-    updateIsMobile();
-    mediaQuery.addEventListener('change', updateIsMobile);
-    return () => mediaQuery.removeEventListener('change', updateIsMobile);
-  }, [query]);
-
-  return isMobile;
 }
 
 function AppShell({ onLogout }: AppShellProps) {

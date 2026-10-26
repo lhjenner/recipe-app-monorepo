@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   createIngredient,
   getIngredient,
@@ -16,9 +16,8 @@ import {
   ingredientWriteRequest,
   type IngredientEditorState,
 } from '../ingredientFormModel';
+import { INGREDIENT_LIST_PATH, readListSearch } from '../ingredientListLocation';
 import { useUnsavedChangesGuard } from './useUnsavedChangesGuard';
-
-const LIST_PATH = '/ingredient-maintenance';
 
 interface IngredientEditorSessionOptions {
   id: string | null;
@@ -39,6 +38,7 @@ export function useIngredientEditorSession({
   chains,
 }: IngredientEditorSessionOptions) {
   const navigate = useNavigate();
+  const listPath = INGREDIENT_LIST_PATH + readListSearch(useLocation().state);
   const [form, setForm] = useState(() => ingredient
     ? ingredientToEditorState(ingredient, stores, chains)
     : createEmptyIngredient(stores));
@@ -57,7 +57,7 @@ export function useIngredientEditorSession({
   function leaveToList() {
     setDirty(false);
     allowNavigation();
-    navigate(LIST_PATH);
+    navigate(listPath);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -132,6 +132,6 @@ export function useIngredientEditorSession({
     submit,
     reloadLatest,
     restoreArchivedIngredient,
-    cancel: () => navigate(LIST_PATH),
+    cancel: () => navigate(listPath),
   };
 }

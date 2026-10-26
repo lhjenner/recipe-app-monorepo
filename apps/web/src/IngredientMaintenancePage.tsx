@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageTitle from './PageTitle';
 import IngredientCards from './components/IngredientCards';
 import IngredientTable from './components/IngredientTable';
+import Pagination from './components/Pagination';
 import { useIngredientList } from './hooks/useIngredientList';
+import { useIngredientListParams } from './hooks/useIngredientListParams';
 import { useSupermarkets } from './hooks/useSupermarkets';
 import { useConfirmDialog } from './hooks/useConfirmDialog';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { listLocationState } from './ingredientListLocation';
 import {
   archiveIngredient,
   restoreIngredient,
@@ -14,9 +17,8 @@ import {
 const PAGE_SIZE = 25;
 
 function IngredientMaintenancePage() {
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [archived, setArchived] = useState(false);
+  const { search, page, archived, setSearch, setPage, setArchived } = useIngredientListParams();
+  const location = useLocation();
   const [pendingIngredientId, setPendingIngredientId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [failedAction, setFailedAction] = useState<{
@@ -33,8 +35,16 @@ function IngredientMaintenancePage() {
   const ingredients = ingredientList.data?.items ?? [];
   const totalCount = ingredientList.data?.totalCount ?? 0;
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  // A bookmarked page, or archiving the last item on the final page, can leave us past the end.
+  const isPastLastPage = !ingredientList.isLoading && ingredientList.data !== null && page > pageCount;
   const canShowList = !ingredientList.isLoading && !ingredientList.error
-    && !supermarkets.isLoading && !supermarkets.error;
+    && !supermarkets.isLoading && !supermarkets.error && !isPastLastPage;
+
+  useEffect(() => {
+    if (isPastLastPage) {
+      setPage(pageCount, { replace: true });
+    }
+  }, [isPastLastPage, pageCount, setPage]);
 
   async function performAction(id: string, shouldBeArchived: boolean) {
     setPendingIngredientId(id);
@@ -82,7 +92,11 @@ function IngredientMaintenancePage() {
         <section className="app-page ingredient-maintenance" aria-labelledby="ingredient-page-heading">
           <div className="ingredient-page-heading">
             <h1 id="ingredient-page-heading">Ingredient Maintenance</h1>
-            <Link className="btn btn-primary" to="/ingredient-maintenance/new">
+            <Link
+              className="btn btn-primary"
+              to="/ingredient-maintenance/new"
+              state={listLocationState(location.search)}
+            >
               Add ingredient
             </Link>
           </div>
@@ -94,20 +108,14 @@ function IngredientMaintenancePage() {
                 type="search"
                 aria-label="Search ingredients"
                 value={search}
-                onChange={(event) => {
-                  setSearch(event.currentTarget.value);
-                  setPage(1);
-                }}
+                onChange={(event) => setSearch(event.currentTarget.value)}
               />
             </label>
             <label className="ingredient-archived-toggle">
               <input
                 type="checkbox"
                 checked={archived}
-                onChange={(event) => {
-                  setArchived(event.currentTarget.checked);
-                  setPage(1);
-                }}
+                onChange={(event) => setArchived(event.currentTarget.checked)}
               />
               <span>Show archived</span>
             </label>
@@ -175,27 +183,12 @@ function IngredientMaintenancePage() {
                 onArchive={(id, name) => void confirmAction(id, name, true)}
                 onRestore={(id, name) => void confirmAction(id, name, false)}
               />
-              <nav className="ingredient-pagination" aria-label="Ingredient pages">
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={() => setPage((current) => current - 1)}
-                  disabled={page <= 1}
-                  aria-label="Previous page"
-                >
-                  Previous
-                </button>
-                <span>Page {page} of {pageCount}</span>
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={() => setPage((current) => current + 1)}
-                  disabled={page >= pageCount}
-                  aria-label="Next page"
-                >
-                  Next
-                </button>
-              </nav>
+              <Pagination
+                label="Ingredient pages"
+                page={page}
+                pageCount={pageCount}
+                onPageChange={(nextPage) => setPage(nextPage)}
+              />
             </>
           )}
         </section>

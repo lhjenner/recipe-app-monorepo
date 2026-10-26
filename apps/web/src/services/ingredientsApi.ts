@@ -205,6 +205,7 @@ async function getJson<T>(
     throw new IngredientsApiError(
       problem?.detail ?? problem?.title ?? 'The ingredient request failed. Please try again.',
       response.status,
+      problem?.errors,
     );
   }
 

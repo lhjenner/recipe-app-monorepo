@@ -92,7 +92,7 @@ Each criterion is a Given/When/Then scenario. The **Test Type** column declares 
 
 | ID | Given | When | Then | Test Type |
 |---|---|---|---|---|
-| AC-05 | A user with more ingredients than one page | They open Ingredient Maintenance | Active ingredients are shown sorted by name (case-insensitive), with page controls and a total count; default page size 25 | BDD + E2E |
+| AC-05 | A user with more ingredients than one page | They open Ingredient Maintenance | Active ingredients are shown sorted by name (case-insensitive), with a total count and numbered page controls (first, last and nearby pages with ellipses for gaps, plus Previous/Next; first, current and last only on mobile; hidden when there is a single page); default page size 25. The page, search and Show archived state live in the URL, so Back/Forward, refresh, shared links and returning from the editor restore the same view; an invalid page falls back to page 1 and a page past the end (e.g. after archiving the last item on it) moves to the last available page | Unit + BDD + E2E |
 | AC-06 | The list is shown | The user types in the search box | Results are filtered server-side to names containing the text (case-insensitive), the page resets to 1, and the request is debounced | BDD + E2E |
 | AC-07 | A search matches nothing | Results load | An empty state "No ingredients match '{term}'" is shown | E2E |
 | AC-08 | A desktop-width viewport (above 700px) | The list loads | A table shows columns: Ingredient, Category, one column per store in seeded display order, Actions. Store columns come from the API, not hardcoded | E2E |

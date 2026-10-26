@@ -4,7 +4,8 @@ import type {
 } from '../services/ingredientsApi';
 import IngredientCategory from './IngredientCategory';
 import IngredientMappingState from './IngredientMappingState';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { listLocationState } from '../ingredientListLocation';
 import { toTitleCase } from '../titleCase';
 
 interface IngredientCardsProps {
@@ -24,6 +25,7 @@ function IngredientCards({
   onArchive,
   onRestore,
 }: IngredientCardsProps) {
+  const { search: listSearch } = useLocation();
   return (
     <div className="ingredient-cards">
       {ingredients.map((ingredient) => {
@@ -69,7 +71,12 @@ function IngredientCards({
                 </button>
               ) : (
                 <>
-                  <Link className="btn btn-secondary" to={`/ingredient-maintenance/${ingredient.id}`} aria-label={`Edit ${name}`}>
+                  <Link
+                    className="btn btn-secondary"
+                    to={`/ingredient-maintenance/${ingredient.id}`}
+                    state={listLocationState(listSearch)}
+                    aria-label={`Edit ${name}`}
+                  >
                     Edit
                   </Link>
                   <button
