@@ -30,6 +30,7 @@
 
 .btn-danger {
     background-color: var(--color-danger);
+    color: var(--color-surface);
 }
 
 .btn-danger:hover {

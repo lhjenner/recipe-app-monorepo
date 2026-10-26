@@ -102,7 +102,6 @@ body.mobile-flyout-open {
 .flyout-logout {
   width: 100%;
   margin-top: auto;
-  color: var(--color-on-brand);
   font-weight: var(--font-weight-semibold);
 }
 
