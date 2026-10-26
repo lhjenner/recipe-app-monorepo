@@ -1,0 +1,133 @@
+.ingredient-editor-page {
+  max-width: 980px;
+}
+
+.ingredient-editor-page h1 {
+  margin: 0 0 24px;
+}
+
+.ingredient-editor {
+  display: grid;
+  gap: 18px;
+}
+
+.ingredient-editor fieldset {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  background: var(--color-surface);
+}
+
+.ingredient-editor legend {
+  padding-inline: 8px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.ingredient-form-field,
+.ingredient-lookup-control {
+  display: grid;
+  gap: 6px;
+}
+
+/* :where() keeps these at class-level specificity so dropdowns.css can add the chevron. */
+.ingredient-form-field :where(input, select),
+.ingredient-lookup-field :where(input) {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-input-border);
+  border-radius: 5px;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.ingredient-form-field input:disabled,
+.ingredient-lookup-field input:disabled {
+  background-color: var(--color-muted-surface);
+}
+
+.ingredient-lookup-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.ingredient-lookup-field > button,
+.ingredient-product-link button:not(.btn),
+.ingredient-editor-actions > button:not(.btn) {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-input-border);
+  border-radius: 5px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ingredient-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.ingredient-store-editor,
+.ingredient-product-link {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.ingredient-store-editor h3 {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.ingredient-product-link .ingredient-remove-link {
+  justify-self: start;
+}
+
+.ingredient-nutrition-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ingredient-field-error {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.ingredient-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 700px) {
+  .ingredient-editor fieldset {
+    padding: 14px;
+  }
+
+  .ingredient-store-editor,
+  .ingredient-product-link {
+    grid-template-columns: 1fr;
+  }
+
+  .ingredient-nutrition-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ingredient-lookup-field {
+    grid-template-columns: 1fr;
+  }
+}

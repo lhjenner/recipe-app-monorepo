@@ -75,8 +75,9 @@
 }
 
 .ingredient-table thead th {
-  background: var(--color-muted-surface);
+  background: var(--color-primary);
   font-weight: var(--font-weight-semibold);
+  color: var(--color-surface);
 }
 
 .ingredient-table tbody tr:last-child > * {
@@ -95,8 +96,10 @@
 }
 
 .ingredient-actions button,
+.ingredient-actions a:not(.btn),
 .ingredient-card-actions button,
-.ingredient-pagination button,
+.ingredient-card-actions a:not(.btn),
+.ingredient-pagination button:not(.btn),
 .ingredient-error button {
   min-height: 36px;
   padding: 6px 10px;
@@ -113,12 +116,24 @@
   cursor: not-allowed;
 }
 
+.ingredient-actions a:not(.btn),
+.ingredient-card-actions a:not(.btn) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-input-border);
+  border-radius: 5px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
 .ingredient-pagination {
   justify-content: center;
   margin-top: 20px;
 }
 
-.ingredient-pagination button:disabled {
+.ingredient-pagination button:not(.btn):disabled {
   color: var(--color-text-muted);
   cursor: not-allowed;
 }

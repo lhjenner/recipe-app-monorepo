@@ -4,6 +4,7 @@ import IngredientCards from './components/IngredientCards';
 import IngredientTable from './components/IngredientTable';
 import { useIngredientList } from './hooks/useIngredientList';
 import { useSupermarkets } from './hooks/useSupermarkets';
+import { Link } from 'react-router-dom';
 
 const PAGE_SIZE = 25;
 
@@ -30,9 +31,9 @@ function IngredientMaintenancePage() {
         <section className="app-page ingredient-maintenance" aria-labelledby="ingredient-page-heading">
           <div className="ingredient-page-heading">
             <h1 id="ingredient-page-heading">Ingredient Maintenance</h1>
-            <button className="btn btn-primary" type="button" disabled>
+            <Link className="btn btn-primary" to="/ingredient-maintenance/new">
               Add ingredient
-            </button>
+            </Link>
           </div>
 
           <div className="ingredient-list-controls">
@@ -104,6 +105,7 @@ function IngredientMaintenancePage() {
               />
               <nav className="ingredient-pagination" aria-label="Ingredient pages">
                 <button
+                  className="btn btn-secondary"
                   type="button"
                   onClick={() => setPage((current) => current - 1)}
                   disabled={page <= 1}
@@ -113,6 +115,7 @@ function IngredientMaintenancePage() {
                 </button>
                 <span>Page {page} of {pageCount}</span>
                 <button
+                  className="btn btn-secondary"
                   type="button"
                   onClick={() => setPage((current) => current + 1)}
                   disabled={page >= pageCount}

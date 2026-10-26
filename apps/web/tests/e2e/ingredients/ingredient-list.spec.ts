@@ -17,28 +17,32 @@ interface IngredientSummary {
 }
 
 const storeDefinitions = [
-  { code: 'new-world-greenmeadows', name: 'New World Greenmeadows', displayOrder: 1 },
-  { code: 'pak-n-save-tamatea', name: "Pak'n Save Tamatea", displayOrder: 2 },
-  { code: 'woolworths-carlyle', name: 'Woolworths Carlyle', displayOrder: 3 },
+  { id: '67af7315-c4e5-4f9e-89b3-7c3a71ba11da', code: 'new-world-greenmeadows', name: 'New World Greenmeadows', displayOrder: 1 },
+  { id: 'b4df52fd-667a-41d8-9a9b-9d6e3bc8c87c', code: 'pak-n-save-tamatea', name: "Pak'n Save Tamatea", displayOrder: 2 },
+  { id: '3e50666e-4aac-458f-9ae8-2eacba31ec6b', code: 'woolworths-carlyle', name: 'Woolworths Carlyle', displayOrder: 3 },
 ];
 
 const supermarkets = [
   {
+    id: '19f8486e-7b2c-4e10-949f-ecf0d2039b36',
     code: 'new-world',
     name: 'New World',
     stores: [storeDefinitions[0]],
   },
   {
+    id: 'a2d39069-a4d6-4837-8b0b-7f0a858d552a',
     code: 'pak-n-save',
     name: "Pak'n Save",
     stores: [storeDefinitions[1]],
   },
   {
+    id: '360fab45-a7c0-4be5-88d8-bb5a272fc2d6',
     code: 'woolworths',
     name: 'Woolworths',
     stores: [storeDefinitions[2]],
   },
 ];
+let nextIngredientId = 0;
 
 function ingredient(
   name: string,
@@ -54,7 +58,7 @@ function ingredient(
   }: Partial<Omit<IngredientSummary, 'id' | 'name'>> = {},
 ): IngredientSummary {
   return {
-    id: `00000000-0000-7000-8000-${String(name.length).padStart(12, '0')}`,
+    id: `00000000-0000-7000-8000-${String(++nextIngredientId).padStart(12, '0')}`,
     name,
     categoryName,
     excludeFromGroceryList,
@@ -132,8 +136,31 @@ test.describe('Ingredient Maintenance list', () => {
     await expect(table.getByText('Not stocked')).toBeVisible();
     await expect(table.getByText('Missing')).toHaveCount(2);
     await expect(table.getByText('Excluded from grocery list')).toBeVisible();
-    await expect(table.getByRole('button', { name: 'Edit Basil' })).toBeVisible();
+    await expect(table.getByRole('link', { name: 'Edit Basil' })).toBeVisible();
     await expect(table.getByRole('button', { name: 'Archive Basil' })).toBeVisible();
+  });
+
+  test('shows lowercase stored names, categories, and departments in title case', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockIngredientApi(page, [
+      ingredient('salt and pepper', {
+        categoryName: 'baking aisle',
+        stores: [
+          { storeCode: storeDefinitions[0].code, state: 'mapped', departmentName: 'fruit & veg' },
+          { storeCode: storeDefinitions[1].code, state: 'unmapped', departmentName: null },
+          { storeCode: storeDefinitions[2].code, state: 'unmapped', departmentName: null },
+        ],
+      }),
+    ]);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ingredient-maintenance');
+
+    const row = page.getByRole('table', { name: 'Ingredients' }).getByRole('row', { name: /Salt and Pepper/ });
+    await expect(row.getByRole('rowheader')).toHaveText('Salt and Pepper');
+    await expect(row.getByRole('cell').nth(0)).toHaveText('Baking Aisle');
+    await expect(row.getByRole('cell').nth(1)).toHaveText('Fruit & Veg');
+    await expect(row.getByRole('link', { name: 'Edit Salt and Pepper' })).toBeVisible();
   });
 
   test('AC-06 and AC-07 debounce search and show the no-match message', async ({ page }) => {
@@ -179,6 +206,11 @@ test.describe('Ingredient Maintenance list', () => {
     await expect(page.getByRole('table', { name: 'Ingredients' })).toBeHidden();
     const card = page.getByRole('article', { name: 'Ingredient 01' });
     await expect(card).toBeVisible();
+    const heading = card.getByRole('heading', { name: 'Ingredient 01', exact: true });
+    await expect(heading).toBeVisible();
+    await expect(heading.getByRole('link')).toHaveCount(0);
+    await expect(card.getByRole('link', { name: 'Edit Ingredient 01', exact: true }))
+      .toHaveAttribute('href', /\/ingredient-maintenance\/[^/]+$/);
     await expect(card.getByText('New World Greenmeadows')).toBeVisible();
     await expect(card.getByText('Missing')).toHaveCount(3);
     await expect(card.getByText('Excluded from grocery list')).toBeVisible();

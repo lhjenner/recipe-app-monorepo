@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { createBrowserRouter, Route, RouterProvider, Routes } from 'react-router-dom';
 import AppShell from './AppShell';
 import { getCurrentUser, logout, type UserDto } from './services/authApi';
 import LoginRoute from './LoginRoute';
@@ -13,14 +13,13 @@ import StubPage from './StubPage';
 import ProtectedRoute from './ProtectedRoute';
 import { SESSION_EXPIRED_EVENT } from './services/apiClient';
 import IngredientMaintenancePage from './IngredientMaintenancePage';
+import IngredientEditorPage from './IngredientEditorPage';
 
 function App() {
-  return (
-    <BrowserRouter>
-      <ApplicationRoutes />
-    </BrowserRouter>
-  );
+  return <RouterProvider router={router} />;
 }
+
+const router = createBrowserRouter([{ path: '*', element: <ApplicationRoutes /> }]);
 
 function ApplicationRoutes() {
   const [user, setUser] = useState<UserDto | null>(null);
@@ -120,6 +119,8 @@ function ApplicationRoutes() {
       }>
         <Route path={homeItem.route} element={<HomePage pageTitle={homeItem.pageTitle} />} />
         <Route path="/ingredient-maintenance" element={<IngredientMaintenancePage />} />
+        <Route path="/ingredient-maintenance/new" element={<IngredientEditorPage />} />
+        <Route path="/ingredient-maintenance/:id" element={<IngredientEditorPage />} />
         {stubItems.filter((item) => item.route !== '/ingredient-maintenance').map((item) => (
           <Route key={item.route} path={item.route} element={<StubPage pageTitle={item.pageTitle} />} />
         ))}
