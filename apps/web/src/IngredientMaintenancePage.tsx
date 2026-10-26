@@ -4,6 +4,7 @@ import IngredientCards from './components/IngredientCards';
 import IngredientTable from './components/IngredientTable';
 import { useIngredientList } from './hooks/useIngredientList';
 import { useSupermarkets } from './hooks/useSupermarkets';
+import { useConfirmDialog } from './hooks/useConfirmDialog';
 import { Link } from 'react-router-dom';
 import {
   archiveIngredient,
@@ -24,6 +25,7 @@ function IngredientMaintenancePage() {
   } | null>(null);
   const ingredientList = useIngredientList({ search, page, pageSize: PAGE_SIZE, archived });
   const supermarkets = useSupermarkets();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const stores = useMemo(() => supermarkets.data
     ?.flatMap((chain) => chain.stores)
     .sort((first, second) => first.displayOrder - second.displayOrder) ?? [],
@@ -55,10 +57,21 @@ function IngredientMaintenancePage() {
     }
   }
 
-  function confirmAction(id: string, name: string, shouldBeArchived: boolean) {
-    const action = shouldBeArchived ? 'archive' : 'restore';
-    if (window.confirm(`${action === 'archive' ? 'Archive' : 'Restore'} ${name}?`)) {
-      void performAction(id, shouldBeArchived);
+  async function confirmAction(id: string, name: string, shouldBeArchived: boolean) {
+    const confirmed = await confirm(shouldBeArchived
+      ? {
+        title: 'Archive ingredient?',
+        message: `${name} will be hidden from the active list. You can restore it later from Show archived.`,
+        confirmLabel: 'Archive',
+        tone: 'danger',
+      }
+      : {
+        title: 'Restore ingredient?',
+        message: `${name} will return to the active ingredient list.`,
+        confirmLabel: 'Restore',
+      });
+    if (confirmed) {
+      await performAction(id, shouldBeArchived);
     }
   }
 
@@ -151,16 +164,16 @@ function IngredientMaintenancePage() {
                 stores={stores}
                 archived={archived}
                 pendingIngredientId={pendingIngredientId}
-                onArchive={(id, name) => confirmAction(id, name, true)}
-                onRestore={(id, name) => confirmAction(id, name, false)}
+                onArchive={(id, name) => void confirmAction(id, name, true)}
+                onRestore={(id, name) => void confirmAction(id, name, false)}
               />
               <IngredientCards
                 ingredients={ingredients}
                 stores={stores}
                 archived={archived}
                 pendingIngredientId={pendingIngredientId}
-                onArchive={(id, name) => confirmAction(id, name, true)}
-                onRestore={(id, name) => confirmAction(id, name, false)}
+                onArchive={(id, name) => void confirmAction(id, name, true)}
+                onRestore={(id, name) => void confirmAction(id, name, false)}
               />
               <nav className="ingredient-pagination" aria-label="Ingredient pages">
                 <button
@@ -187,6 +200,7 @@ function IngredientMaintenancePage() {
           )}
         </section>
       </main>
+      {confirmDialog}
     </>
   );
 }

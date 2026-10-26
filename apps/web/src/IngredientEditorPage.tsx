@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useBlocker, useMatch, useNavigate, useParams } from 'react-router-dom';
 import IngredientEditor from './components/IngredientEditor';
+import ConfirmDialog from './components/ConfirmDialog';
 import PageTitle from './PageTitle';
 import { useIngredient } from './hooks/useIngredient';
+import { useConfirmDialog } from './hooks/useConfirmDialog';
 import { useIngredientLookups } from './hooks/useIngredientLookups';
 import { useSupermarkets } from './hooks/useSupermarkets';
 import {
@@ -99,20 +101,11 @@ function IngredientEditorSession({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [archivedIngredientId, setArchivedIngredientId] = useState<string | undefined>();
   const allowNavigation = useRef(false);
+  const { confirm, confirmDialog } = useConfirmDialog();
   const blocker = useBlocker(useCallback(
     () => dirty && !allowNavigation.current,
     [dirty],
   ));
-
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      if (window.confirm('Discard unsaved changes?')) {
-        blocker.proceed();
-      } else {
-        blocker.reset();
-      }
-    }
-  }, [blocker, blocker.state, blocker.proceed, blocker.reset]);
 
   useEffect(() => {
     if (!dirty) {
@@ -178,8 +171,11 @@ function IngredientEditorSession({
   }
 
   async function restoreArchivedIngredient() {
-    if (!archivedIngredientId
-      || !window.confirm('Restore the archived ingredient with this name?')) {
+    if (!archivedIngredientId || !await confirm({
+      title: 'Restore archived ingredient?',
+      message: 'The archived ingredient with this name will return to your active list. Changes on this form will not be saved.',
+      confirmLabel: 'Restore',
+    })) {
       return;
     }
 
@@ -248,6 +244,17 @@ function IngredientEditorSession({
         }}
         onSubmit={(event) => void submit(event)}
       />
+      <ConfirmDialog
+        open={blocker.state === 'blocked'}
+        title="Discard unsaved changes?"
+        message="Your changes to this ingredient will be lost."
+        confirmLabel="Discard changes"
+        cancelLabel="Keep editing"
+        tone="danger"
+        onConfirm={() => blocker.proceed?.()}
+        onCancel={() => blocker.reset?.()}
+      />
+      {confirmDialog}
     </>
   );
 }

@@ -241,7 +241,6 @@ test.describe('Ingredient Maintenance list', () => {
       ingredient('Active Ingredient'),
       ingredient('Archived Ingredient', { archived: true }),
     ]);
-    page.on('dialog', (dialog) => dialog.accept());
     await page.goto('/ingredient-maintenance');
     await page.getByRole('checkbox', { name: 'Show archived' }).check();
 
@@ -251,23 +250,42 @@ test.describe('Ingredient Maintenance list', () => {
     await expect(page.getByRole('button', { name: 'Restore Archived Ingredient' })).toBeVisible();
     expect(requests.some((query) => query.includes('archived=true'))).toBe(true);
     await page.getByRole('button', { name: 'Restore Archived Ingredient' }).click();
+    await page.getByRole('dialog', { name: 'Restore ingredient?' })
+      .getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByText('No archived ingredients.')).toBeVisible();
     await page.getByRole('checkbox', { name: 'Show archived' }).uncheck();
     await expect(page.getByRole('table', { name: 'Ingredients' }).getByText('Archived Ingredient')).toBeVisible();
     expect(requests.some((request) => request.endsWith('/restore'))).toBe(true);
   });
 
-  test('confirms archive before removing the ingredient from the active list', async ({ page }) => {
+  test('confirms archive in an app modal before removing the ingredient from the active list', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     const requests = await mockIngredientApi(page, [ingredient('Archive Me')]);
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('Archive Me');
-      await dialog.accept();
+    let nativePromptShown = false;
+    page.on('dialog', async (dialog) => {
+      nativePromptShown = true;
+      await dialog.dismiss();
     });
     await page.goto('/ingredient-maintenance');
 
-    await page.getByRole('button', { name: 'Archive Archive Me' }).click();
+    const archiveButton = page.getByRole('button', { name: 'Archive Archive Me' });
+    const confirmation = page.getByRole('dialog', { name: 'Archive ingredient?' });
+    await archiveButton.click();
+    await expect(confirmation).toContainText('Archive Me');
+    await expect(confirmation.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await confirmation.getByRole('button', { name: 'Cancel' }).click();
+    await expect(confirmation).toBeHidden();
+    expect(requests.some((request) => request.endsWith('/archive'))).toBe(false);
+
+    await archiveButton.click();
+    await page.keyboard.press('Escape');
+    await expect(confirmation).toBeHidden();
+    expect(requests.some((request) => request.endsWith('/archive'))).toBe(false);
+
+    await archiveButton.click();
+    await confirmation.getByRole('button', { name: 'Archive', exact: true }).click();
     await expect(page.getByText('No ingredients yet.')).toBeVisible();
     expect(requests.some((request) => request.endsWith('/archive'))).toBe(true);
+    expect(nativePromptShown).toBe(false);
   });
 });
