@@ -16,6 +16,8 @@ PRD04 establishes durable Recipe persistence, extends the standalone import tool
 
 **Storage clarification:** Firestore is the legacy source, exported as JSON. PostgreSQL through EF Core remains the destination. Firestore recommendations in this PRD describe source interpretation and mapping, not a second application database or a Firestore redesign.
 
+Existing recipe images also move out of legacy Firebase Storage into private object storage. PostgreSQL stores their associations and verification metadata, not image bytes. Neon is the recommended provider for PostgreSQL and object storage, subject to the compatibility and free-plan checks below; application hosting is a separate decision.
+
 ## 2. Scope, Goals & Non-Goals
 
 ### In scope
@@ -26,6 +28,7 @@ PRD04 establishes durable Recipe persistence, extends the standalone import tool
 - Explicit conversion of legacy structural ingredient entries to Heading or Note items using retained PRD03 decisions.
 - Lossless source retention, validation, repeat imports and durable migration reports.
 - Authenticated active Recipe List, recipe-name/ingredient-name search, and read-only Recipe View.
+- Migration and verification of existing image files, private storage, and display of one image on Recipe View.
 - Responsive layouts, accessible interaction, loading, empty, not-found and error states.
 
 ### Goals
@@ -44,11 +47,23 @@ PRD04 establishes durable Recipe persistence, extends the standalone import tool
 - Favorites, new recipe categories or taxonomy-management screens.
 - Grocery List, Meal Planner or Food Diary integration.
 - Scaling, multipliers, quantity arithmetic, unit conversion or nutrition calculation.
-- Image display, image-file migration, image upload or image hosting.
+- User-facing image upload, replacement or deletion; galleries, cropping, transformations and Recipe List thumbnails.
 - In-app import/upload endpoints, production provisioning or changes to authentication.
 - A new Firestore target model, live Firestore access, synchronization or dual writes.
 
 The existing Add Recipe and Archived Recipes navigation destinations remain stubs. Preserve the app shell and menu ordering; do not make those destinations functional as an incidental part of this PRD.
+
+### Hosting, storage and cost constraints
+
+- Target recurring cost is $0 using genuine free plans, not time-limited trials or promotional credits. Self-hosting is excluded.
+- Recommend Neon Free PostgreSQL for application data and Neon private Object Storage for images. Database storage and object storage have separate quotas; do not count images against the database allowance or store them as database blobs.
+- Provider selection is conditional on verifying available regions, private-object access, .NET/S3 compatibility, quota-exhaustion behavior, transfer/operation limits and recovery/export capability. Prefer hard limits that stop service rather than automatically charge. Do not enable a paid plan or billing-based fallback without an explicit decision.
+- Record checked plan terms and date in the implementation issue; do not treat today's advertised allowances as permanent guarantees. Check compute, bandwidth and requests as well as storage. Accept database cold starts on a free plan; avoid artificial keep-alive traffic.
+- Neon is not the selected .NET application host. Its documented Node.js Functions runtime does not run this ASP.NET Core API. Choose a genuine-free .NET/container host separately; no backend rewrite is implied.
+- Images must not be committed to Git, bundled into the frontend public assets, stored in a container's disposable filesystem or exposed through a public bucket. Local automated tests/rehearsal may use a persistent directory outside the repository or a named volume; that is development infrastructure, not self-hosted production.
+- Implement a small storage boundary for private object reads and migration writes, with local test storage and the selected provider adapter. Keep object keys independent of public URLs and avoid a generic media platform.
+- Production provisioning remains separate, but the selected storage adapter, private delivery and migration must be exercised before declaring image migration complete.
+- Reference checks: [Neon pricing](https://neon.com/pricing), [Object Storage](https://neon.com/docs/storage/overview), and [Functions runtime](https://neon.com/docs/compute/functions/reference/runtime-limits). These are recommendations, not evidence that an account or deployment has been provisioned.
 
 ## 3. Verified Baseline & Source Findings
 
@@ -80,6 +95,7 @@ The supplied local export was inspected read-only. It is not copied into the rep
 | Legacy ownership | 44 include `userId`; 66 omit it |
 | Dates | 79 include `dateAdded`, using two timestamp encodings; 31 omit it |
 | Images | 78 include `imageUrl`; image availability was not tested |
+| Image collection size | Approximately 45 MB in Firebase Storage, reported by the owner; byte totals, referenced coverage and file types still require inventory |
 | Line fields | `id`, `name`, `quantity`, `unit`; optional `notes` and legacy `department` |
 | Free text | Quantities include fractions, ranges, embedded units and a nonnumeric label; servings and times also contain descriptive text |
 | Structural labels | Examples include Optional, Setup, Full Recipe, Half Recipe and serving/topping labels |
@@ -93,6 +109,7 @@ No live database, retained classification file or matching ingredient export was
 - As a user, I want headings and notes displayed as structured content so that serving suggestions are not mistaken for ingredients.
 - As a user, I want to search by recipe name or an ingredient's name so that I can find meals using that ingredient.
 - As a user, I want to read recipe metadata and instructions on any device so that I can use the recipe while cooking.
+- As a user, I want my existing recipe photos migrated and displayed privately so that I can recognize a dish without depending on the legacy storage account.
 - As a migration operator, I want explicit validation and reconciliation reports so that I can resolve problems before switching applications.
 - As a future feature developer, I want stable Recipe, Step and Ingredient references so that authoring and downstream features can build on this foundation.
 
@@ -117,7 +134,8 @@ Use `Recipe -> RecipeStep -> RecipeStepItem`, with Ingredient items referencing 
 
 | Entity | Fields / relationships | Rules |
 |---|---|---|
-| Recipe | `Id: Guid`, `LegacyId: string?`, `OwnerUserId: Guid`, `Name: string`, `NormalizedName: string`, `SourceText`, `SourceUrl`, `ServingsText`, `PrepTimeText`, `CookTimeText`, `ImageUrl`, `DateAddedAtUtc?`, `IsArchived: bool`, application `CreatedAtUtc` / `UpdatedAtUtc`, `Version` | GUID v7 primary key; nullable legacy identity unique per owner when present; owner FK to existing User; source text preserved; original date distinct from import/audit time; `xmin` supports import conflict detection |
+| Recipe | `Id: Guid`, `LegacyId: string?`, `OwnerUserId: Guid`, `Name: string`, `NormalizedName: string`, `SourceText`, `SourceUrl`, `ServingsText`, `PrepTimeText`, `CookTimeText`, `DateAddedAtUtc?`, `IsArchived: bool`, application `CreatedAtUtc` / `UpdatedAtUtc`, `Version` | GUID v7 primary key; nullable legacy identity unique per owner when present; owner FK to existing User; source text preserved; original date distinct from import/audit time; `xmin` supports import conflict detection |
+| RecipeImage | `RecipeId: Guid` primary key/FK, `ObjectKey: string`, `ContentType: string`, `ByteSize: long`, `Sha256: string`, `Width: int`, `Height: int` | Optional one-to-one relationship; privately stored original bytes, positive size/dimensions, immutable object revision; no Firebase URL, credentials or signed URL in the application image reference |
 | RecipeStep | `Id: Guid`, `RecipeId: Guid`, `Position: int`, `Instructions: string` | One Recipe; ordered; instructions may be empty; retain line breaks; ingredient-free Steps are valid |
 | RecipeStepItem | `Id: Guid`, `RecipeStepId`, `Position: int`, `Kind: Ingredient / Heading / Note`, `IngredientId: Guid?`, `Text: string`, `QuantityText`, `UnitText`, `NotesText` | Shared ordered list; Ingredient requires a real FK; Heading/Note require null Ingredient FK; never create fake Ingredient rows |
 | RecipeTag | `Id: Guid`, `RecipeId: Guid`, `Position: int`, `Text: string` | Ordered source values, not a global tag catalogue; no tag-management behavior |
@@ -146,7 +164,7 @@ Positions are not permanent semantic identities. Before recipe authoring or down
 
 ## 6. Firestore Source Model & Mapping
 
-Do not modify the legacy Firestore collections to make this import work. Consume the supplied JSON-array export through an explicit recipe import mode; no Firestore credentials or SDK are required.
+Do not modify the legacy Firestore collections to make this import work. Consume the supplied JSON-array export through an explicit recipe import mode; no Firestore database credentials or SDK are required. Obtain image files separately through an operator-controlled Firebase Storage export/download, then import the explicit local image manifest and files. Any credentials needed for that export remain outside the application and repository.
 
 | Legacy JSON path | Destination / interpretation |
 |---|---|
@@ -164,7 +182,7 @@ Do not modify the legacy Firestore collections to make this import work. Consume
 | Line `department` | Preserve in provenance and report as retained legacy-only metadata; do not override current Ingredient store mappings |
 | `archived` | `IsArchived`; absent means active, with an explicit defaulting diagnostic |
 | `dateAdded` | Original nullable date, distinct from application audit fields |
-| `imageUrl` | Retained value only; no image requests or file migration in PRD04 |
+| `imageUrl` | Original URL retained privately in provenance; explicit image manifest resolves it to verified local bytes and then a RecipeImage association in private storage |
 | `userId` | Legacy provenance only; never used as the new application's owner FK |
 | Any unrecognized property | Preserve in source JSON and emit a field-path warning; never silently ignore |
 
@@ -183,6 +201,7 @@ Reuse JSON duplicate-key checks, safe configuration, owner validation, schema ch
 ### Inputs and ownership
 
 - Explicit recipe JSON path, existing destination owner GUID, retained PRD03 decision file, and report destination outside the repository.
+- Explicit image manifest and backup directory when images are referenced. The manifest maps source Recipe IDs and original image references to relative file paths, byte counts and SHA-256 checksums. Include it and the referenced bytes in input fingerprint/conflict checks; never enumerate unrelated files.
 - A matching legacy ingredient export is required when the original text of a classified structural GUID is not available on the recipe line. A decision-file `name` is only a review label, not authoritative replacement content.
 - Retain original exports unchanged, with file SHA-256 checksums. Do not enumerate unrelated backup files.
 - Print and confirm the destination owner and source selection. Display counts of present/missing legacy owner fields; if multiple source owners occur, block until the operator explicitly selects an allowed source set.
@@ -210,10 +229,23 @@ Heading/Note conversion preserves quantity, unit and notes too; the view must no
 - Never delete destination Recipes absent from the source export.
 - Preserve Recipe GUID `Id`, `LegacyId`, owner and existing application creation time on updates. Apply the source archive state as an explicitly displayed, approved field change.
 - Source changes to arrays, unknown fields or other provenance content must not be hidden by a typed-field-only comparison. JSON object-property order alone does not constitute a content change; array order does.
-- Commit all accepted changes in one transaction. Any blocking validation or write failure means zero accepted Recipes are committed; this PRD does not introduce partial-success batches.
+- Commit all accepted database changes, including image associations, in one transaction. Any blocking validation or pre-commit write failure means zero accepted Recipes are committed; this PRD does not introduce partial-success database batches. Object writes cannot share that transaction; the image staging and recovery rules below apply.
 - After approvals, recheck all selected input fingerprints and the relevant target read-set, including referenced Ingredients, classifications, Recipe children and concurrent insertions. Hold verified inputs through commit and use bounded locking consistent with PRD03. Do not hold database locks while prompting.
 - Cancellation before commit rolls back all writes. Operational failures must be explicit, not disguised as successful zero-count imports.
 - Repeat the same accepted input: resolve the same legacy-to-GUID mappings, zero inserted/updated Recipes, unchanged child IDs, and no duplicate tags, Steps or items.
+
+### Existing-image migration and recovery
+
+1. Inventory source references and export original image bytes before retiring Firebase. Resolve filenames/references through exact `LegacyId`, not a guessed new GUID. Do not assume every URL has a file or every bucket file belongs to a Recipe. Keep unreferenced files in the backup and report them; do not delete them automatically.
+2. The importer reads only manifest-selected local files. Reject path traversal/out-of-root paths, unsupported image formats and invalid/mismatched content. Validate file signatures, successful decoding, dimensions, byte limits and checksum, rather than trusting extension or MIME labels. Document finite byte/dimension limits and supported inert raster formats in the tool guide; unsupported content blocks rather than being silently transcoded or lost.
+3. Default dry-run validates local bytes and reports proposed image work without uploading or modifying target objects. No arbitrary URL fetching is performed by either the application API or recipe importer. Downloading source images is a separate, explicit export step.
+4. After whole-Recipe approvals, stage only accepted image revisions under opaque run-specific object keys in private target storage, with create-only/immutable semantics. Verify stored size and SHA-256 before the short database transaction. Never overwrite an object referenced by an existing Recipe.
+5. Commit RecipeImage metadata with the accepted Recipe. Source images are imported for archived Recipes too, although archived image delivery remains unavailable. Empty/absent source images mean no image; a nonempty reference with missing/unverifiable bytes blocks the write run and is not equivalent to "no image".
+6. Preserve an existing image until a complete Recipe update, including any changed or removed image association, is approved and committed. Compare checksums even if the source URL is unchanged. An unchanged, verified manifest/image must retain the association and avoid another upload.
+7. Journal staged keys and checksums outside the repository so retries can validate and reuse this run's objects. If validation, concurrency, cancellation or commit fails, database changes roll back; staged objects may remain. Report them as unreferenced, not migrated. Cleanup is explicit and limited to journaled, confirmed-unreferenced keys, never a bucket-wide delete.
+8. Retain superseded objects until backup and migration verification are complete. Before any cleanup, confirm no committed association references the object. If a commit outcome is uncertain, reconcile database/run state first; do not assume rollback and delete possibly referenced files.
+
+An image failure during import is a blocking migration diagnostic by default; it does not prevent already imported recipe text from being read. Any decision to defer a referenced image requires a recorded scope exception before cutover, not an automatic fallback to the Firebase URL.
 
 ### Losslessness contract
 
@@ -238,6 +270,7 @@ Report and source files can contain personal data or access-bearing URLs. Keep t
 | Dates | Invalid timestamp shape/range or precision loss in typed conversion | Missing original date stays null; supported shapes normalize to UTC |
 | Archive/owner | Nonboolean archive value or unapproved source-owner selection | Missing archive defaults to active with diagnostic; missing legacy owner reported |
 | URLs | Non-string source/image value | Blank allowed; malformed/unsafe URLs retained with warning but never made clickable |
+| Images | Nonempty image reference missing from manifest, missing/changed file, path escape, checksum mismatch, unsupported/invalid image or storage verification failure | Absent/empty reference needs no image; verified original bytes are copied privately, without transformation |
 | Target/input state | Schema drift, changed source/decisions or changed target after preview | Fresh preview required after any conflict |
 | Completeness | Any source field or line lacks a typed mapping or retained disposition | Unknown data retained and listed for review |
 
@@ -256,6 +289,7 @@ Produce human-readable console output and a machine-readable JSON report at an e
 - Headings Converted, Notes Converted, Missing Ingredients, blank placeholders omitted, unknown fields retained, warnings and errors.
 - Conversion counts distinguish planned and committed occurrences. Count occurrences separately from distinct legacy IDs.
 - Archive defaults, missing original dates/owners, retained image URLs, legacy departments and anomalous text summarized explicitly.
+- Image references, no-image Recipes, proposed/reused/uploaded/associated images, missing/invalid files, verification/download-export failures, bytes/checksums, unreferenced source files and staged/superseded objects awaiting cleanup. A successful upload is not a committed Recipe association; report both counts separately.
 
 ### Per-recipe diagnostics
 
@@ -264,6 +298,7 @@ Produce human-readable console output and a machine-readable JSON report at an e
 - Distinguish invalid source, dependency missing, declined, unchanged, not applied due to another blocker, and rolled back. Do not label every uncommitted Recipe "failed".
 - Counts must reconcile: every source Recipe has exactly one terminal outcome. Dry-runs report zero committed imports; rolled-back runs report zero committed inserts/updates.
 - Record ordered source Step/item totals and dispositions, enabling verification that each source item became an Ingredient, Heading, Note or retained blank placeholder.
+- Record the image outcome, original reference fingerprint, checksum, object key and association/cleanup status when applicable. Full source access URLs and tokens stay in restricted provenance/backup, not console logs; distinguish image failure from no-image and database rollback from staged-object persistence.
 
 Prepare a writable report destination before write mode starts. Filesystem reports and database transactions are not one atomic resource: retain a run/commit identifier with applied provenance and record the commit outcome explicitly. If final report persistence fails after a database commit, exit nonzero, state that the data **was committed**, and provide recovery instructions/run identification; do not claim rollback or encourage a blind retry.
 
@@ -277,8 +312,13 @@ Follow the existing Controller -> application read service -> EF persistence pat
 |---|---|
 | `GET /api/recipes?search=&page=1&pageSize=25` | Active, current-owner Recipes only; `items`, `totalCount`, `page`, `pageSize`; summaries need only GUID ID and name |
 | `GET /api/recipes/{id}` | GUID Recipe ID; current-owner, active Recipe metadata, ordered tags, ordered Steps and discriminated typed items; includes current Ingredient names and preserved line text |
+| `GET /api/recipes/{id}/image` | Owner-authorized active Recipe image bytes from private storage; validated content type, size and checksum-derived ETag; never redirects to Firebase or exposes storage credentials |
 
 Serialize Recipe IDs as UUID strings and validate them as UUIDs at frontend boundaries. `LegacyId` is for migration compatibility, not a second public lookup key; no legacy-ID endpoint or redirect is required in PRD04. A malformed GUID detail route returns `404`, consistent with a GUID-constrained API route.
+
+Detail DTOs expose nullable image metadata (application-relative delivery URL, dimensions and revision/checksum), not storage keys or original URLs. Missing image association, missing Recipe, different owner and archived Recipe return `404` from the image endpoint; anonymous requests return `401`. An unexpectedly missing stored object is a logged server failure, and storage outage/quota failure returns explicit `503` Problem Details, not a successful placeholder image.
+
+Authorize every image request, including conditional requests, before returning `304`. Use `Cache-Control: private, no-cache` to allow private storage with revalidation, never public/shared caching; return the correct type and `X-Content-Type-Options: nosniff`. Follow existing session-expiry handling through a dedicated image-loading hook using the shared API client and authenticated binary fetch; release temporary browser object URLs when no longer needed and clear images on logout/Recipe change.
 
 List validation follows Ingredient conventions: positive page, page size 1-100 (default 25), search maximum 200 characters. Invalid query returns `400` Problem Details; out-of-range nonempty pages follow the existing Ingredient convention, with page 1 valid for an empty result.
 
@@ -315,7 +355,9 @@ Use ordinary EF/PostgreSQL queries first. Do not introduce a search service, den
 - Route `/recipes/:id`, using the Recipe GUID rather than `LegacyId`, without displacing `/recipes/new` or `/recipes/archived`.
 - Recipe name as the page heading and document title; Recipe List remains the active navigation item.
 - Display source, safe source URL, servings, prep time, cook time, tags and original date-added when present. Optional missing values may be omitted; do not invent zero times or servings.
-- Legacy user identity, migration audit fields and raw provenance are not recipe metadata shown to the user. Image URLs are retained but not rendered as images or raw token-bearing text.
+- Legacy user identity, migration audit fields, original Firebase image URLs and raw provenance are not recipe metadata shown to the user.
+- Display the migrated image, when present, above the Steps with responsive width, preserved aspect ratio and concise recipe-based alternative text. Do not crop or transform the original, let the image dominate mobile reading, or request Firebase images.
+- Reserve layout space using dimensions. No image is a normal state with no broken element. A failed image request shows an accessible unavailable/retry state while all recipe text remains readable; session expiry uses the existing authentication flow.
 - Render Steps in source order with visible Step numbers. Within each Step, render typed items in original order, followed by that Step's instructions.
 - Ingredient item: current title-cased Ingredient name, original quantity/unit and notes. No summation, scaling, inferred units or instruction rewriting.
 - Heading item: semantic grouping label, not an Ingredient bullet. Note item: distinct readable annotation. Include any nonempty quantity/unit/notes from converted items without conflating them with real Ingredients.
@@ -344,7 +386,7 @@ Unit = xUnit/FluentAssertions for backend and migration logic, Vitest for fronte
 | AC-10 | Active, archived and missing-archive source documents | Imported and queried | Archive state persists; missing defaults are reported; only active Recipes appear and archived detail returns 404 | BDD |
 | AC-11 | Legacy owner IDs and missing owner fields | Target owner is selected | Explicit selection/confirmation is reported; new owner FK is used; ambiguous multi-owner input blocks | Unit + BDD |
 | AC-12 | Ingredient mode and recipe mode inputs | Each mode runs | Existing Ingredient behavior remains; recipe mode reads only explicitly selected relevant files and does not mutate Ingredients | Unit + BDD |
-| AC-13 | Valid source and no write flag | Preview runs | Database is unchanged, persistent report exists and committed insert/update counts are zero | BDD |
+| AC-13 | Valid source and no write flag | Preview runs | Database and object storage are unchanged, local image validation/reporting completes and committed insert/update counts are zero | BDD |
 | AC-14 | A source Recipe differs from the target | Operator approves or declines its complete update | Approval applies all approved fields/children atomically; decline leaves the entire Recipe unchanged and is reported | BDD |
 | AC-15 | An accepted import already exists | Identical input is imported again | Matching owner/LegacyId resolves the same Recipe GUID, no Recipe/child duplicates or updates occur, all child IDs remain stable, and targets absent from the backup remain untouched | BDD |
 | AC-16 | Source, decisions, Ingredient references or Recipe children change after preview | Write is attempted | Conflict blocks commit and requires fresh review; cancellation/failure before commit also writes nothing | BDD |
@@ -359,12 +401,19 @@ Unit = xUnit/FluentAssertions for backend and migration logic, Vitest for fronte
 | AC-25 | A list search/page and an opened Recipe | User returns, refreshes or opens a direct detail URL | Query state and authenticated routing work; reserved stub routes are not captured as IDs | Unit + E2E |
 | AC-26 | Loading, empty catalogue, no results, network failure or missing Recipe | Corresponding screen is opened | Distinct accessible states and appropriate retry/navigation are shown; failures are not empty success states | Unit + E2E |
 | AC-27 | A Recipe with metadata, headings, notes and multiline instructions | Read at 375 px and 1280 px, including keyboard navigation | All in-scope content is readable in order without horizontal overflow or write controls | E2E |
-| AC-28 | HTML-like text, unsafe URLs and retained image URLs | Details render | Text is inert, unsafe URLs are not clickable, and no image request is made | Unit + E2E |
+| AC-28 | HTML-like text, unsafe URLs and original Firebase image URLs | Details render | Text is inert, unsafe URLs are not clickable, and images load only from the authenticated application endpoint, never Firebase | Unit + E2E |
 | AC-29 | Names requiring title casing | List and detail render | Shared helper formats names without changing stored names, instructions or labels | Unit + E2E |
 | AC-30 | A successful rehearsal against persistent local PostgreSQL | Database restarts without volume removal | Imported Recipes remain accessible; ordered totals/provenance reconcile with the source and report | BDD + Manual rehearsal |
 | AC-31 | Synthetic locally created Recipe records with GUID v7 IDs and null LegacyIds | Multiple records for one owner are persisted and a same-named source Recipe is imported | Null LegacyIds are allowed without collisions; import creates a separate mapped Recipe rather than attaching to a null-LegacyId record; no creation endpoint is added | Unit + BDD |
 | AC-32 | Exact duplicate, case-distinct and different-owner LegacyIds | Identity constraints and import matching are exercised, including concurrent insertion | Same-owner exact duplicates block/roll back; case-distinct and different-owner values remain distinct; persisted mappings are never reassigned | Unit + BDD |
 | AC-33 | A list/detail response and GUID, legacy-string or malformed detail URLs | API and browser clients resolve Recipes | DTO IDs validate as UUIDs and links use GUIDs; legacy strings are not lookup aliases; invalid detail IDs show not-found; reserved stub routes remain intact | Unit + BDD + E2E |
+| AC-34 | A source image manifest and valid original raster files | Accepted Recipes are imported twice | Checksums/bytes match source and private target, images associate via LegacyId to Recipe GUID, and the second run reuses associations without duplicate uploads | Unit + BDD |
+| AC-35 | A missing/corrupt image, changed checksum, unsupported format or path escaping the backup root | Validation or staging runs | Explicit path/reference diagnostics block all database writes, no unsafe file is opened/uploaded, and no fallback to Firebase occurs | Unit + BDD |
+| AC-36 | Images staged before a failed/cancelled/conflicting database commit | Run is reconciled and retried | Existing images remain intact, staged leftovers are journaled and safely reusable/cleanable, and referenced objects are never deleted or reported as rolled back | BDD |
+| AC-37 | Private images, two owners, an archived Recipe and anonymous/conditional requests | Image endpoint is requested | Authorization precedes bytes/304; anonymous returns 401, inaccessible/no-image returns 404, and private cache/type headers are correct | BDD |
+| AC-38 | A loaded image, absent image, storage outage or expired session | Recipe View renders at 375 px and 1280 px | Responsive aspect ratio/alt text are correct, no-image is normal, failures are explicit with text still readable, and logout/change releases image state | Unit + E2E |
+| AC-39 | An existing image and a proposed changed or removed source image | Whole-Recipe update is declined, approved or fails | Decline/failure preserves current association; approval changes it atomically; superseded bytes remain until verified cleanup | BDD |
+| AC-40 | Selected free provider and persistent image backup | Storage compatibility and restore rehearsal runs | Private .NET reads/writes work, quota/cost behavior and region are recorded, and database plus images restore with matching associations/checksums | BDD + Manual rehearsal |
 
 ## 14. Recommended GitHub Issues & Implementation Sequencing
 
@@ -372,12 +421,13 @@ These are proposed issue titles, not instructions to create issues automatically
 
 | Slice | Recommended issue | Scope / completion evidence | Prerequisites |
 |---|---|---|---|
-| S1 | Recipe persistence and ownership foundation | Synthetic fixtures and failing model tests first; GUID Recipe identity, nullable case-sensitive LegacyId and filtered uniqueness, entities, configurations and EF migration; AC-01/02/03/22/31/32 persistence coverage | PRD03 |
+| S1 | Recipe persistence and ownership foundation | Synthetic fixtures and failing model tests first; GUID Recipe identity, nullable case-sensitive LegacyId and filtered uniqueness, RecipeImage metadata, entities, configurations and EF migration; AC-01/02/03/22/31/32 persistence coverage | PRD03 |
+| S7 | Private image storage and genuine-free provider compatibility | Verify Neon region/plan limits and .NET S3 compatibility, implement minimal private storage boundary/provider adapter and persistent local test storage; document quotas/credentials/backup; AC-40 compatibility evidence | S1 contract |
 | S2 | Lossless recipe source parsing and migration planning | Source schema fixtures, timestamp variants, decisions, blank handling, full-field dispositions and report contracts; AC-04 through AC-11 parsing coverage | S1 contract |
-| S3 | Atomic recipe import, repeat runs and durable reporting | Extend tool without Ingredient regression; owner/LegacyId matching, stable GUID mappings, approval/diffs, fingerprints/conflicts, provenance, report recovery, documentation and rehearsal instructions; AC-12 through AC-18 and AC-31/32 import coverage | S1, S2 |
-| S4 | Owner-scoped Recipe read APIs and ingredient-name search | GUID DTOs/routes, query validation, same-owner active reads, fixed paging, literal search and database-backed scenarios; AC-19 through AC-23 and AC-33 API coverage | S1 |
-| S5 | Responsive read-only Recipe List and View | Typed services/hooks, GUID links/validation, route replacement, metadata and Step rendering, list state, accessibility and safe URLs; AC-24 through AC-29 and AC-33 frontend coverage | S4 |
-| S6 | Migration rehearsal and integrated acceptance | Realistic synthetic migration-to-browser journey; operator-run actual export validation, count reconciliation, persistence restart and cutover checklist; AC-30 plus cross-slice evidence | S3, S5 |
+| S3 | Atomic recipe import, repeat runs and durable reporting | Extend tool without Ingredient regression; owner/LegacyId matching, stable GUID mappings, approvals, image manifest/staging/journal/recovery, fingerprints/conflicts, provenance, reports and documentation; AC-12 through AC-18, AC-31/32 and AC-34/35/36/39 import coverage | S1, S2, S7 |
+| S4 | Owner-scoped Recipe read APIs and ingredient-name search | GUID DTOs/routes, same-owner active reads, fixed paging, literal search, image metadata and authenticated binary delivery/cache semantics; AC-19 through AC-23, AC-33 API and AC-37 coverage | S1, S7 |
+| S5 | Responsive read-only Recipe List and View | Typed services/hooks, GUID links/validation, metadata/Steps, private image loading and unavailable states, list state and accessibility; AC-24 through AC-29, AC-33 frontend and AC-38 coverage | S4 |
+| S6 | Migration rehearsal and integrated acceptance | Synthetic migration-to-browser journey; actual export/image validation, counts/checksums, persistence restart, database/image backup restore and cutover checklist; AC-30/40 plus cross-slice evidence | S3, S5 |
 
 S2/S3 and S4 may progress in parallel once S1 contracts are agreed. Do not make read API work depend on a personal-data import; use synthetic seeding.
 
@@ -388,6 +438,7 @@ For each slice, write focused failing tests before implementation and keep files
 - Acceptance criteria mapped to tests or the explicitly manual rehearsal evidence; existing auth, navigation and Ingredient behavior preserved.
 - Local schema applied through EF migrations; importer never applies schema changes itself.
 - Same accepted import is idempotent; legacy-to-GUID mappings remain stable and its report reconciles every Recipe and source line.
+- Images are privately verified/associated, failed runs have explicit object recovery, and a database-plus-image backup can be restored. Free-plan compatibility/limits are recorded; no paid service or self-hosted production dependency is introduced.
 - No recipe write endpoints or deferred browsing/filter features have appeared.
 - Tool guide documents new mode/parameters, report recovery, ownership confirmation and lossless-source retention; final issue/PR links replace traceability placeholders.
 
@@ -400,7 +451,9 @@ For each slice, write focused failing tests before implementation and keep files
 | Legacy owner fields are sparse | Use explicit destination-owner selection and confirmation; retain original values privately |
 | Legacy Recipe references still use strings while the new domain uses GUIDs | Keep immutable, owner-scoped LegacyId mappings; future domain imports resolve them to GUID FKs and block missing mappings rather than minting replacement Recipes |
 | An archived Recipe exists but browsing is deferred | Import and retain it; active APIs exclude it; existing Archived Recipes stub remains unchanged |
-| Images contain remote access-bearing URLs | Preserve privately; no rendering, availability checks or assumed transfer of image ownership; later PRD must address storage/access and expiry |
+| Images contain remote access-bearing URLs | Back up original files through an explicit export; retain URLs privately, migrate verified bytes to private storage, and serve only after Recipe ownership checks |
+| Object storage is not transactional with PostgreSQL | Immutable staged objects, atomic database associations, durable run journals, conservative reference-checked cleanup and explicit uncertain-commit reconciliation |
+| Free-plan terms, bandwidth or compute can constrain service | Verify limits/region and exhaustion behavior before choosing Neon; prefer stopping over charges, monitor usage, avoid keep-alives and retain portable backups |
 | Text values cannot support reliable arithmetic | Preserve text now; future scaling/nutrition requires explicit parsing, units and human review |
 | Ingredient names can change | Link by GUID and display/search the current name; retain imported snapshots for provenance |
 | Unknown metadata or legacy department copies carry meaning | Retain and report; never override current Ingredient mappings; review newly discovered meaningful fields before cutover |
@@ -418,7 +471,7 @@ For each slice, write focused failing tests before implementation and keep files
 3. Apply an explicit write run; review the persistent report and verify active Recipe list/search/detail against representative source structures.
 4. Rerun identical accepted input, confirm no changes, and restart persistent local PostgreSQL without removing its volume.
 5. While the legacy app remains active, repeat against fresh backups. Before final cutover, stop legacy writes, take a final export and resolve required declines/blockers.
-6. Preserve archived records and image URLs even though their browsing/display is deferred. Do not describe Recipe migration as complete if unreviewed content or missing references remain.
-7. Production hosting, restricted connectivity, secret injection and backup/restore remain separate prerequisites for production cutover.
+6. Reconcile image references, manifest files, stored checksums and Recipe associations, including archived Recipes. Verify private image display and a database-plus-image backup restore. Preserve original Firebase files until verification; review staged/superseded objects before explicit cleanup. Archived browsing remains deferred.
+7. Production hosting, restricted connectivity and secret injection remain separate prerequisites for production cutover. Verify genuine-free plan/quota behavior and private storage compatibility; do not describe migration as complete with unresolved image failures, unreviewed content or missing references.
 
-Keep the migration tool until the later Grocery List migration and final verification, consistent with PRD03. Removing the temporary executable must not delete retained recipe provenance, original backups, decisions or final reports. Sharing, archive/restore UX, images, authoring, filtering and downstream integrations require later PRDs; this schema supports them without implementing them prematurely.
+Keep the migration tool until the later Grocery List migration and final verification, consistent with PRD03. Removing the temporary executable must not delete retained recipe provenance, image objects/manifests, original backups, decisions or final reports. Sharing, archive/restore UX, image authoring/transformations, recipe authoring, filtering and downstream integrations require later PRDs; this schema supports them without implementing them prematurely.
