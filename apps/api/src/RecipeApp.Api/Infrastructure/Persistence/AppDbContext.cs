@@ -16,6 +16,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Ingredient> Ingredients => Set<Ingredient>();
     public DbSet<IngredientStoreMapping> IngredientStoreMappings => Set<IngredientStoreMapping>();
     public DbSet<ProductLink> ProductLinks => Set<ProductLink>();
+    public DbSet<Recipe> Recipes => Set<Recipe>();
+    public DbSet<RecipeStep> RecipeSteps => Set<RecipeStep>();
+    public DbSet<RecipeStepItem> RecipeStepItems => Set<RecipeStepItem>();
+    public DbSet<RecipeTag> RecipeTags => Set<RecipeTag>();
+    public DbSet<RecipeImage> RecipeImages => Set<RecipeImage>();
+    public DbSet<RecipeImportProvenance> RecipeImportProvenance => Set<RecipeImportProvenance>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
