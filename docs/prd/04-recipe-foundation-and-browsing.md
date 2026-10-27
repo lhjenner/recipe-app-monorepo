@@ -21,7 +21,7 @@ PRD04 establishes durable Recipe persistence, extends the standalone import tool
 ### In scope
 
 - User-owned Recipes with ordered Steps and ordered, typed Step Items.
-- Preservation of Recipe IDs, Ingredient references, metadata, source content and ordering.
+- GUID Recipe identities with original Recipe IDs retained as `LegacyId`; preservation of Ingredient references, metadata, source content and ordering.
 - Import of active and archived recipes, preserving their archive state.
 - Explicit conversion of legacy structural ingredient entries to Heading or Note items using retained PRD03 decisions.
 - Lossless source retention, validation, repeat imports and durable migration reports.
@@ -88,7 +88,7 @@ No live database, retained classification file or matching ingredient export was
 
 ## 4. User Stories
 
-- As a user, I want my existing recipes migrated with their original identities so that future references remain stable.
+- As a user, I want my existing recipes migrated with their legacy identifiers retained so that old references can resolve to stable new Recipe identities.
 - As a user, I want each recipe's steps and ingredient lines kept in order so that I can follow the original method.
 - As a user, I want headings and notes displayed as structured content so that serving suggestions are not mistaken for ingredients.
 - As a user, I want to search by recipe name or an ingredient's name so that I can find meals using that ingredient.
@@ -102,8 +102,12 @@ No live database, retained classification file or matching ingredient export was
 
 Use `Recipe -> RecipeStep -> RecipeStepItem`, with Ingredient items referencing the existing Ingredient entity. Tags belong to the Recipe; source is recipe metadata, not a new managed taxonomy.
 
-- Recipe IDs are opaque, case-sensitive strings. Preserve the exported `id` exactly; do not generate GUID replacements, lowercase it, use the title as a key or introduce an unnecessary ID mapping table.
-- Use a PostgreSQL `text` key with deterministic, case-sensitive equality. Do not constrain the model to exactly 20 characters merely because this sample uses that format.
+- Recipe `Id` is a GUID v7 stored as PostgreSQL `uuid`. Assign it on the first successful import or, in a future authoring PRD, when a Recipe is created in this app.
+- Imported Recipes retain the exported `id` exactly in `LegacyId: string?`, stored as PostgreSQL `text` with deterministic, case-sensitive equality. Do not lowercase, trim or constrain it to exactly 20 characters merely because this sample uses that format.
+- Recipes created in this app have `LegacyId = null`. Creation remains out of scope; the persistence model must support this case without requiring a fabricated legacy identifier.
+- Enforce a unique filtered index on `(OwnerUserId, LegacyId)` where `LegacyId IS NOT NULL`, and reject non-null blank values. Multiple Recipes per owner may have null `LegacyId`; the same legacy value may exist for different owners.
+- Treat `Id` and `LegacyId` as immutable once imported. Repeat imports resolve `(OwnerUserId, LegacyId)` and reuse the stored GUID. `LegacyId` provides the mapping directly; no separate mapping table is required.
+- All new Recipe foreign keys, public API identifiers and recipe URLs use the GUID `Id`. Future imports of legacy Recipe references resolve them through the destination owner and `LegacyId`, then persist the GUID FK. Ingredient GUIDs remain unchanged.
 - New internal Step, Step Item and tag-row IDs can use GUIDs. Imported Steps/items have no source IDs.
 - Persist an explicit zero-based `Position` for Steps, items and tags. Enforce uniqueness within the parent. Do not rely on insertion order, dictionary order or primary-key order.
 - Keep duplicate ingredient occurrences and tags, including repeated use of the same Ingredient in one Step. Do not aggregate quantities or deduplicate source arrays.
@@ -113,11 +117,11 @@ Use `Recipe -> RecipeStep -> RecipeStepItem`, with Ingredient items referencing 
 
 | Entity | Fields / relationships | Rules |
 |---|---|---|
-| Recipe | `Id: string`, `OwnerUserId: Guid`, `Name: string`, `NormalizedName: string`, `SourceText`, `SourceUrl`, `ServingsText`, `PrepTimeText`, `CookTimeText`, `ImageUrl`, `DateAddedAtUtc?`, `IsArchived: bool`, application `CreatedAtUtc` / `UpdatedAtUtc`, `Version` | Owner FK to existing User; strings remain source text; original date is distinct from import/audit time; `xmin` supports import conflict detection |
-| RecipeStep | `Id: Guid`, `RecipeId`, `Position: int`, `Instructions: string` | One Recipe; ordered; instructions may be empty; retain line breaks; ingredient-free Steps are valid |
+| Recipe | `Id: Guid`, `LegacyId: string?`, `OwnerUserId: Guid`, `Name: string`, `NormalizedName: string`, `SourceText`, `SourceUrl`, `ServingsText`, `PrepTimeText`, `CookTimeText`, `ImageUrl`, `DateAddedAtUtc?`, `IsArchived: bool`, application `CreatedAtUtc` / `UpdatedAtUtc`, `Version` | GUID v7 primary key; nullable legacy identity unique per owner when present; owner FK to existing User; source text preserved; original date distinct from import/audit time; `xmin` supports import conflict detection |
+| RecipeStep | `Id: Guid`, `RecipeId: Guid`, `Position: int`, `Instructions: string` | One Recipe; ordered; instructions may be empty; retain line breaks; ingredient-free Steps are valid |
 | RecipeStepItem | `Id: Guid`, `RecipeStepId`, `Position: int`, `Kind: Ingredient / Heading / Note`, `IngredientId: Guid?`, `Text: string`, `QuantityText`, `UnitText`, `NotesText` | Shared ordered list; Ingredient requires a real FK; Heading/Note require null Ingredient FK; never create fake Ingredient rows |
-| RecipeTag | `Id: Guid`, `RecipeId`, `Position: int`, `Text: string` | Ordered source values, not a global tag catalogue; no tag-management behavior |
-| RecipeImportProvenance | Recipe FK, source document JSON, document SHA-256, source-file SHA-256, mapping-version identifier, decision fingerprint, last applied run identifier/time | Non-public persistence concern, separate from the authoring domain; contains enough source detail to verify every mapping and omission |
+| RecipeTag | `Id: Guid`, `RecipeId: Guid`, `Position: int`, `Text: string` | Ordered source values, not a global tag catalogue; no tag-management behavior |
+| RecipeImportProvenance | GUID Recipe FK, source document JSON, document SHA-256, source-file SHA-256, mapping-version identifier, decision fingerprint, last applied run identifier/time | Non-public persistence concern, separate from the authoring domain; contains enough source detail to verify every mapping and omission |
 
 `Text` means the imported ingredient-name snapshot on Ingredient items and the original label on Heading/Note items. Ingredient display uses the current linked Ingredient name; the snapshot remains available for migration comparison. Quantity, unit and notes remain separate even on structural items if the source contains them.
 
@@ -146,7 +150,7 @@ Do not modify the legacy Firestore collections to make this import work. Consume
 
 | Legacy JSON path | Destination / interpretation |
 |---|---|
-| `id` | Exact Recipe string primary key |
+| `id` | Exact `Recipe.LegacyId`; resolve by destination owner and this value, assigning a GUID v7 `Recipe.Id` only for a new imported Recipe |
 | `title` | `Recipe.Name`; derived normalized name for deterministic ordering only |
 | `source` / `link` | `SourceText` / `SourceUrl`, retained independently |
 | `servings`, `prepTime`, `cookTime` | Text fields, without numeric coercion |
@@ -166,7 +170,7 @@ Do not modify the legacy Firestore collections to make this import work. Consume
 
 Recognize both observed timestamp shapes: `_seconds` / `_nanoseconds` and `seconds` / `nanoseconds` with `type: "firestore/timestamp/1.0"`. Validate seconds, nanosecond range and destination precision. Block unsupported or lossy typed conversion instead of rounding; retain the source in all cases. Missing `dateAdded` stays null.
 
-The source `id` is the exported recipe identifier. Unlike Ingredients, it is not a GUID. There is no evidence here requiring a new Firestore document hierarchy, subcollection conversion or new source ID scheme.
+The source `id` is the exported legacy recipe identifier, not the new primary key. Unlike Ingredient IDs, it is not a GUID. Retain it unchanged and use the persisted `LegacyId`-to-`Id` relationship for migration compatibility. There is no evidence here requiring a new Firestore document hierarchy, subcollection conversion or new source ID scheme.
 
 ## 7. Recipe Import Strategy
 
@@ -199,15 +203,17 @@ Heading/Note conversion preserves quantity, unit and notes too; the view must no
 ### Apply and repeat behavior
 
 - Dry-run is the default and performs no database writes. Report proposed inserts/updates/conversions separately from committed results.
+- Match source Recipes by `(destination OwnerUserId, exact source id as LegacyId)`, never by name or by interpreting the source ID as a GUID. A match retains its existing `Id`; an unmatched record receives a GUID v7 on insertion. Preview reports must not present an uncommitted proposed GUID as an established mapping.
+- Source imports must not attach themselves to a Recipe with null `LegacyId`, even when names match. Concurrent attempts to insert the same owner/legacy identity must be detected before commit or rejected by the unique index with a complete rollback.
 - An explicit write run makes a fresh preview. New Recipes require no per-recipe approval; changed Recipes require approval of the entire Recipe, including metadata, children and provenance changes.
 - Unchanged Recipes are skipped. Declined updates leave the complete target Recipe unchanged and remain proposed on a later run.
 - Never delete destination Recipes absent from the source export.
-- Preserve Recipe ID, owner and existing application creation time on updates. Apply the source archive state as an explicitly displayed, approved field change.
+- Preserve Recipe GUID `Id`, `LegacyId`, owner and existing application creation time on updates. Apply the source archive state as an explicitly displayed, approved field change.
 - Source changes to arrays, unknown fields or other provenance content must not be hidden by a typed-field-only comparison. JSON object-property order alone does not constitute a content change; array order does.
 - Commit all accepted changes in one transaction. Any blocking validation or write failure means zero accepted Recipes are committed; this PRD does not introduce partial-success batches.
 - After approvals, recheck all selected input fingerprints and the relevant target read-set, including referenced Ingredients, classifications, Recipe children and concurrent insertions. Hold verified inputs through commit and use bounded locking consistent with PRD03. Do not hold database locks while prompting.
 - Cancellation before commit rolls back all writes. Operational failures must be explicit, not disguised as successful zero-count imports.
-- Repeat the same accepted input: zero inserted/updated Recipes, unchanged child IDs, and no duplicate tags, Steps or items.
+- Repeat the same accepted input: resolve the same legacy-to-GUID mappings, zero inserted/updated Recipes, unchanged child IDs, and no duplicate tags, Steps or items.
 
 ### Losslessness contract
 
@@ -222,7 +228,7 @@ Report and source files can contain personal data or access-bearing URLs. Keep t
 | Area | Blocking condition | Valid/warning condition |
 |---|---|---|
 | JSON | Malformed input, duplicate object keys, wrong root/field types | Unknown fields retained with field-path warnings |
-| Recipe identity | Blank/duplicate ID, ownership conflict, unsupported route-safe representation without a defined encoding strategy | Preserve opaque string IDs; duplicate names are allowed |
+| Recipe identity | Blank/duplicate source ID within the selected owner, duplicate owner/LegacyId mapping, empty/colliding target GUID or attempted identity reassignment | Preserve exact source ID as case-sensitive LegacyId; reuse an existing mapping or assign a new GUID v7; duplicate names and multiple null LegacyIds are allowed |
 | Recipe content | Missing/blank title; missing or non-array Steps; non-string instructions; malformed tags/items | Empty arrays, instructions and optional metadata remain valid |
 | Ingredient identity | Nonblank invalid GUID, missing or different-owner Ingredient | Archived and grocery-excluded Ingredients remain usable |
 | Classification | Missing required decision, invalid classification, contradictory Ingredient row, lost structural text | Explicit Heading/Note decisions create typed non-Ingredient items |
@@ -253,7 +259,7 @@ Produce human-readable console output and a machine-readable JSON report at an e
 
 ### Per-recipe diagnostics
 
-- Recipe ID, outcome, ordered field diffs, error/warning code, JSON field path, source Step/item positions and affected reference GUID where appropriate.
+- Source `LegacyId` and mapped Recipe GUID `Id` when available, outcome, ordered field diffs, error/warning code, JSON field path, source Step/item positions and affected Ingredient GUID where appropriate. New-record previews may have no target ID; committed reports must include both IDs for every applied Recipe.
 - Preserve JSON-path context such as `steps[2].ingredients[1]`; human labels may additionally use one-based Step numbers.
 - Distinguish invalid source, dependency missing, declined, unchanged, not applied due to another blocker, and rolled back. Do not label every uncommitted Recipe "failed".
 - Counts must reconcile: every source Recipe has exactly one terminal outcome. Dry-runs report zero committed imports; rolled-back runs report zero committed inserts/updates.
@@ -269,8 +275,10 @@ Follow the existing Controller -> application read service -> EF persistence pat
 
 | Endpoint | Contract |
 |---|---|
-| `GET /api/recipes?search=&page=1&pageSize=25` | Active, current-owner Recipes only; `items`, `totalCount`, `page`, `pageSize`; summaries need only ID and name |
-| `GET /api/recipes/{id}` | Current-owner, active Recipe metadata, ordered tags, ordered Steps and discriminated typed items; includes current Ingredient names and preserved line text |
+| `GET /api/recipes?search=&page=1&pageSize=25` | Active, current-owner Recipes only; `items`, `totalCount`, `page`, `pageSize`; summaries need only GUID ID and name |
+| `GET /api/recipes/{id}` | GUID Recipe ID; current-owner, active Recipe metadata, ordered tags, ordered Steps and discriminated typed items; includes current Ingredient names and preserved line text |
+
+Serialize Recipe IDs as UUID strings and validate them as UUIDs at frontend boundaries. `LegacyId` is for migration compatibility, not a second public lookup key; no legacy-ID endpoint or redirect is required in PRD04. A malformed GUID detail route returns `404`, consistent with a GUID-constrained API route.
 
 List validation follows Ingredient conventions: positive page, page size 1-100 (default 25), search maximum 200 characters. Invalid query returns `400` Problem Details; out-of-range nonempty pages follow the existing Ingredient convention, with page 1 valid for an empty result.
 
@@ -286,7 +294,7 @@ Unauthenticated reads return `401`. Unknown, other-owner and archived Recipe IDs
 - Include Ingredient items whose Ingredient is archived or grocery-excluded. Exclude Heading/Note text, tags, source, instructions and legacy name snapshots from search.
 - Resolve current Ingredient names through the FK so an Ingredient rename affects both display and search without re-import.
 - Apply owner and active-Recipe restrictions before counting/paging. Never fetch the whole catalogue and filter in the browser.
-- Fixed default order: normalized Recipe name, then case-sensitive Recipe ID. This is deterministic paging, not a sorting feature.
+- Fixed default order: normalized Recipe name, then Recipe GUID `Id`. This is deterministic paging, not a sorting feature.
 
 Use ordinary EF/PostgreSQL queries first. Do not introduce a search service, denormalized search index or trigram extension without measured need. Index owner/active/name ordering and Ingredient-reference relationships; verify query count does not grow per returned Recipe.
 
@@ -304,7 +312,7 @@ Use ordinary EF/PostgreSQL queries first. Do not introduce a search service, den
 
 ## 12. Recipe View Requirements
 
-- Route `/recipes/:id`, without displacing `/recipes/new` or `/recipes/archived`.
+- Route `/recipes/:id`, using the Recipe GUID rather than `LegacyId`, without displacing `/recipes/new` or `/recipes/archived`.
 - Recipe name as the page heading and document title; Recipe List remains the active navigation item.
 - Display source, safe source URL, servings, prep time, cook time, tags and original date-added when present. Optional missing values may be omitted; do not invent zero times or servings.
 - Legacy user identity, migration audit fields and raw provenance are not recipe metadata shown to the user. Image URLs are retained but not rendered as images or raw token-bearing text.
@@ -324,7 +332,7 @@ Unit = xUnit/FluentAssertions for backend and migration logic, Vitest for fronte
 
 | ID | Given | When | Then | Test Type |
 |---|---|---|---|---|
-| AC-01 | A synthetic Recipe with a non-GUID string ID and GUID Ingredient references | Imported and retrieved | Recipe ID and Ingredient GUIDs are unchanged and relationships resolve | Unit + BDD |
+| AC-01 | A synthetic Recipe with a non-GUID source ID and GUID Ingredient references | Imported and retrieved | A GUID v7 Recipe Id is assigned, exact source ID is retained as LegacyId, Ingredient GUIDs are unchanged and GUID relationships resolve | Unit + BDD |
 | AC-02 | Multiple Steps, repeated Ingredients, ordered tags and structural items | Imported and viewed | Step/item/tag ordering and duplicate occurrences are preserved | BDD + E2E |
 | AC-03 | Fractions, ranges, nonnumeric quantities, descriptive servings and times | Imported and viewed | Text is retained without rounding, parsing or scaling | Unit + BDD + E2E |
 | AC-04 | Explicit retained Heading and Note decisions | Recipe mode imports matching references | Typed non-Ingredient items are created at their source positions, with all nonempty line fields retained | Unit + BDD |
@@ -338,9 +346,9 @@ Unit = xUnit/FluentAssertions for backend and migration logic, Vitest for fronte
 | AC-12 | Ingredient mode and recipe mode inputs | Each mode runs | Existing Ingredient behavior remains; recipe mode reads only explicitly selected relevant files and does not mutate Ingredients | Unit + BDD |
 | AC-13 | Valid source and no write flag | Preview runs | Database is unchanged, persistent report exists and committed insert/update counts are zero | BDD |
 | AC-14 | A source Recipe differs from the target | Operator approves or declines its complete update | Approval applies all approved fields/children atomically; decline leaves the entire Recipe unchanged and is reported | BDD |
-| AC-15 | An accepted import already exists | Identical input is imported again | No Recipe/child duplicates or updates occur, all child IDs remain stable, and targets absent from the backup remain untouched | BDD |
+| AC-15 | An accepted import already exists | Identical input is imported again | Matching owner/LegacyId resolves the same Recipe GUID, no Recipe/child duplicates or updates occur, all child IDs remain stable, and targets absent from the backup remain untouched | BDD |
 | AC-16 | Source, decisions, Ingredient references or Recipe children change after preview | Write is attempted | Conflict blocks commit and requires fresh review; cancellation/failure before commit also writes nothing | BDD |
-| AC-17 | A preview, blocked, committed, cancelled or rolled-back run | Report is examined | Every source Recipe has one outcome, counts reconcile, planned versus committed conversions are separate | Unit + BDD |
+| AC-17 | A preview, blocked, committed, cancelled or rolled-back run | Report is examined | Every source Recipe has one outcome and its LegacyId, committed mappings include the Recipe GUID, counts reconcile, planned versus committed conversions are separate | Unit + BDD |
 | AC-18 | Report persistence fails after successful commit | Tool completes | Nonzero exit explicitly reports committed data and recoverable run ID, never claims rollback | Unit + BDD |
 | AC-19 | One Recipe name matches `tofu` and another uses a linked Ingredient named Tofu | User searches `TOFU` | Both appear once; unrelated Recipes do not | BDD + E2E |
 | AC-20 | Heading/tag/source/instruction-only matches, duplicate Ingredient matches and `%`, `_`, backslash queries | Search runs | Only literal name/linked-Ingredient matches return, without duplicates or wildcard expansion | Unit + BDD |
@@ -354,6 +362,9 @@ Unit = xUnit/FluentAssertions for backend and migration logic, Vitest for fronte
 | AC-28 | HTML-like text, unsafe URLs and retained image URLs | Details render | Text is inert, unsafe URLs are not clickable, and no image request is made | Unit + E2E |
 | AC-29 | Names requiring title casing | List and detail render | Shared helper formats names without changing stored names, instructions or labels | Unit + E2E |
 | AC-30 | A successful rehearsal against persistent local PostgreSQL | Database restarts without volume removal | Imported Recipes remain accessible; ordered totals/provenance reconcile with the source and report | BDD + Manual rehearsal |
+| AC-31 | Synthetic locally created Recipe records with GUID v7 IDs and null LegacyIds | Multiple records for one owner are persisted and a same-named source Recipe is imported | Null LegacyIds are allowed without collisions; import creates a separate mapped Recipe rather than attaching to a null-LegacyId record; no creation endpoint is added | Unit + BDD |
+| AC-32 | Exact duplicate, case-distinct and different-owner LegacyIds | Identity constraints and import matching are exercised, including concurrent insertion | Same-owner exact duplicates block/roll back; case-distinct and different-owner values remain distinct; persisted mappings are never reassigned | Unit + BDD |
+| AC-33 | A list/detail response and GUID, legacy-string or malformed detail URLs | API and browser clients resolve Recipes | DTO IDs validate as UUIDs and links use GUIDs; legacy strings are not lookup aliases; invalid detail IDs show not-found; reserved stub routes remain intact | Unit + BDD + E2E |
 
 ## 14. Recommended GitHub Issues & Implementation Sequencing
 
@@ -361,11 +372,11 @@ These are proposed issue titles, not instructions to create issues automatically
 
 | Slice | Recommended issue | Scope / completion evidence | Prerequisites |
 |---|---|---|---|
-| S1 | Recipe persistence and ownership foundation | Synthetic fixtures and failing model tests first; entities, configurations, constraints and EF migration; AC-01/02/03/22 persistence coverage | PRD03 |
+| S1 | Recipe persistence and ownership foundation | Synthetic fixtures and failing model tests first; GUID Recipe identity, nullable case-sensitive LegacyId and filtered uniqueness, entities, configurations and EF migration; AC-01/02/03/22/31/32 persistence coverage | PRD03 |
 | S2 | Lossless recipe source parsing and migration planning | Source schema fixtures, timestamp variants, decisions, blank handling, full-field dispositions and report contracts; AC-04 through AC-11 parsing coverage | S1 contract |
-| S3 | Atomic recipe import, repeat runs and durable reporting | Extend tool without Ingredient regression; approval/diffs, fingerprints/conflicts, provenance, report recovery, documentation and rehearsal instructions; AC-12 through AC-18 | S1, S2 |
-| S4 | Owner-scoped Recipe read APIs and ingredient-name search | DTOs, query validation, same-owner active reads, fixed paging, literal search and database-backed scenarios; AC-19 through AC-23 | S1 |
-| S5 | Responsive read-only Recipe List and View | Typed services/hooks, route replacement, metadata and Step rendering, list state, accessibility and safe URLs; AC-24 through AC-29 | S4 |
+| S3 | Atomic recipe import, repeat runs and durable reporting | Extend tool without Ingredient regression; owner/LegacyId matching, stable GUID mappings, approval/diffs, fingerprints/conflicts, provenance, report recovery, documentation and rehearsal instructions; AC-12 through AC-18 and AC-31/32 import coverage | S1, S2 |
+| S4 | Owner-scoped Recipe read APIs and ingredient-name search | GUID DTOs/routes, query validation, same-owner active reads, fixed paging, literal search and database-backed scenarios; AC-19 through AC-23 and AC-33 API coverage | S1 |
+| S5 | Responsive read-only Recipe List and View | Typed services/hooks, GUID links/validation, route replacement, metadata and Step rendering, list state, accessibility and safe URLs; AC-24 through AC-29 and AC-33 frontend coverage | S4 |
 | S6 | Migration rehearsal and integrated acceptance | Realistic synthetic migration-to-browser journey; operator-run actual export validation, count reconciliation, persistence restart and cutover checklist; AC-30 plus cross-slice evidence | S3, S5 |
 
 S2/S3 and S4 may progress in parallel once S1 contracts are agreed. Do not make read API work depend on a personal-data import; use synthetic seeding.
@@ -376,7 +387,7 @@ For each slice, write focused failing tests before implementation and keep files
 
 - Acceptance criteria mapped to tests or the explicitly manual rehearsal evidence; existing auth, navigation and Ingredient behavior preserved.
 - Local schema applied through EF migrations; importer never applies schema changes itself.
-- Same accepted import is idempotent and its report reconciles every Recipe and source line.
+- Same accepted import is idempotent; legacy-to-GUID mappings remain stable and its report reconciles every Recipe and source line.
 - No recipe write endpoints or deferred browsing/filter features have appeared.
 - Tool guide documents new mode/parameters, report recovery, ownership confirmation and lossless-source retention; final issue/PR links replace traceability placeholders.
 
@@ -387,6 +398,7 @@ For each slice, write focused failing tests before implementation and keep files
 | Classification decisions and matching ingredient catalogue have not been verified | Require them during rehearsal; do not equate GUID syntax with referential integrity |
 | Original structural text may be absent from a recipe line | Require authoritative legacy ingredient source for fallback; a decision review label is insufficient |
 | Legacy owner fields are sparse | Use explicit destination-owner selection and confirmation; retain original values privately |
+| Legacy Recipe references still use strings while the new domain uses GUIDs | Keep immutable, owner-scoped LegacyId mappings; future domain imports resolve them to GUID FKs and block missing mappings rather than minting replacement Recipes |
 | An archived Recipe exists but browsing is deferred | Import and retain it; active APIs exclude it; existing Archived Recipes stub remains unchanged |
 | Images contain remote access-bearing URLs | Preserve privately; no rendering, availability checks or assumed transfer of image ownership; later PRD must address storage/access and expiry |
 | Text values cannot support reliable arithmetic | Preserve text now; future scaling/nutrition requires explicit parsing, units and human review |
