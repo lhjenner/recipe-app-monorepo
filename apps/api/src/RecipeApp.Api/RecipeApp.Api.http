@@ -4,3 +4,6 @@ GET {{RecipeApp.Api_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+### Private recipe image (sign in first; replace with an owned active recipe ID)
+GET https://localhost:7209/api/recipes/00000000-0000-0000-0000-000000000000/image
+Accept: image/png, image/jpeg, image/gif, image/webp

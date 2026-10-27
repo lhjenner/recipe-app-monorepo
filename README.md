@@ -85,6 +85,66 @@ This local setup is not a production deployment. Production database and API/web
 
 ## Run Locally
 
+### Neon development services
+
+For PRD04 [issue #55](https://github.com/lhjenner/recipe-app-monorepo/issues/55),
+Neon can supply both Postgres and private object storage while the API and web
+app still run locally. This does **not** host the ASP.NET Core API on Neon.
+The linked branch named `production` is currently used for development only.
+[neon.ts](neon.ts) declares only the private `recipe-images-dev` bucket and
+disables managed Neon Auth; the app keeps its existing authentication.
+
+Use Node.js 22.23 or newer and install root tooling with `npm ci`.
+Authenticate using `neon login` (finish the browser sign-in), then inspect the
+linked project/branch in the ignored `.neon` file before running these commands:
+
+```powershell
+neon config plan
+neon deploy
+npm run db:migrate
+npm run dev:api
+```
+
+`config plan` previews infrastructure changes. `deploy` applies the policy and
+pulls credentials into the existing ignored root `.env` (otherwise `.env.local`).
+Existing non-Neon entries are preserved. The npm scripts expect `.env`; if Neon
+created `.env.local`, rename it to `.env` without overwriting an existing file.
+Do not commit either environment file or paste their contents into logs/chat.
+The launcher explicitly passes the loaded environment to .NET and rejects
+missing Neon variables rather than silently using the local database.
+
+`db:migrate` applies the existing EF migrations using `DATABASE_URL_UNPOOLED`;
+`dev:api` uses the pooled `DATABASE_URL` with certificate-verified TLS.
+The API otherwise retains its existing `ConnectionStrings:DefaultConnection`
+configuration when `DATABASE_URL` is absent, so the Docker/User Secrets setup
+above remains available. No database or image import happens automatically.
+In hosted environments inject secrets as environment variables or through a
+secret manager; the API does not parse environment files itself.
+
+In another terminal, `npm run dev:web` starts Vite in `neon` mode and proxies
+`/api` to local HTTPS port 7209. This development-only proxy accepts the local
+ASP.NET certificate; it does not change Neon TLS verification. The original
+frontend command still proxies to HTTP port 5105. For direct HTTPS testing,
+`dotnet dev-certs https --trust` trusts the local ASP.NET development certificate
+and may request Windows confirmation.
+
+With the API running, `npm run smoke:neon` checks live database migrations,
+registration/login/session persistence, .NET private-object writes/reads,
+denial of anonymous bucket reads, and authenticated image delivery with checksum,
+private caching and conditional-request checks. It uses only uniquely named
+synthetic data and removes its account/recipe/association/object in `finally`.
+It logs out to remove the test session; cleanup failures are errors.
+This explicit manual cloud rehearsal is **not** part of the credential-free
+automated test suite. An API/storage outage can require cleanup/retry; do not
+run it against a real production environment.
+
+The image route is `GET /api/recipes/{guid}/image`; there is no public upload
+endpoint, presigned browser URL, real-image local mirror, or Recipe View UI yet.
+Build both apps with `npm run build`. Recovery/export automation, free-plan
+quota/exhaustion verification and restoration with matching database/image
+associations remain unverified: #55 and AC-40/41 are **not complete**. Keep the
+legacy image collection until migration and recovery have been demonstrated.
+
 Run backend tests from the repository root:
 
 ```powershell

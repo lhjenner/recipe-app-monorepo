@@ -10,5 +10,6 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/FirestoreMigration/FirestoreMigration.csproj" />
+    <Project Path="tools/NeonSmokeCheck/NeonSmokeCheck.csproj" />
   </Folder>
 </Solution>

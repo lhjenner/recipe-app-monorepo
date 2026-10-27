@@ -7,8 +7,7 @@ namespace RecipeApp.Api.UnitTests.Images;
 public sealed class PrivateObjectStorageTests
 {
     private const string ObjectKey = "recipes/synthetic-recipe/image.png";
-    private static readonly byte[] SyntheticImage = Convert.FromBase64String(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=");
+    private static readonly byte[] SyntheticImage = TestFixtures.SyntheticImage.Png;
 
     [Fact]
     public async Task WriteThenRead_PreservesTheExactObjectBytes()
