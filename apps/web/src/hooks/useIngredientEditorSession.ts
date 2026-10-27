@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type SetStateAction } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   createIngredient,
@@ -49,7 +49,7 @@ export function useIngredientEditorSession({
   const [archivedIngredientId, setArchivedIngredientId] = useState<string | undefined>();
   const { blocker, allowNavigation } = useUnsavedChangesGuard(dirty);
 
-  function updateForm(next: IngredientEditorState) {
+  function updateForm(next: SetStateAction<IngredientEditorState>) {
     setForm(next);
     setDirty(true);
   }

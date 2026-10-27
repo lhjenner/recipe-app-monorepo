@@ -16,6 +16,8 @@ public sealed class IngredientConfiguration : IEntityTypeConfiguration<Ingredien
         ingredient.Property(entity => entity.CreatedAtUtc).IsRequired();
         ingredient.Property(entity => entity.UpdatedAtUtc).IsRequired();
         ingredient.Property(entity => entity.Version).IsRowVersion();
+        ingredient.HasAlternateKey(entity => new { entity.Id, entity.OwnerUserId })
+            .HasName("AK_Ingredients_Id_OwnerUserId");
         ingredient.HasIndex(entity => new { entity.OwnerUserId, entity.NormalizedName })
             .IsUnique()
             .HasDatabaseName("IX_Ingredients_OwnerUserId_NormalizedName");

@@ -214,6 +214,9 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("Id", "OwnerUserId")
+                        .HasName("AK_Ingredients_Id_OwnerUserId");
+
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("OwnerUserId", "NormalizedName")
@@ -299,6 +302,271 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_ProductLinks_IngredientId_ChainId_Position");
 
                     b.ToTable("ProductLinks", (string)null);
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Recipe", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CookTimeText")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateAddedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LegacyId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PrepTimeText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ServingsText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SourceText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SourceUrl")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "OwnerUserId")
+                        .HasName("AK_Recipes_Id_OwnerUserId");
+
+                    b.HasIndex("OwnerUserId", "LegacyId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Recipes_OwnerUserId_LegacyId")
+                        .HasFilter("\"LegacyId\" IS NOT NULL");
+
+                    b.HasIndex("OwnerUserId", "NormalizedName")
+                        .HasDatabaseName("IX_Recipes_OwnerUserId_NormalizedName");
+
+                    b.ToTable("Recipes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Recipes_LegacyId_NotBlank", "\"LegacyId\" IS NULL OR \"LegacyId\" ~ '[^[:space:]]'");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeImage", b =>
+                {
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("ByteSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer");
+
+                    b.HasKey("RecipeId");
+
+                    b.ToTable("RecipeImages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RecipeImages_Sha256", "\"Sha256\" ~ '^[0-9A-Fa-f]{64}$'");
+
+                            t.HasCheckConstraint("CK_RecipeImages_StorageMetadata", "\"ByteSize\" > 0 AND \"Width\" > 0 AND \"Height\" > 0 AND \"ObjectKey\" ~ '[^[:space:]]' AND \"ContentType\" ~ '[^[:space:]]'");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeImportProvenance", b =>
+                {
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DecisionFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("DocumentSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("LastAppliedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LastAppliedRunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MappingVersion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SourceDocumentJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SourceFileSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("RecipeId");
+
+                    b.ToTable("RecipeImportProvenance", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RecipeImportProvenance_Hashes", "\"DocumentSha256\" ~ '^[0-9A-Fa-f]{64}$' AND \"SourceFileSha256\" ~ '^[0-9A-Fa-f]{64}$' AND \"DecisionFingerprint\" ~ '^[0-9A-Fa-f]{64}$'");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "OwnerUserId")
+                        .HasName("AK_RecipeSteps_Id_OwnerUserId");
+
+                    b.HasIndex("RecipeId", "OwnerUserId");
+
+                    b.HasIndex("RecipeId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RecipeSteps_RecipeId_Position");
+
+                    b.ToTable("RecipeSteps", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RecipeSteps_Position_Nonnegative", "\"Position\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeStepItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("IngredientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NotesText")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("QuantityText")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("RecipeStepId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UnitText")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IngredientId", "OwnerUserId");
+
+                    b.HasIndex("RecipeStepId", "OwnerUserId");
+
+                    b.HasIndex("RecipeStepId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RecipeStepItems_RecipeStepId_Position");
+
+                    b.ToTable("RecipeStepItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RecipeStepItems_Kind_IngredientId", "\"Kind\" IN (0, 1, 2) AND ((\"Kind\" = 0 AND \"IngredientId\" IS NOT NULL) OR (\"Kind\" IN (1, 2) AND \"IngredientId\" IS NULL))");
+
+                            t.HasCheckConstraint("CK_RecipeStepItems_Position_Nonnegative", "\"Position\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeTag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecipeId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RecipeTags_RecipeId_Position");
+
+                    b.ToTable("RecipeTags", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RecipeTags_Position_Nonnegative", "\"Position\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Store", b =>
@@ -542,6 +810,74 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Chain");
                 });
 
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Recipe", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Auth.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeImage", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Recipe", "Recipe")
+                        .WithOne("Image")
+                        .HasForeignKey("RecipeApp.Api.Infrastructure.Persistence.RecipeImage", "RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Recipe");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeImportProvenance", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Recipe", "Recipe")
+                        .WithOne("ImportProvenance")
+                        .HasForeignKey("RecipeApp.Api.Infrastructure.Persistence.RecipeImportProvenance", "RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Recipe");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeStep", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Recipe", null)
+                        .WithMany("Steps")
+                        .HasForeignKey("RecipeId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeStepItem", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Ingredient", "Ingredient")
+                        .WithMany()
+                        .HasForeignKey("IngredientId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.RecipeStep", null)
+                        .WithMany("Items")
+                        .HasForeignKey("RecipeStepId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Ingredient");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeTag", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Recipe", null)
+                        .WithMany("Tags")
+                        .HasForeignKey("RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Store", b =>
                 {
                     b.HasOne("RecipeApp.Api.Infrastructure.Persistence.SupermarketChain", "Chain")
@@ -558,6 +894,22 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("ProductLinks");
 
                     b.Navigation("StoreMappings");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Recipe", b =>
+                {
+                    b.Navigation("Image");
+
+                    b.Navigation("ImportProvenance");
+
+                    b.Navigation("Steps");
+
+                    b.Navigation("Tags");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.RecipeStep", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.SupermarketChain", b =>

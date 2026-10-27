@@ -50,19 +50,30 @@ public sealed class MigrationConflictSteps(MigrationFixture fixture)
     [When("I attempt a migration with (.*)")]
     public async Task InvalidAsync(string problem)
     {
-        if (problem is "ownership conflict" or "archived name conflict" or "incompatible heading")
+        if (problem == "ownership conflict")
+        {
+            await using var db = fixture.Database();
+            var other = Guid.NewGuid();
+            db.Users.Add(new User { Id = other, Email = $"{other:N}@example.test",
+                PasswordHash = Guid.NewGuid().ToString("N"), CreatedAtUtc = DateTime.UtcNow });
+            db.Ingredients.Add(new Ingredient
+            {
+                Id = fixture.IngredientId,
+                OwnerUserId = other,
+                Name = "Synthetic syrup",
+                NormalizedName = "synthetic syrup",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+            fixture.Before = await fixture.ReadAsync();
+        }
+        else if (problem is "archived name conflict" or "incompatible heading")
         {
             await fixture.RunAsync(true);
             await using var db = fixture.Database();
             var row = await db.Ingredients.SingleAsync();
-            if (problem == "ownership conflict")
-            {
-                var other = Guid.NewGuid();
-                db.Users.Add(new User { Id = other, Email = $"{other:N}@example.test",
-                    PasswordHash = Guid.NewGuid().ToString("N"), CreatedAtUtc = DateTime.UtcNow });
-                row.OwnerUserId = other;
-            }
-            else row.ArchivedAtUtc = DateTime.UtcNow;
+            row.ArchivedAtUtc = DateTime.UtcNow;
             await db.SaveChangesAsync();
             fixture.Before = await fixture.ReadAsync();
         }
@@ -100,7 +111,12 @@ public sealed class MigrationConflictSteps(MigrationFixture fixture)
         fixture.Result.Updated.Should().Be(0);
         await using var db = fixture.Database();
         (await db.Ingredients.CountAsync()).Should().Be(fixture.Before is null ? 0 : 1);
-        if (fixture.Before is not null) (await fixture.ReadAsync()).Version.Should().Be(fixture.Before.Version);
+        if (fixture.Before is not null)
+        {
+            var unchanged = await fixture.ReadAsync();
+            unchanged.Version.Should().Be(fixture.Before.Version);
+            unchanged.OwnerUserId.Should().Be(fixture.Before.OwnerUserId);
+        }
         else
         {
             (await db.Categories.CountAsync()).Should().Be(0);

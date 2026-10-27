@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import LookupTypeahead from './LookupTypeahead';
 import IngredientProductLinksEditor from './IngredientProductLinksEditor';
 import {
@@ -21,7 +21,7 @@ interface IngredientEditorProps {
   departments: LookupValue[];
   errors: Record<string, string[]>;
   isSaving: boolean;
-  onChange: (value: IngredientEditorState) => void;
+  onChange: Dispatch<SetStateAction<IngredientEditorState>>;
   onCreateCategory: (name: string) => Promise<LookupValue>;
   onCreateDepartment: (name: string) => Promise<LookupValue>;
   onCancel: () => void;
@@ -51,11 +51,14 @@ function IngredientEditor({
     storeId: string,
     changes: Partial<IngredientEditorState['stores'][string]>,
   ) {
-    onChange({ ...value, stores: { ...value.stores, [storeId]: { ...value.stores[storeId], ...changes } } });
+    onChange((current) => ({
+      ...current,
+      stores: { ...current.stores, [storeId]: { ...current.stores[storeId], ...changes } },
+    }));
   }
 
   function updateNutrition(field: NutritionField, next: string) {
-    onChange({ ...value, nutrition: { ...value.nutrition, [field]: next } });
+    onChange((current) => ({ ...current, nutrition: { ...current.nutrition, [field]: next } }));
   }
 
   return (
@@ -70,11 +73,14 @@ function IngredientEditor({
             aria-invalid={Boolean(errorFor('Name'))}
             value={value.name}
             maxLength={200}
-            onChange={(event) => onChange({ ...value, name: event.currentTarget.value })}
+            onChange={(event) => {
+              const name = event.currentTarget.value;
+              onChange((current) => ({ ...current, name }));
+            }}
             onBlur={() => {
               const name = toTitleCase(value.name);
               if (name !== value.name) {
-                onChange({ ...value, name });
+                onChange((current) => ({ ...current, name }));
               }
             }}
           />
@@ -85,7 +91,8 @@ function IngredientEditor({
           accessibleLabel="Category"
           options={categories}
           value={value.categoryName}
-          onChange={(categoryId, categoryName) => onChange({ ...value, categoryId, categoryName })}
+          onChange={(categoryId, categoryName) =>
+            onChange((current) => ({ ...current, categoryId, categoryName }))}
           onCreate={onCreateCategory}
         />
         {errorFor('CategoryId') && <span className="ingredient-field-error">{errorFor('CategoryId')}</span>}
@@ -93,10 +100,10 @@ function IngredientEditor({
           <input
             type="checkbox"
             checked={value.excludeFromGroceryList}
-            onChange={(event) => onChange({
-              ...value,
-              excludeFromGroceryList: event.currentTarget.checked,
-            })}
+            onChange={(event) => {
+              const excludeFromGroceryList = event.currentTarget.checked;
+              onChange((current) => ({ ...current, excludeFromGroceryList }));
+            }}
           />
           <span>Exclude from grocery list</span>
         </label>
@@ -144,7 +151,7 @@ function IngredientEditor({
         links={value.productLinks}
         chains={chains}
         errorFor={errorFor}
-        onChange={(productLinks) => onChange({ ...value, productLinks })}
+        onChange={(productLinks) => onChange((current) => ({ ...current, productLinks }))}
       />
 
       <fieldset>
@@ -170,7 +177,10 @@ function IngredientEditor({
           <span>Nutrition source (optional)</span>
           <input
             value={value.nutritionSource}
-            onChange={(event) => onChange({ ...value, nutritionSource: event.currentTarget.value })}
+            onChange={(event) => {
+              const nutritionSource = event.currentTarget.value;
+              onChange((current) => ({ ...current, nutritionSource }));
+            }}
           />
         </label>
       </fieldset>
