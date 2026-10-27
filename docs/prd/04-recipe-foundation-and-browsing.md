@@ -3,7 +3,9 @@
 ## Status & Traceability
 
 - Status: Proposed; grounded in the current implementation and a supplied legacy export.
-- Epic, implementation issues and pull requests: Not created. Recommended issue boundaries and dependencies appear below; replace these placeholders with actual links when created.
+- Epic: [#53 - Recipe Foundation, Migration & Read-Only Browsing (PRD04)](https://github.com/lhjenner/recipe-app-monorepo/issues/53), linked to the Recipe App project.
+- Implementation sub-issues: [#54 (S1)](https://github.com/lhjenner/recipe-app-monorepo/issues/54), [#55 (S7)](https://github.com/lhjenner/recipe-app-monorepo/issues/55), [#56 (S2)](https://github.com/lhjenner/recipe-app-monorepo/issues/56), [#57 (S3)](https://github.com/lhjenner/recipe-app-monorepo/issues/57), [#58 (S4)](https://github.com/lhjenner/recipe-app-monorepo/issues/58), [#59 (S5)](https://github.com/lhjenner/recipe-app-monorepo/issues/59), and [#60 (S6)](https://github.com/lhjenner/recipe-app-monorepo/issues/60). See section 14 for scope and sequencing.
+- PRD pull request: [#52](https://github.com/lhjenner/recipe-app-monorepo/pull/52). Implementation pull requests: Not yet created.
 - Depends on: [PRD01 - Authentication & Login](./01-authentication-and-login.md), [PRD02 - App Shell & Navigation](./02-app-shell-and-navigation.md), and [PRD03 - Ingredient Maintenance](./03-ingredient-maintenance.md).
 - Reuses the Ingredient foundation from [epic #39](https://github.com/lhjenner/recipe-app-monorepo/issues/39), particularly the migration tool introduced by [issue #42](https://github.com/lhjenner/recipe-app-monorepo/issues/42).
 - Each implementation issue and PR must link this PRD and identify its acceptance criteria. No issue number in this document implies that PRD04 work has already been created or completed.
@@ -425,17 +427,17 @@ Unit = xUnit/FluentAssertions for backend and migration logic, Vitest for fronte
 
 ## 14. Recommended GitHub Issues & Implementation Sequencing
 
-These are proposed issue titles, not instructions to create issues automatically. Create one PRD04 epic and link the implementation issues and resulting PRs back to this document.
+The following native sub-issues belong to [epic #53](https://github.com/lhjenner/recipe-app-monorepo/issues/53). Each references the relevant PRD sections and reproduces its applicable acceptance criteria in full. Shared criteria appear in multiple issues where different layers provide evidence. Link resulting implementation PRs back to this document and their issue.
 
 | Slice | Recommended issue | Scope / completion evidence | Prerequisites |
 |---|---|---|---|
-| S1 | Recipe persistence and ownership foundation | Synthetic fixtures and failing model tests first; GUID Recipe identity, nullable case-sensitive LegacyId and filtered uniqueness, RecipeImage metadata, entities, configurations and EF migration; AC-01/02/03/22/31/32 persistence coverage | PRD03 |
-| S7 | Private image storage and genuine-free provider compatibility | Verify Neon region/plan limits and .NET S3 compatibility; configure development cloud storage and minimal provider/test adapters with synthetic fixtures; document quotas, credentials, automated cloud recovery and go-live transfer; AC-40/41/42 evidence | S1 contract |
-| S2 | Lossless recipe source parsing and migration planning | Source schema fixtures, timestamp variants, decisions, blank handling, full-field dispositions and report contracts; AC-04 through AC-11 parsing coverage | S1 contract |
-| S3 | Atomic recipe import, repeat runs and durable reporting | Extend tool without Ingredient regression; owner/LegacyId matching, stable GUID mappings, approvals, image manifest/staging/journal/recovery, fingerprints/conflicts, provenance, reports and documentation; AC-12 through AC-18, AC-31/32 and AC-34/35/36/39 import coverage | S1, S2, S7 |
-| S4 | Owner-scoped Recipe read APIs and ingredient-name search | GUID DTOs/routes, same-owner active reads, fixed paging, literal search, image metadata and authenticated binary delivery/cache semantics; AC-19 through AC-23, AC-33 API and AC-37 coverage | S1, S7 |
-| S5 | Responsive read-only Recipe List and View | Typed services/hooks, GUID links/validation, metadata/Steps, private image loading and unavailable states, list state and accessibility; AC-24 through AC-29, AC-33 frontend and AC-38 coverage | S4 |
-| S6 | Migration rehearsal and integrated acceptance | Synthetic migration-to-browser journey; actual export/image validation, counts/checksums, persistence restart, database/image backup restore and cutover checklist; AC-30/40 plus cross-slice evidence | S3, S5 |
+| S1 | [#54 - Recipe persistence and ownership foundation](https://github.com/lhjenner/recipe-app-monorepo/issues/54) | Synthetic fixtures and failing model tests first; GUID Recipe identity, nullable case-sensitive LegacyId and filtered uniqueness, RecipeImage metadata, entities, configurations and EF migration; AC-01/02/03/22/31/32 persistence coverage | PRD03 |
+| S7 | [#55 - Private image storage and genuine-free provider compatibility](https://github.com/lhjenner/recipe-app-monorepo/issues/55) | Verify Neon region/plan limits and .NET S3 compatibility; configure development cloud storage and minimal provider/test adapters with synthetic fixtures; document quotas, credentials, automated cloud recovery and go-live transfer; AC-40/41/42 evidence | S1 contract |
+| S2 | [#56 - Lossless recipe source parsing and migration planning](https://github.com/lhjenner/recipe-app-monorepo/issues/56) | Source schema fixtures, timestamp variants, decisions, blank handling, full-field dispositions and report contracts; AC-04 through AC-11 parsing coverage | S1 contract |
+| S3 | [#57 - Atomic recipe import, repeat runs and durable reporting](https://github.com/lhjenner/recipe-app-monorepo/issues/57) | Extend tool without Ingredient regression; owner/LegacyId matching, stable GUID mappings, approvals, image manifest/staging/journal/recovery, fingerprints/conflicts, provenance, reports and documentation; AC-12 through AC-18, AC-31/32 and AC-34/35/36/39 import coverage | S1, S2, S7 |
+| S4 | [#58 - Owner-scoped Recipe read APIs and ingredient-name search](https://github.com/lhjenner/recipe-app-monorepo/issues/58) | GUID DTOs/routes, same-owner active reads, fixed paging, literal search, image metadata and authenticated binary delivery/cache semantics; AC-19 through AC-23, AC-33 API and AC-37 coverage | S1, S7 |
+| S5 | [#59 - Responsive read-only Recipe List and View](https://github.com/lhjenner/recipe-app-monorepo/issues/59) | Typed services/hooks, GUID links/validation, metadata/Steps, private image loading and unavailable states, list state and accessibility; AC-24 through AC-29, AC-33 frontend and AC-38 coverage | S4 |
+| S6 | [#60 - Migration rehearsal and integrated acceptance](https://github.com/lhjenner/recipe-app-monorepo/issues/60) | Synthetic migration-to-browser journey; actual export/image validation, counts/checksums, persistence restart, database/image backup restore and cutover checklist; AC-30/40 plus cross-slice evidence | S3, S5 |
 
 S2/S3 and S4 may progress in parallel once S1 contracts are agreed. Do not make read API work depend on a personal-data import; use synthetic seeding.
 
