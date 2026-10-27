@@ -81,6 +81,41 @@ async function mockEditorLookups(page: Parameters<typeof mockAuthApi>[0]) {
 }
 
 test.describe('Ingredient create and edit', () => {
+  test('preserves newer edits when lookup creation finishes', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockEditorLookups(page);
+    let releaseCategory: () => void = () => {
+      throw new Error('Category creation has not started.');
+    };
+    const categoryResponse = new Promise<void>((resolve) => {
+      releaseCategory = resolve;
+    });
+    await page.route('**/api/categories', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.fulfill({ json: [] });
+        return;
+      }
+      await categoryResponse;
+      await route.fulfill({
+        json: { id: '00000000-0000-7000-8000-000000000010', name: 'Produce' },
+      });
+    });
+
+    await page.goto('/ingredient-maintenance/new');
+    await page.getByRole('combobox', { name: 'Category', exact: true }).fill('Produce');
+    await page.getByRole('button', { name: "Create 'Produce'" }).click();
+    await expect(page.getByRole('button', { name: 'Creating…' })).toBeVisible();
+    const department = page.getByRole('combobox', { name: 'New World Greenmeadows department', exact: true });
+    await department.fill('Fruit');
+    await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Apple');
+    releaseCategory();
+
+    await expect(page.getByRole('button', { name: 'Creating…' })).toHaveCount(0);
+    await expect(department).toHaveValue('Fruit');
+    await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Apple');
+    await expect(page.getByRole('button', { name: "Create 'Fruit'" })).toBeVisible();
+  });
+
   test('creates a validated ingredient with lookup, store, product, and nutrition details', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockEditorLookups(page);
