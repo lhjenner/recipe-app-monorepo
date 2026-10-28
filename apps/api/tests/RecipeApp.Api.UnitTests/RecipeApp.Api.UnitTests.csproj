@@ -24,6 +24,7 @@
     <Compile Include="..\Fixtures\SyntheticImage.cs" Link="Fixtures\SyntheticImage.cs" />
     <ProjectReference Include="..\..\src\RecipeApp.Api\RecipeApp.Api.csproj" />
     <ProjectReference Include="..\..\..\..\tools\FirestoreMigration\FirestoreMigration.csproj" />
+    <ProjectReference Include="..\..\..\..\tools\RecipeBackup\RecipeBackup.csproj" />
   </ItemGroup>
 
 </Project>
