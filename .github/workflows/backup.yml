@@ -2,9 +2,19 @@ name: Encrypted development backup
 
 on:
   workflow_dispatch:
+    inputs:
+      test_branch:
+        description: 'Test this trusted branch (uses source Secrets; no retention deletion)'
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
+
+env:
+  BACKUP_TEST_BRANCH: ${{ inputs.test_branch == true && 'true' || 'false' }}
+  BACKUP_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
 
 concurrency:
   group: recipe-backup-dev
@@ -17,7 +27,7 @@ jobs:
     timeout-minutes: 20
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
-      artifact_name: recipe-backup-dev-${{ github.run_id }}-${{ github.run_attempt }}
+      artifact_name: ${{ steps.run-mode.outputs.artifact_name }}
       sha256: ${{ steps.encrypt.outputs.sha256 }}
       bytes: ${{ steps.encrypt.outputs.bytes }}
     steps:
@@ -29,7 +39,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Validate source configuration and default branch
+      - name: Validate run mode before accessing source credentials
+        id: run-mode
+        run: node tools/RecipeBackup/encrypted-backup.mjs check-run
+
+      - name: Validate source configuration
         env:
           DATABASE_URL_UNPOOLED: ${{ secrets.BACKUP_DATABASE_URL_UNPOOLED }}
           AWS_ENDPOINT_URL_S3: ${{ secrets.BACKUP_AWS_ENDPOINT_URL_S3 }}
@@ -72,6 +86,7 @@ jobs:
           BACKUP_IMAGE_CONSISTENCY_CONFIRMED: ${{ vars.BACKUP_IMAGE_CONSISTENCY_CONFIRMED }}
           BACKUP_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           TMPDIR: ${{ runner.temp }}/recipe-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          PGSSLROOTCERT: system
         run: |
           umask 077
           mkdir -- "$TMPDIR"
@@ -82,10 +97,10 @@ jobs:
         id: upload
         uses: actions/upload-artifact@v4
         with:
-          name: recipe-backup-dev-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ steps.run-mode.outputs.artifact_name }}
           path: ${{ steps.encrypt.outputs.path }}
           if-no-files-found: error
-          retention-days: 42
+          retention-days: ${{ inputs.test_branch == true && 7 || 42 }}
           compression-level: 0
 
       - name: Remove sensitive staging files
@@ -129,6 +144,7 @@ jobs:
   retention:
     name: Retain six verified backups
     needs: [backup, verify]
+    if: ${{ inputs.test_branch != true && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

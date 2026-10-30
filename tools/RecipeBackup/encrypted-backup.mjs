@@ -2,6 +2,21 @@ import { appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { encryptBackup, runCommand, validateRecipient, verifyDownload } from './encryption.mjs';
 
+export function validateRun(env) {
+  if (!env.BACKUP_DEFAULT_BRANCH || !env.GITHUB_REF?.startsWith('refs/heads/')
+    || !['workflow_dispatch', 'schedule'].includes(env.GITHUB_EVENT_NAME)) {
+    throw new Error('Backup requires a manual or scheduled run from a branch, never a PR event or tag.');
+  }
+  if (env.BACKUP_TEST_BRANCH === 'true') {
+    if (env.GITHUB_EVENT_NAME !== 'workflow_dispatch') throw new Error('Branch testing requires a manual dispatch.');
+    return 'test';
+  }
+  if (env.GITHUB_REF !== `refs/heads/${env.BACKUP_DEFAULT_BRANCH}`) {
+    throw new Error('Non-default branch runs require the explicit trusted-branch test option.');
+  }
+  return 'dev';
+}
+
 export function validateConfiguration(env) {
   const required = [
     'DATABASE_URL_UNPOOLED', 'AWS_ENDPOINT_URL_S3', 'AWS_REGION',
@@ -11,9 +26,7 @@ export function validateConfiguration(env) {
   if (missing.length) throw new Error(`Missing backup configuration: ${missing.join(', ')}`);
   validateRecipient(env.BACKUP_AGE_RECIPIENT);
   if (env.BACKUP_BUCKET !== 'recipe-images-dev') throw new Error('This workflow is restricted to recipe-images-dev.');
-  if (env.GITHUB_REF !== `refs/heads/${env.BACKUP_DEFAULT_BRANCH}`) {
-    throw new Error('Run this credential-bearing workflow only from the default branch.');
-  }
+  validateRun(env);
   if (env.BACKUP_IMAGE_CONSISTENCY_CONFIRMED !== 'true') {
     throw new Error('Confirm immutable/retained image keys or a no-image-write backup window before enabling backups.');
   }
@@ -21,6 +34,15 @@ export function validateConfiguration(env) {
 
 async function main() {
   const [operation, first, second] = process.argv.slice(2);
+  if (operation === 'check-run') {
+    const mode = validateRun(process.env);
+    if (!process.env.GITHUB_OUTPUT || !/^\d+$/.test(process.env.GITHUB_RUN_ID)
+      || !/^\d+$/.test(process.env.GITHUB_RUN_ATTEMPT)) throw new Error('GitHub run metadata is required.');
+    await appendFile(process.env.GITHUB_OUTPUT,
+      `artifact_name=recipe-backup-${mode}-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}\n`);
+    console.log(`PASS: ${mode === 'test' ? 'explicit trusted-branch test; retention deletion disabled' : 'default-branch backup'}.`);
+    return;
+  }
   if (operation === 'check-config') {
     validateConfiguration(process.env);
     console.log('PASS: required backup settings are present; no credentials printed.');
@@ -32,7 +54,7 @@ async function main() {
     return;
   }
   if (operation !== 'export-encrypted' || !first || !second) {
-    throw new Error('Usage: encrypted-backup.mjs check-config | export-encrypted <dll> <temp-root> | verify-download <directory>');
+    throw new Error('Usage: encrypted-backup.mjs check-run | check-config | export-encrypted <dll> <temp-root> | verify-download <directory>');
   }
   validateConfiguration(process.env);
   const controller = new AbortController();
