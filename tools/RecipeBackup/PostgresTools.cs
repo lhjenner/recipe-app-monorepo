@@ -50,6 +50,8 @@ public sealed class PostgresTools(string? testContainerId = null)
             RedirectStandardInput = true, CreateNoWindow = true
         };
         foreach (var pair in environment) start.Environment[pair.Key] = pair.Value;
+        if (testContainerId is null && connection.SslMode is SslMode.VerifyFull or SslMode.VerifyCA)
+            start.Environment["PGSSLROOTCERT"] = connection.RootCertificate ?? "system";
         foreach (var key in new[] { "PGSERVICE", "PGSERVICEFILE", "PGOPTIONS" })
             start.Environment.Remove(key);
         if (testContainerId is not null)

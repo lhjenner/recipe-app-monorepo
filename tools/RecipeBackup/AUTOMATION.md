@@ -22,13 +22,18 @@ workflow namespace, and explicit go-live transfer are still required.
 
 ## What the workflow does
 
-1. Reject missing configuration, non-default Git branches, a different bucket,
+1. Reject missing configuration, non-default Git branches without manual test opt-in, a different bucket,
    an invalid public recipient, or an unacknowledged image consistency policy.
 2. Install PostgreSQL 18 client tools and `age`, and build the existing .NET tool.
 3. Export/verify the database and referenced objects into a private, unique
    temporary directory. Native dump credentials are passed through environment
    variables, never command-line URLs. Source credentials exist only in the
    preflight and export steps, not dependency installation, build, or retention.
+   The native PostgreSQL subprocess gets `PGSSLROOTCERT=system` for verified TLS
+   unless the connection explicitly names a root certificate. This uses the
+   installed CA trust store rather than requiring `~/.postgresql/root.crt`.
+   It is not set on the parent .NET process: Npgsql interprets this variable
+   differently and continues using its own system trust configuration.
 4. Encrypt to the configured public recipient. The public recipient and `age`
    executable are tested before reading source data. There is no plaintext
    upload fallback. Export/encryption/size failures fail the job.
@@ -59,6 +64,29 @@ commits or pushes backup files, provisions cloud resources, or modifies source
 database rows/objects. No pull-request trigger has access to backup credentials.
 
 ## Configure before relying on backups
+
+### Iterating safely on a trusted feature branch
+
+Keep normal CI enabled. Since this workflow already exists on the default branch,
+you can manually dispatch the version on a pushed feature branch without merging
+each correction. Select that branch and explicitly enable **Test this trusted
+branch**. Until this input reaches main, dispatch the branch version with the
+GitHub CLI instead of relying on the default branch's older form.
+
+Only run reviewed code from a branch you trust: it uses the real development
+source Secrets. Do not add a PR trigger or use `pull_request_target` to execute
+PR code with Secrets. PR events and tags are rejected by run-mode validation.
+
+Test artifacts use `recipe-backup-test-<run ID>-<attempt>` and expire after seven
+days. Verification still downloads and checksum-checks the encrypted file, but
+the retention/deletion job is skipped entirely. Test artifacts neither replace
+nor count toward the six default-branch backups. Repeated successful tests use
+additional shared storage until manually deleted or expired; remove unneeded
+test artifacts after debugging. No schedule is added.
+
+For ordinary default-branch backups, leave the test option unchecked. The six-copy,
+42-day policy remains unchanged. A successful branch test proves export/encryption
+and artifact download, not the skipped live retention API calls or restore.
 
 Commit/merge the reviewed workflow and scripts to the default branch for manual
 activation. Future schedules also require the workflow there. Do not copy recovery private keys into
