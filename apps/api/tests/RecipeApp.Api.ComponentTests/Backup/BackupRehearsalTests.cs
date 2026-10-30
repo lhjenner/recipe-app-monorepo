@@ -63,10 +63,11 @@ public sealed class BackupRehearsalTests(ITestOutputHelper output) : IAsyncLifet
         var manifest = await Exporter.ExportAsync(_source.GetConnectionString(), _sourceStorage, Archive);
         output.WriteLine($"Synthetic archive: {new FileInfo(Archive).Length} bytes; database dump: {manifest.DatabaseBytes} bytes.");
         manifest.Images.Should().ContainSingle().Which.OwnerUserId.Should().Be(_owner);
+        var recoveredArchive = await ArchiveEncryption.RecoverAsync(Archive, _directory);
         using var client = new EmptyBucketClient();
 
         await Restorer.RestoreAsync(_target.GetConnectionString(), client, "isolated-test",
-            _targetStorage, Archive);
+            _targetStorage, recoveredArchive);
 
         await using var restored = Context(_target);
         (await restored.Users.SingleAsync()).Email.Should().Be("synthetic-backup@example.invalid");

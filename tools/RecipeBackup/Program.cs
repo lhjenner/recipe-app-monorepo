@@ -84,6 +84,6 @@ public static class BackupCli
         Console.WriteLine($"PASS: archive verified; associations={manifest.Images.Count}; "
             + $"databaseBytes={manifest.DatabaseBytes}; uniqueImageBytes={manifest.Images.DistinctBy(row => row.Sha256).Sum(row => row.ByteSize)}; "
             + $"archiveBytes={bytes}; sixCopiesBytes={bytes * 6}; sevenCopiesBytes={bytes * 7}.");
-        Console.WriteLine("WARNING: this is a plaintext recovery archive. Do not commit or upload it; encryption is not configured.");
+        Console.WriteLine("WARNING: this archive is plaintext. Do not commit or upload it; encrypt it before uploading.");
     }
 }

@@ -9,7 +9,7 @@ A learning project for a full-stack recipe and meal-planning application. The re
 - The API also persists user-owned ingredient categories and departments and serves authenticated supermarket/store reference data from seeded records.
 - Ingredient Maintenance now provides authenticated, paged ingredient list and detail APIs, server-side search, archive filtering, and responsive desktop-table/mobile-card list views.
 - The [standalone Firestore ingredient migration tool](tools/FirestoreMigration/README.md) defaults to dry-run, retains explicit invalid-item classifications, and applies individually approved updates atomically.
-- The [database and referenced-image recovery tool](tools/RecipeBackup/README.md) supports verified export and isolated empty-target restore, with disposable PostgreSQL recovery tests. Encryption and weekly GitHub Actions backups are not enabled yet.
+- The [database and referenced-image recovery tool](tools/RecipeBackup/README.md) supports verified export and isolated empty-target restore, with disposable PostgreSQL recovery tests. An [encrypted manual GitHub backup workflow](tools/RecipeBackup/AUTOMATION.md) is implemented; repository configuration and a live recovery rehearsal are still required before enabling weekly scheduling.
 - xUnit unit tests and Reqnroll component scenarios (against a Testcontainers PostgreSQL database) cover authentication, lookup and ingredient read API behavior. Playwright specs cover authentication flows and the responsive ingredient list against mocked APIs.
 - GitHub Actions runs all of the above on pull requests unless every changed path is under `docs/` (see [Continuous Integration](#continuous-integration)).
 

@@ -21,9 +21,12 @@ needed for the automated synthetic rehearsal.
 - Archive size output, including six-copy storage and the temporary seven-copy
   peak needed when uploading a replacement before deleting old backups.
 
-**This is not yet a scheduled backup service.** No GitHub workflow uploads these
-archives, and encryption is not configured. Do not mark recovery acceptance
-criteria complete until encrypted automation and a real-data rehearsal pass.
+The [manual-only workflow](../../.github/workflows/backup.yml) encrypts the
+verified archive before uploading, verifies a re-downloaded copy, and retains
+up to six successful backups with 42-day expiration. It fails closed until
+repository configuration is supplied. See [automation setup and recovery](AUTOMATION.md).
+Do not mark recovery acceptance criteria complete until a live encrypted backup
+and real-data restore rehearsal pass.
 
 ## Prerequisites and confidentiality
 
@@ -130,12 +133,17 @@ than silently dropping an image. Do not claim this is an atomic provider snapsho
 
 ## Credential-free synthetic rehearsal
 
-Docker Desktop must be running. Testcontainers creates two disposable PostgreSQL
+Docker Desktop must be running, with Node.js 22, `age`, and `age-keygen` on PATH.
+Testcontainers creates two disposable PostgreSQL
 18 containers per test; nothing reads the ignored Neon environment files.
 The component tests use the real container `pg_dump`/`pg_restore` binaries through
 `docker exec`, not host PostgreSQL tools. Source/target object stores are in-memory
 test doubles: these tests prove archive/database recovery logic, **not** live S3
-provider compatibility, bucket privacy, or real-data recovery.
+provider compatibility, bucket privacy, or real-data recovery. The full recovery
+test also encrypts the synthetic archive using the workflow's encryption module,
+decrypts it with a disposable test identity, and restores the decrypted archive.
+It never uses your recovery key. Encryption, fail-closed configuration, downloaded
+artifact checks, and mocked retention behavior also run through `npm run test:tooling`.
 
 `dotnet test` builds and runs xUnit tests. `--filter` selects only the named backup
 test classes; `--logger` with `console;verbosity=detailed` includes the synthetic
@@ -146,28 +154,16 @@ dotnet test .\apps\api\tests\RecipeApp.Api.UnitTests --filter FullyQualifiedName
 dotnet test .\apps\api\tests\RecipeApp.Api.ComponentTests --filter FullyQualifiedName~BackupRehearsalTests --logger "console;verbosity=detailed"
 ```
 
-## Next steps before weekly automation
+## Remaining operator and acceptance work
 
-1. Generate an `age` recovery key locally. Save the private identity outside
-   GitHub (for example in a password manager) and verify it can decrypt a test
-   archive. Never paste the private key into chat or put it in the repository.
-2. Implement/test encryption and the weekly/manual GitHub workflow. Provide the
-   public recipient and restricted source credentials through repository
-   variables/Secrets. Fail closed if configuration or encryption is missing;
-   never upload plaintext staging files.
-3. Keep the newest six successful encrypted backups, expire artifacts after
-   42 days, and delete older copies only after a replacement upload is verified.
-   Include failure notification and cleanup of sensitive temporary files.
-4. Confirm the account-wide Actions/Packages allowance and spending controls.
-   Measure a representative encrypted full backup, include other CI artifacts
-   and temporary replacement storage, then check whether the free allowance fits.
-   Six copies is a count policy; 42 days is an independent expiry policy and
-   can leave fewer than six after missed runs. Weekly backup can lose a week's
-   changes or more if a run fails; monitor failures.
-5. After real import, export, encrypt, download/decrypt, and restore into a
-   separate database/private bucket. Verify authenticated Recipe View and every
-   referenced image without a persistent local mirror. Record timings, byte
-   counts, quota evidence, and recovery results for #55 and import issue #60.
+Follow [automation setup](AUTOMATION.md) to configure source Secrets, the public
+recipient, consistency acknowledgement, notification preferences, and spending
+controls. Run a manual workflow and download/decrypt its artifact before relying
+on backups or enabling weekly scheduling. The private key stays outside GitHub.
+
+After real import, rehearse a separate database/private-bucket restore, verify
+authenticated Recipe View without the temporary migration downloads, and record
+real encrypted size, timings, quota evidence, and results for #55 and #60.
 
 The synthetic rehearsal does not depend on importing Firestore data first.
 The final representative-size and real-app recovery evidence does.
