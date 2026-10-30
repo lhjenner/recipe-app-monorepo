@@ -10,11 +10,14 @@ export function validateRecipient(recipient) {
   }
 }
 
-export async function runCommand(command, args, { signal, probe = false } = {}) {
+export async function runCommand(command, args, {
+  signal, probe = false, phase = 'Backup command', safeDiagnostics = false,
+} = {}) {
   await new Promise((resolve, reject) => {
     let startError = false;
     const child = spawn(command, args, {
-      shell: false, signal, stdio: [probe ? 'pipe' : 'ignore', probe ? 'ignore' : 'inherit', 'ignore'],
+      shell: false, signal,
+      stdio: [probe ? 'pipe' : 'ignore', probe ? 'ignore' : 'inherit', safeDiagnostics ? 'inherit' : 'ignore'],
     });
     if (probe) {
       child.stdin.on('error', () => { /* An early command failure is reported by close/error below. */ });
@@ -22,9 +25,9 @@ export async function runCommand(command, args, { signal, probe = false } = {}) 
     }
     child.once('error', () => { startError = true; });
     child.once('close', (code) => {
-      if (startError) reject(new Error('Backup command could not start or was cancelled.'));
+      if (startError) reject(new Error(`${phase} could not start or was cancelled.`));
       else if (code === 0) resolve();
-      else reject(new Error(`Backup command failed (exit ${code ?? 'signal'}); no success claimed.`));
+      else reject(new Error(`${phase} failed (exit ${code ?? 'signal'}); no success claimed.`));
     });
   });
 }
@@ -41,7 +44,8 @@ export async function encryptBackup({
   validateRecipient(recipient);
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('A positive encrypted size limit is required.');
   // Validate the actual recipient/checksum and executable before reading source data.
-  await runCommand(ageCommand, ['-r', recipient], { signal, probe: true });
+  console.log('Starting age recipient validation.');
+  await runCommand(ageCommand, ['-r', recipient], { signal, probe: true, phase: 'Age recipient validation' });
   let plaintextDirectory;
   let directory;
   let completed = false;
@@ -53,9 +57,11 @@ export async function encryptBackup({
     const archive = join(plaintextDirectory, 'recovery.zip');
     const partial = join(directory, 'recovery.zip.age.partial');
     const path = join(directory, 'recovery.zip.age');
+    console.log('Starting database and referenced-image export.');
     await exportArchive(archive);
     signal?.throwIfAborted();
-    await runCommand(ageCommand, ['-r', recipient, '-o', partial, archive], { signal });
+    console.log('Starting archive encryption.');
+    await runCommand(ageCommand, ['-r', recipient, '-o', partial, archive], { signal, phase: 'Archive encryption' });
     const bytes = (await stat(partial)).size;
     if (bytes <= 0 || bytes > maxBytes) throw new Error('Encrypted backup exceeds the configured upload size limit.');
     const sha256 = await checksum(partial);

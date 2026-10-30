@@ -186,3 +186,11 @@ Workflow syntax was checked with `actionlint`; its optional shellcheck integrati
 is a separate validation. A passing local test is not evidence that GitHub Secrets,
 live provider permissions, artifact APIs, scheduled delivery, or real-data recovery
 have been exercised. Keep #55 open until the required operator evidence exists.
+
+## Diagnosing a failed export/encryption step
+
+Logs identify recipient validation, database/image export, and archive encryption
+separately. The .NET export's credential-safe diagnostics are preserved; raw age
+and provider command diagnostics remain suppressed. Never print environment
+variables or connection strings to investigate a failure. A generic export error
+does not establish that the database is empty or that credentials are incorrect.
