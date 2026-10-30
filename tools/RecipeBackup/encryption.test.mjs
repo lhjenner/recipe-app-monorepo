@@ -4,7 +4,13 @@ import { mkdtemp, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { encryptBackup, verifyDownload } from './encryption.mjs';
+import { encryptBackup, runCommand, verifyDownload } from './encryption.mjs';
+
+test('command failures identify their phase and preserve only explicitly trusted diagnostics', async () => {
+  await assert.rejects(runCommand(process.execPath, [
+    '-e', 'process.stderr.write("sensitive provider detail"); process.exit(7)',
+  ], { phase: 'Database export' }), /Database export failed \(exit 7\)/);
+});
 
 async function fixture(run) {
   const directory = await mkdtemp(join(tmpdir(), 'recipe-encryption-test-'));

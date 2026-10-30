@@ -43,7 +43,9 @@ async function main() {
     const result = await encryptBackup({
       recipient: process.env.BACKUP_AGE_RECIPIENT, root: second,
       maxBytes: 60 * 1024 * 1024, signal: controller.signal,
-      exportArchive: (path) => runCommand('dotnet', [first, 'export', path], { signal: controller.signal }),
+      exportArchive: (path) => runCommand('dotnet', [first, 'export', path], {
+        signal: controller.signal, phase: 'Database and image export', safeDiagnostics: true,
+      }),
     });
     await verifyDownload(result.directory, result.sha256, result.bytes);
     if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required before publishing upload metadata.');
