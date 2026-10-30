@@ -29,9 +29,11 @@ workflow namespace, and explicit go-live transfer are still required.
    temporary directory. Native dump credentials are passed through environment
    variables, never command-line URLs. Source credentials exist only in the
    preflight and export steps, not dependency installation, build, or retention.
-   `PGSSLROOTCERT=system` makes the PostgreSQL 18 native client use the runner's
-   installed CA trust store with full certificate/hostname verification, rather
-   than requiring a separate `~/.postgresql/root.crt` file.
+   The native PostgreSQL subprocess gets `PGSSLROOTCERT=system` for verified TLS
+   unless the connection explicitly names a root certificate. This uses the
+   installed CA trust store rather than requiring `~/.postgresql/root.crt`.
+   It is not set on the parent .NET process: Npgsql interprets this variable
+   differently and continues using its own system trust configuration.
 4. Encrypt to the configured public recipient. The public recipient and `age`
    executable are tested before reading source data. There is no plaintext
    upload fallback. Export/encryption/size failures fail the job.

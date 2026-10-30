@@ -86,7 +86,6 @@ jobs:
           BACKUP_IMAGE_CONSISTENCY_CONFIRMED: ${{ vars.BACKUP_IMAGE_CONSISTENCY_CONFIRMED }}
           BACKUP_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           TMPDIR: ${{ runner.temp }}/recipe-backup-${{ github.run_id }}-${{ github.run_attempt }}
-          PGSSLROOTCERT: system
         run: |
           umask 077
           mkdir -- "$TMPDIR"
