@@ -2,10 +2,14 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using RecipeApp.Api.Auth;
 using RecipeApp.Api.Auth.PasswordReset;
+using RecipeApp.Api.Images;
 
 namespace RecipeApp.Api.Middleware;
 
-public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService, TimeProvider timeProvider) : IExceptionHandler
+public class GlobalExceptionHandler(
+    IProblemDetailsService problemDetailsService,
+    TimeProvider timeProvider,
+    ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
@@ -16,6 +20,7 @@ public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService
             InvalidCredentialsException => (StatusCodes.Status401Unauthorized, "Invalid email or password"),
             AccountLockedException => (StatusCodes.Status423Locked, "Account temporarily locked"),
             InvalidResetTokenException => (StatusCodes.Status400BadRequest, "Invalid or expired reset token"),
+            ImageStorageUnavailableException => (StatusCodes.Status503ServiceUnavailable, "Recipe image unavailable"),
             _ => (0, string.Empty)
         };
 
@@ -26,6 +31,10 @@ public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService
         }
 
         httpContext.Response.StatusCode = status;
+        if (exception is ImageStorageUnavailableException)
+        {
+            logger.LogError(exception, "Private recipe image retrieval failed.");
+        }
         if (exception is AccountLockedException locked)
         {
             var retryAfter = Math.Max(1, (int)Math.Ceiling((locked.LockedUntilUtc - timeProvider.GetUtcNow().UtcDateTime).TotalSeconds));

@@ -65,6 +65,18 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install encryption test prerequisite
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y age
+
+      - name: Test environment launcher, real age encryption, and artifact retention
+        run: npm run test:tooling
+
       # Component tests start PostgreSQL through Testcontainers; Docker is preinstalled on ubuntu-latest.
       - name: Unit tests
         run: >

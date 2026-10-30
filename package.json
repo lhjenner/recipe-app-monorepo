@@ -1,0 +1,16 @@
+{
+  "name": "recipe-app-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "dotnet build RecipeApp.slnx && npm --prefix apps/web run build",
+    "test:tooling": "node --test tools/run-with-env.test.mjs tools/RecipeBackup/encryption.test.mjs tools/RecipeBackup/retention.test.mjs tools/RecipeBackup/configuration.test.mjs",
+    "dev:api": "node --env-file=.env tools\\run-with-env.mjs dotnet run --project apps\\api\\src\\RecipeApp.Api --launch-profile https -- --ObjectStorage:BucketName=recipe-images-dev",
+    "dev:web": "npm --prefix apps/web run dev -- --mode neon",
+    "db:migrate": "node --env-file=.env tools\\run-with-env.mjs dotnet ef database update --project apps\\api\\src\\RecipeApp.Api --startup-project apps\\api\\src\\RecipeApp.Api",
+    "smoke:neon": "node --env-file=.env tools\\run-with-env.mjs dotnet run --project tools\\NeonSmokeCheck -- --ObjectStorage:BucketName=recipe-images-dev"
+  },
+  "dependencies": {
+    "@neon/config": "^1.9.4",
+    "@neon/env": "^1.6.5"
+  }
+}

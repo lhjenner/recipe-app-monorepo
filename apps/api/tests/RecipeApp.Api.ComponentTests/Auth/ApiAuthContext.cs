@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using RecipeApp.Api.Auth;
 using RecipeApp.Api.Auth.PasswordReset;
 using RecipeApp.Api.Infrastructure.Persistence;
+using RecipeApp.Api.Images;
+using RecipeApp.Api.ComponentTests.Images;
 using Testcontainers.PostgreSql;
 
 namespace RecipeApp.Api.ComponentTests.Auth;
@@ -24,6 +26,7 @@ public sealed class ApiAuthContext : IAsyncDisposable
     public IServiceProvider Services => _factory!.Services;
 
     public CapturingEmailSender Emails { get; } = new();
+    public SyntheticObjectStorage Storage { get; } = new();
 
     public HttpClient Client { get; private set; } = null!;
 
@@ -44,11 +47,13 @@ public sealed class ApiAuthContext : IAsyncDisposable
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.UseSetting("DATABASE_URL", "");
                 builder.UseSetting("ConnectionStrings:DefaultConnection", _database.GetConnectionString());
                 builder.ConfigureTestServices(services =>
                 {
                     services.AddSingleton<TimeProvider>(Time);
                     services.AddSingleton<IEmailSender>(Emails);
+                    services.AddSingleton<IPrivateObjectStorage>(Storage);
                 });
             });
 

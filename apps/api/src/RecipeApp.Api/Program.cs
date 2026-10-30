@@ -7,8 +7,10 @@ using RecipeApp.Api.Auth.PasswordReset;
 using RecipeApp.Api.Infrastructure.Email;
 using RecipeApp.Api.Infrastructure.Persistence;
 using RecipeApp.Api.Infrastructure.Security;
+using RecipeApp.Api.Infrastructure.Storage;
 using RecipeApp.Api.Ingredients;
 using RecipeApp.Api.Lookups;
+using RecipeApp.Api.Images;
 using RecipeApp.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,7 +39,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     });
 builder.Services.AddAuthorization();
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(DatabaseConnection.Get(builder.Configuration)));
+builder.Services.AddPrivateObjectStorage(builder.Configuration);
+builder.Services.AddScoped<IRecipeImageReadService, RecipeImageReadService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<ILookupService, LookupService>();

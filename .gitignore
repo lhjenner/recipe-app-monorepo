@@ -15,3 +15,10 @@ bin/
 obj/
 node_modules/
 dist/
+.neon
+
+# Local recovery archives (database dumps and images are sensitive)
+backups/
+*.dump
+*.age
+*.zip.partial

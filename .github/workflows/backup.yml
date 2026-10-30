@@ -1,0 +1,172 @@
+name: Encrypted development backup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recipe-backup-dev
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Export and encrypt
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_name: recipe-backup-dev-${{ github.run_id }}-${{ github.run_attempt }}
+      sha256: ${{ steps.encrypt.outputs.sha256 }}
+      bytes: ${{ steps.encrypt.outputs.bytes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate source configuration and default branch
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.BACKUP_DATABASE_URL_UNPOOLED }}
+          AWS_ENDPOINT_URL_S3: ${{ secrets.BACKUP_AWS_ENDPOINT_URL_S3 }}
+          AWS_REGION: ${{ vars.BACKUP_AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          BACKUP_IMAGE_CONSISTENCY_CONFIRMED: ${{ vars.BACKUP_IMAGE_CONSISTENCY_CONFIRMED }}
+          BACKUP_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: node tools/RecipeBackup/encrypted-backup.mjs check-config
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install age and PostgreSQL 18 client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common ca-certificates
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y age postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+          age --version
+          /usr/lib/postgresql/18/bin/pg_dump --version
+
+      - name: Build recovery tool
+        run: dotnet publish tools/RecipeBackup/RecipeBackup.csproj --configuration Release --output "$RUNNER_TEMP/recipe-backup-tool"
+
+      - name: Export, verify, and encrypt
+        id: encrypt
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.BACKUP_DATABASE_URL_UNPOOLED }}
+          AWS_ENDPOINT_URL_S3: ${{ secrets.BACKUP_AWS_ENDPOINT_URL_S3 }}
+          AWS_REGION: ${{ vars.BACKUP_AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          BACKUP_IMAGE_CONSISTENCY_CONFIRMED: ${{ vars.BACKUP_IMAGE_CONSISTENCY_CONFIRMED }}
+          BACKUP_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          TMPDIR: ${{ runner.temp }}/recipe-backup-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          umask 077
+          mkdir -- "$TMPDIR"
+          node tools/RecipeBackup/encrypted-backup.mjs export-encrypted \
+            "$RUNNER_TEMP/recipe-backup-tool/RecipeBackup.dll" "$TMPDIR"
+
+      - name: Upload encrypted file only
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: recipe-backup-dev-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.encrypt.outputs.path }}
+          if-no-files-found: error
+          retention-days: 42
+          compression-level: 0
+
+      - name: Remove sensitive staging files
+        if: ${{ always() }}
+        run: rm -rf -- "${RUNNER_TEMP:?}/recipe-backup-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
+
+  verify:
+    name: Verify uploaded ciphertext
+    needs: backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.backup.outputs.artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/recipe-backup-verify-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Check downloaded filename, encryption header, byte size, and SHA-256
+        env:
+          BACKUP_SHA256: ${{ needs.backup.outputs.sha256 }}
+          BACKUP_BYTES: ${{ needs.backup.outputs.bytes }}
+          DOWNLOAD: ${{ runner.temp }}/recipe-backup-verify-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node tools/RecipeBackup/encrypted-backup.mjs verify-download "$DOWNLOAD"
+
+      - name: Remove downloaded ciphertext
+        if: ${{ always() }}
+        run: rm -rf -- "${RUNNER_TEMP:?}/recipe-backup-verify-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
+
+  retention:
+    name: Retain six verified backups
+    needs: [backup, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Remove older copies only after verified replacement
+        uses: actions/github-script@v7
+        env:
+          BACKUP_ARTIFACT_ID: ${{ needs.backup.outputs.artifact_id }}
+          BACKUP_ARTIFACT_NAME: ${{ needs.backup.outputs.artifact_name }}
+        with:
+          script: |
+            const { retainBackups } = await import(`${process.env.GITHUB_WORKSPACE}/tools/RecipeBackup/retention.mjs`);
+            await retainBackups({
+              github, context, core,
+              artifactId: Number(process.env.BACKUP_ARTIFACT_ID),
+              artifactName: process.env.BACKUP_ARTIFACT_NAME,
+            });
+            await core.summary.addHeading('Backup verified')
+              .addRaw('Encrypted artifact downloaded and checksum-verified. Retention cleanup completed; at most six successful backups retained, subject to 42-day expiration.')
+              .write();
+
+  report-failure:
+    name: Report backup failure
+    needs: [backup, verify, retention]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Flag incomplete recovery coverage
+        run: |
+          echo "::error::Backup failed. Inspect this run; do not assume recovery coverage is current."
+          echo "### Backup failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Inspect failed jobs and previous successful backups. GitHub notification delivery depends on your personal Actions notification settings." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
