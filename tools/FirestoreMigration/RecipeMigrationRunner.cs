@@ -98,8 +98,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
             IsolationLevel.RepeatableRead, cancellationToken))
         {
             await db.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY", cancellationToken);
-            var selection = RecipeSourceValidator.Validate(source, options.Owner, [],
-                options.SelectedLegacyOwnerIds);
+            var selection = RecipeSourceValidator.Select(source, options.SelectedLegacyOwnerIds);
             var selected = selection.Recipes;
             var ids = selected.SelectMany(recipe => recipe.Steps)
                 .SelectMany(step => step.Items)

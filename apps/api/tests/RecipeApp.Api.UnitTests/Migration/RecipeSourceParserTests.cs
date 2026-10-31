@@ -304,21 +304,44 @@ public sealed class RecipeSourceParserTests
             ]
             """;
         var source = RecipeSourceParser.Parse(recipes, "{}");
-        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
 
-        var ambiguous = RecipeSourceValidator.Validate(source, owner, []);
+        var ambiguous = RecipeSourceValidator.Select(source);
         ambiguous.BlockingDiagnostics.Should().Contain(diagnostic => diagnostic.Contains("explicit source-owner selection"));
         ambiguous.Recipes.Should().BeEmpty();
 
-        var selected = RecipeSourceValidator.Validate(source, owner, [],
+        var selected = RecipeSourceValidator.Select(source,
             new HashSet<string>(["legacy-owner-b"], StringComparer.Ordinal));
         selected.BlockingDiagnostics.Should().BeEmpty();
         selected.Recipes.Should().ContainSingle().Which.LegacyId.Should().Be("recipe-b");
 
-        var unknownSelection = RecipeSourceValidator.Validate(source, owner, [],
+        var unknownSelection = RecipeSourceValidator.Select(source,
             new HashSet<string>(["not-in-export"], StringComparer.Ordinal));
         unknownSelection.BlockingDiagnostics.Should().Contain(diagnostic =>
             diagnostic.Contains("not present in the export"));
+    }
+
+    [Fact]
+    public void Source_selection_does_not_run_target_ingredient_validation()
+    {
+        const string recipes = """
+            [{
+              "id":"recipe-a",
+              "title":"A",
+              "tags":[],
+              "steps":[{"instructions":"Mix","ingredients":[{
+                "id":"117c8374-5db4-4021-b106-5b466e2446ed","name":"Flour"
+              }]}]
+            }]
+            """;
+        var source = RecipeSourceParser.Parse(recipes, "{}");
+
+        var selection = RecipeSourceValidator.Select(source);
+        var validation = RecipeSourceValidator.Validate(source, Guid.NewGuid(), []);
+
+        selection.BlockingDiagnostics.Should().BeEmpty();
+        selection.Recipes.Should().ContainSingle();
+        validation.BlockingDiagnostics.Should().Contain(diagnostic =>
+            diagnostic.Contains("does not exist in the target database"));
     }
 
     [Fact]
