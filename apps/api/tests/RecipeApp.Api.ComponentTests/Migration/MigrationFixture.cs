@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RecipeApp.Api.Auth;
 using RecipeApp.Api.ComponentTests.Auth;
 using RecipeApp.Api.Infrastructure.Persistence;
+using RecipeApp.TestFixtures;
 
 namespace RecipeApp.Api.ComponentTests.Migration;
 
@@ -19,6 +20,8 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     public string DecisionFile => Path.Combine(_directory, "decisions.json");
     public string RecipeFile => Path.Combine(_directory, "recipe-preview.json");
     public string RecipeReportFile => Path.Combine(_directory, "recipe-preview-report.json");
+    public string ImageRoot => Path.Combine(_directory, "images");
+    public string ImageManifestFile => Path.Combine(_directory, "image-manifest.json");
     public StringWriter Output { get; } = new();
     public MigrationResult? Result { get; set; }
     public MigrationResult? FirstResult { get; set; }
@@ -70,7 +73,8 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     }
 
     public async Task<RecipeMigrationRunResult> RunRecipePreviewAsync(string recipeJson,
-        string? selectedLegacyOwnerId = null)
+        string? selectedLegacyOwnerId = null, bool includeImageManifest = false,
+        bool corruptImage = false)
     {
         File.WriteAllText(RecipeFile, recipeJson);
         File.WriteAllText(DecisionFile, "{}");
@@ -79,6 +83,28 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
             "--mode", "recipes", "--recipes", RecipeFile, "--owner", Owner.ToString(),
             "--decisions", DecisionFile, "--report", RecipeReportFile
         };
+        if (includeImageManifest)
+        {
+            Directory.CreateDirectory(ImageRoot);
+            var imageBytes = corruptImage ? "not an image"u8.ToArray() : SyntheticImage.Png;
+            File.WriteAllBytes(Path.Combine(ImageRoot, "synthetic.png"), imageBytes);
+            var manifest = new[]
+            {
+                new
+                {
+                    recipeId = "synthetic-recipe",
+                    imageReference = "https://example.test/synthetic",
+                    path = "synthetic.png",
+                    byteCount = imageBytes.LongLength,
+                    sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(imageBytes))
+                }
+            };
+            File.WriteAllText(ImageManifestFile, JsonSerializer.Serialize(manifest));
+            args.Add("--image-manifest");
+            args.Add(ImageManifestFile);
+            args.Add("--image-root");
+            args.Add(ImageRoot);
+        }
         if (selectedLegacyOwnerId is not null)
         {
             args.Add("--source-owner");
@@ -143,6 +169,8 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
         foreach (var name in new[] { "ingredients.json", "meta.json", "decisions.json", "users.json", "recipes.json",
                      "recipe-preview.json", "recipe-preview-report.json" })
             File.Delete(Path.Combine(_directory, name));
+        File.Delete(ImageManifestFile);
+        if (Directory.Exists(ImageRoot)) Directory.Delete(ImageRoot, recursive: true);
         Directory.Delete(_directory);
         Output.Dispose();
     }

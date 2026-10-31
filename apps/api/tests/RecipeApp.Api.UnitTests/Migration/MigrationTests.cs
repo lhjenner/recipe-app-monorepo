@@ -41,6 +41,37 @@ public sealed class MigrationTests
         options.ReportFile.Should().Be(Path.GetFullPath("report.json"));
     }
 
+    [Fact]
+    public void Recipe_mode_requires_image_manifest_and_root_together()
+    {
+        var manifestOnly = () => MigrationOptions.Parse([
+            "--mode", "recipes", "--recipes", "recipes.json", "--owner", Id,
+            "--decisions", "decisions.json", "--report", "report.json",
+            "--image-manifest", "images.json"
+        ]);
+        var rootOnly = () => MigrationOptions.Parse([
+            "--mode", "recipes", "--recipes", "recipes.json", "--owner", Id,
+            "--decisions", "decisions.json", "--report", "report.json",
+            "--image-root", "backup"
+        ]);
+
+        manifestOnly.Should().Throw<FormatException>();
+        rootOnly.Should().Throw<FormatException>();
+    }
+
+    [Fact]
+    public void Recipe_mode_accepts_explicit_image_manifest_and_root()
+    {
+        var options = MigrationOptions.Parse([
+            "--mode", "recipes", "--recipes", "recipes.json", "--owner", Id,
+            "--decisions", "decisions.json", "--report", "report.json",
+            "--image-manifest", "images.json", "--image-root", "images"
+        ]);
+
+        options.ImageManifestFile.Should().Be(Path.GetFullPath("images.json"));
+        options.ImageRoot.Should().Be(Path.GetFullPath("images"));
+    }
+
     [Theory]
     [InlineData("--mode", "recipes", "--backup", "backup", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json", "--report", "report.json")]
     [InlineData("--mode", "recipes", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json", "--report", "report.json")]

@@ -97,3 +97,11 @@ Feature: Standalone Firestore migration (PRD03, issue 42)
   Scenario: PRD04 Recipe preview reports a missing Ingredient without writing
     When I preview a synthetic Recipe that references a missing Ingredient
     Then the Recipe preview is blocked and still writes its report
+
+  Scenario: PRD04 Recipe preview validates selected image bytes without uploading
+    When I preview a synthetic Recipe with a valid image manifest
+    Then the Recipe preview reports validated image metadata without committing it
+
+  Scenario: PRD04 Recipe preview blocks corrupt selected image bytes
+    When I preview a synthetic Recipe with a corrupt selected image
+    Then the Recipe preview reports a blocking image diagnostic

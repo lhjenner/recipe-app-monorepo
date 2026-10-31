@@ -30,6 +30,9 @@ public sealed record RecipeMigrationReport(
     int Unchanged,
     int CommittedInserts,
     int CommittedUpdates,
+    string? ImageManifestSha256,
+    int ValidatedImages,
+    IReadOnlyList<RecipeImageValidationResult> Images,
     IReadOnlyList<string> Warnings,
     IReadOnlyList<string> Diagnostics,
     IReadOnlyList<RecipePreviewItem> Recipes);
@@ -48,7 +51,10 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
         var recipePath = Path.GetFullPath(options.RecipeFile);
         var decisionPath = Path.GetFullPath(options.Decisions);
         var reportPath = Path.GetFullPath(options.ReportFile);
-        EnsureDistinctInputs(recipePath, decisionPath, reportPath);
+        var imageManifestPath = options.ImageManifestFile is null ? null : Path.GetFullPath(options.ImageManifestFile);
+        var inputPaths = new List<string> { recipePath, decisionPath, reportPath };
+        if (imageManifestPath is not null) inputPaths.Add(imageManifestPath);
+        EnsureDistinctInputs(inputPaths);
         EnsureReportOutsideRepository(reportPath);
         if (File.Exists(reportPath))
             throw new IOException("Report destination already exists; choose a new path to preserve prior reports.");
@@ -58,11 +64,22 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
         var started = DateTime.UtcNow;
         var recipeBytes = await File.ReadAllBytesAsync(recipePath, cancellationToken);
         var decisionBytes = await File.ReadAllBytesAsync(decisionPath, cancellationToken);
+        var imageManifestBytes = imageManifestPath is null
+            ? null
+            : await File.ReadAllBytesAsync(imageManifestPath, cancellationToken);
         var utf8 = new UTF8Encoding(false, true);
         var recipeJson = utf8.GetString(recipeBytes).TrimStart('\uFEFF');
         var decisionJson = utf8.GetString(decisionBytes).TrimStart('\uFEFF');
+        var imageManifestJson = imageManifestBytes is null
+            ? null
+            : utf8.GetString(imageManifestBytes).TrimStart('\uFEFF');
         var source = RecipeSourceParser.Parse(recipeJson, decisionJson);
+        var imageManifest = imageManifestJson is null
+            ? null
+            : RecipeImageManifestParser.Parse(imageManifestJson);
         var diagnostics = new List<string>(source.BlockingDiagnostics);
+        var imageWarnings = new List<string>();
+        var imageResults = new List<RecipeImageValidationResult>();
 
         if ((await db.Database.GetPendingMigrationsAsync(cancellationToken)).Any() ||
             db.Database.HasPendingModelChanges())
@@ -94,8 +111,11 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             var validation = RecipeSourceValidator.Validate(source, options.Owner, ingredients,
                 options.SelectedLegacyOwnerIds);
             diagnostics.AddRange(validation.BlockingDiagnostics);
-            foreach (var recipe in selected.Where(recipe => !string.IsNullOrWhiteSpace(recipe.ImageReference)))
-                diagnostics.Add($"Recipe '{recipe.LegacyId}': image reference requires an explicit image manifest; image validation is not available in this preview.");
+            var imageValidation = RecipeImageManifestValidator.Validate(
+                selected, imageManifest, options.ImageRoot);
+            diagnostics.AddRange(imageValidation.BlockingDiagnostics);
+            imageWarnings.AddRange(imageValidation.Warnings);
+            imageResults.AddRange(imageValidation.Images);
 
             var legacyIds = selected.Select(recipe => recipe.LegacyId).Distinct(StringComparer.Ordinal).ToArray();
             var existing = legacyIds.Length == 0
@@ -140,7 +160,10 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             plan.Unchanged,
             0,
             0,
-            source.Warnings.Distinct(StringComparer.Ordinal).ToArray(),
+            imageManifestBytes is null ? null : Convert.ToHexString(SHA256.HashData(imageManifestBytes)),
+            imageResults.Count(image => image.Status == "validated"),
+            imageResults,
+            source.Warnings.Concat(imageWarnings).Distinct(StringComparer.Ordinal).ToArray(),
             diagnostics.Distinct(StringComparer.Ordinal).ToArray(),
             plan.Recipes);
         await WriteReportAsync(reportPath, report, cancellationToken);
@@ -149,6 +172,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             $"unchanged={report.Unchanged}, committed-inserts=0, committed-updates=0, " +
             $"owner-fields-present={report.LegacyOwnerFieldsPresent}, owner-fields-missing={report.LegacyOwnerFieldsMissing}, " +
             $"blank-placeholders={report.BlankPlaceholdersOmitted}, unknown-fields={report.UnknownFieldOccurrences}, " +
+            $"validated-images={report.ValidatedImages}, " +
             $"warnings={report.Warnings.Count}, errors={report.Diagnostics.Count}.");
         output.WriteLine($"Report: {reportPath}");
         return new(report.Diagnostics.Count, status, reportPath);
@@ -180,12 +204,10 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
                 item.NotesText)).ToArray())).ToArray(),
         recipe.ImportProvenance?.SourceDocumentJson);
 
-    private static void EnsureDistinctInputs(string recipePath, string decisionPath, string reportPath)
+    private static void EnsureDistinctInputs(IReadOnlyCollection<string> paths)
     {
-        if (string.Equals(recipePath, decisionPath, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(recipePath, reportPath, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(decisionPath, reportPath, StringComparison.OrdinalIgnoreCase))
-            throw new FormatException("Recipe, decision and report paths must be separate files.");
+        if (paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != paths.Count)
+            throw new FormatException("Recipe, decision, image manifest and report paths must be separate files.");
     }
 
     private static void EnsureReportOutsideRepository(string reportPath)
