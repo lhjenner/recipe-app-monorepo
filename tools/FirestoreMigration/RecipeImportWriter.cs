@@ -1,21 +1,20 @@
 using System.Data;
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
 using RecipeApp.Api.Infrastructure.Persistence;
-using RecipeApp.Api.Lookups;
 
 namespace FirestoreMigration;
 
 public sealed class RecipeImportWriter(AppDbContext db)
 {
-    public async Task<(int Inserted, IReadOnlyList<RecipePreviewItem> Recipes)> CommitNewRecipesAsync(
+    public async Task<(int Inserted, int Updated, IReadOnlyList<RecipePreviewItem> Recipes)> ApplyAsync(
         RecipePreviewPlan plan, IReadOnlyList<RecipeSourceRecord> sourceRecipes,
+        IReadOnlySet<string> approvedUpdates,
         MigrationOptions options, Guid runId, string sourceFileSha256,
         string decisionFingerprint, CancellationToken cancellationToken)
     {
         var sourceByLegacyId = sourceRecipes.ToDictionary(recipe => recipe.LegacyId, StringComparer.Ordinal);
         var insertedRecipes = new Dictionary<string, Guid>(StringComparer.Ordinal);
+        var updatedRecipes = new Dictionary<string, Guid>(StringComparer.Ordinal);
         await using var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
 
@@ -34,6 +33,24 @@ public sealed class RecipeImportWriter(AppDbContext db)
             throw new InvalidOperationException(
                 "Recipe mappings changed after preview; no Recipes were committed. Review a fresh preview.");
 
+        var updateIds = plan.Recipes
+            .Where(recipe => recipe.Outcome == "proposed-update" && approvedUpdates.Contains(recipe.LegacyId))
+            .Select(recipe => recipe.LegacyId)
+            .ToArray();
+        var updateTargets = updateIds.Length == 0
+            ? []
+            : await db.Recipes
+                .Where(recipe => recipe.OwnerUserId == options.Owner &&
+                    recipe.LegacyId != null && updateIds.Contains(recipe.LegacyId))
+                .Include(recipe => recipe.Tags)
+                .Include(recipe => recipe.Steps).ThenInclude(step => step.Items)
+                .Include(recipe => recipe.ImportProvenance)
+                .AsSplitQuery()
+                .ToListAsync(cancellationToken);
+        if (updateTargets.Count != updateIds.Length)
+            throw new InvalidOperationException(
+                "An approved Recipe mapping changed after preview. Nothing was committed; review a fresh preview.");
+
         var now = DateTime.UtcNow;
         foreach (var item in plan.Recipes.Where(recipe => recipe.Outcome == "proposed-insert"))
         {
@@ -41,93 +58,37 @@ public sealed class RecipeImportWriter(AppDbContext db)
                 throw new InvalidOperationException(
                     $"Validated source Recipe '{item.LegacyId}' was not available for insertion.");
 
-            var recipe = CreateRecipe(source, options.Owner, sourceFileSha256,
+            var recipe = RecipeEntityMapper.Create(source, options.Owner, sourceFileSha256,
                 decisionFingerprint, runId, now);
             db.Recipes.Add(recipe);
             insertedRecipes.Add(item.LegacyId, recipe.Id);
         }
 
+        var targetsByLegacyId = updateTargets.ToDictionary(recipe => recipe.LegacyId!, StringComparer.Ordinal);
+        foreach (var legacyId in updateIds)
+        {
+            if (!sourceByLegacyId.TryGetValue(legacyId, out var source))
+                throw new InvalidOperationException(
+                    $"Validated source Recipe '{legacyId}' was not available for update.");
+            var target = targetsByLegacyId[legacyId];
+            RecipeEntityMapper.Update(db, target, source, options.Owner, sourceFileSha256,
+                decisionFingerprint, runId, now);
+            updatedRecipes.Add(legacyId, target.Id);
+        }
+
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return (insertedRecipes.Count, plan.Recipes.Select(item =>
-            insertedRecipes.TryGetValue(item.LegacyId, out var recipeId)
-                ? item with { ExistingRecipeId = recipeId, Outcome = "committed-insert" }
-                : item).ToArray());
-    }
-
-    private static Recipe CreateRecipe(RecipeSourceRecord source, Guid ownerId,
-        string sourceFileSha256, string decisionFingerprint, Guid runId, DateTime now)
-    {
-        var recipe = new Recipe
+        var results = plan.Recipes.Select(item =>
         {
-            LegacyId = source.LegacyId,
-            OwnerUserId = ownerId,
-            Name = source.Name,
-            NormalizedName = LookupName.Normalize(source.Name),
-            SourceText = source.SourceText,
-            SourceUrl = source.SourceUrl,
-            ServingsText = source.ServingsText,
-            PrepTimeText = source.PrepTimeText,
-            CookTimeText = source.CookTimeText,
-            DateAddedAtUtc = source.DateAddedAtUtc,
-            IsArchived = source.IsArchived,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        };
-        foreach (var (text, position) in source.Tags.Select((text, position) => (text, position)))
-            recipe.Tags.Add(new()
-            {
-                RecipeId = recipe.Id,
-                Position = position,
-                Text = text
-            });
-
-        foreach (var sourceStep in source.Steps)
-        {
-            var step = new RecipeStep
-            {
-                RecipeId = recipe.Id,
-                OwnerUserId = ownerId,
-                Position = sourceStep.Position,
-                Instructions = sourceStep.Instructions
-            };
-            foreach (var sourceItem in sourceStep.Items)
-            {
-                step.Items.Add(new()
-                {
-                    RecipeStepId = step.Id,
-                    OwnerUserId = ownerId,
-                    Position = sourceItem.Position,
-                    Kind = sourceItem.Kind switch
-                    {
-                        RecipeSourceItemKind.Ingredient => RecipeStepItemKind.Ingredient,
-                        RecipeSourceItemKind.Heading => RecipeStepItemKind.Heading,
-                        RecipeSourceItemKind.Note => RecipeStepItemKind.Note,
-                        _ => throw new ArgumentOutOfRangeException(nameof(sourceItem.Kind))
-                    },
-                    IngredientId = sourceItem.IngredientId,
-                    Text = sourceItem.Text,
-                    QuantityText = sourceItem.QuantityText,
-                    UnitText = sourceItem.UnitText,
-                    NotesText = sourceItem.NotesText
-                });
-            }
-            recipe.Steps.Add(step);
-        }
-
-        recipe.ImportProvenance = new()
-        {
-            RecipeId = recipe.Id,
-            SourceDocumentJson = source.SourceDocumentJson,
-            DocumentSha256 = Convert.ToHexString(
-                SHA256.HashData(Encoding.UTF8.GetBytes(source.SourceDocumentJson))),
-            SourceFileSha256 = sourceFileSha256,
-            MappingVersion = "PRD04-v1",
-            DecisionFingerprint = decisionFingerprint,
-            LastAppliedRunId = runId,
-            LastAppliedAtUtc = now
-        };
-        return recipe;
+            if (insertedRecipes.TryGetValue(item.LegacyId, out var insertedId))
+                return item with { ExistingRecipeId = insertedId, Outcome = "committed-insert" };
+            if (updatedRecipes.TryGetValue(item.LegacyId, out var updatedId))
+                return item with { ExistingRecipeId = updatedId, Outcome = "committed-update" };
+            if (item.Outcome == "proposed-update" && !approvedUpdates.Contains(item.LegacyId))
+                return item with { Outcome = "declined" };
+            return item;
+        }).ToArray();
+        return (insertedRecipes.Count, updatedRecipes.Count, results);
     }
 }

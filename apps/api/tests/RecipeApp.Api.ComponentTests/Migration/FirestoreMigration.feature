@@ -110,6 +110,16 @@ Feature: Standalone Firestore migration (PRD03, issue 42)
     When I write and repeat a synthetic Recipe import
     Then the Recipe mapping and child IDs remain stable with committed outcomes
 
+  Scenario Outline: PRD04 AC-14 changed Recipes require whole-Recipe approval
+    Given a synthetic Recipe was imported
+    When I review a complete Recipe update and respond <response>
+    Then the Recipe update is <outcome> as a whole
+    Examples:
+      | response | outcome  |
+      | yes      | applied  |
+      | no       | declined |
+      | EOF      | declined |
+
   Scenario: Recipe preview requires explicit destination owner confirmation
     When I confirm a Recipe preview with a different destination owner
     Then the preview is rejected before creating a report

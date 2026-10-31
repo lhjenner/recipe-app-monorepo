@@ -93,6 +93,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
 
         RecipePreviewPlan plan;
         IReadOnlyList<RecipeSourceRecord> selectedSourceRecipes = [];
+        IReadOnlyList<RecipeTargetRecord> targetRecords = [];
         var sourceValidation = new RecipeSourceValidationResult([], []);
         await using (var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.RepeatableRead, cancellationToken))
@@ -136,6 +137,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
                     .AsSplitQuery()
                     .ToListAsync(cancellationToken);
             var targets = existing.Select(ToTarget).ToArray();
+            targetRecords = targets;
             plan = RecipePreviewPlanner.Create(validation, options.Owner, targets);
             diagnostics.AddRange(plan.BlockingDiagnostics);
             await transaction.CommitAsync(cancellationToken);
@@ -148,19 +150,21 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
         var reportRecipes = plan.Recipes;
         if (options.Write)
         {
-            if (plan.ProposedUpdates > 0)
-                diagnostics.Add("Recipe updates require whole-Recipe approval; no Recipes were written.");
             if (selectedSourceRecipes.Any(recipe => !string.IsNullOrWhiteSpace(recipe.ImageReference)))
                 diagnostics.Add("Recipe image imports require verified private-object staging; no Recipes were written.");
 
             if (diagnostics.Count == 0)
             {
-                var commit = await new RecipeImportWriter(db).CommitNewRecipesAsync(
-                    plan, selectedSourceRecipes, options, runId,
+                var approvedUpdates = await RecipeUpdateApproval.CollectAsync(
+                    plan, selectedSourceRecipes, targetRecords,
+                    confirmationInput, output, cancellationToken);
+                var commit = await new RecipeImportWriter(db).ApplyAsync(
+                    plan, selectedSourceRecipes, approvedUpdates, options, runId,
                     Convert.ToHexString(SHA256.HashData(recipeBytes)),
                     source.DecisionFingerprint,
                     cancellationToken);
                 committedInserts = commit.Inserted;
+                committedUpdates = commit.Updated;
                 reportRecipes = commit.Recipes;
                 status = "committed";
             }

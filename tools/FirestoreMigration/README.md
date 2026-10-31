@@ -6,10 +6,11 @@ and the upcoming Recipe migration under [PRD04](../../docs/prd/04-recipe-foundat
 [issue #56](https://github.com/lhjenner/recipe-app-monorepo/issues/56).
 It reuses the API's `AppDbContext` and configurations; the application does not reference
 or register the tool. Ingredient mode remains the default and preserves its existing invocation.
-Recipe mode defaults to a read-only preview. Its current write path commits new Recipes,
-skips unchanged Recipes, and blocks changed Recipes or image-bearing imports until their
-approval and private-object staging workflows are available. It validates source-owner
-selection, destination owner and schema, Ingredient references, and exact LegacyId matches.
+Recipe mode defaults to a read-only preview. Its write path commits new Recipes, skips
+unchanged Recipes, and requires whole-Recipe approval before applying changed Recipes.
+Image-bearing imports remain blocked until private-object staging is available. It validates
+source-owner selection, destination owner and schema, Ingredient references, and exact LegacyId
+matches.
 Referenced images are validated only when an explicit manifest and backup directory are
 supplied; no images are uploaded by this version.
 
@@ -138,9 +139,10 @@ following arguments to the tool rather than to .NET:
   Before preview, the tool displays the selected source, destination owner, source-owner
   selection, and image inputs; type the destination owner GUID to confirm them.
 - No `--write`: **dry-run**, including diagnostics, counts and complete update diffs.
-- Recipe `--write` currently commits new Recipes and skips unchanged ones atomically.
-  Until approval support is implemented, changed Recipes and Recipes with images block
-  the write rather than being partially applied.
+- Recipe `--write` commits new Recipes and skips unchanged ones atomically. Each changed
+  Recipe prints a whole-record change summary and requires **`yes`** before its replacement
+  is applied; any other answer (including EOF) declines that Recipe. Image-bearing imports
+  still block the write rather than being partially applied.
 
 Replace the synthetic paths and owner before executing:
 
