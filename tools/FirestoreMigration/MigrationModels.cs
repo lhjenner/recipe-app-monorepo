@@ -53,7 +53,7 @@ public sealed record MigrationOptions(string Backup, Guid Owner, string Decision
         "Ingredient mode: --backup <directory> --owner <GUID> --decisions <file> [--write]. Default mode: ingredients; default action: dry-run.\n" +
         "Recipe mode: --mode recipes --recipes <file> --owner <GUID> --decisions <file> --report <file> " +
         "[--source-owner <legacy ID> ...] [--image-manifest <file> --image-root <directory>]. " +
-        "Recipe preview is read-only and requires typing the destination owner GUID to confirm selected inputs.";
+        "Recipe mode defaults to preview; --write commits only new or unchanged recipes without image references.";
 
     public static MigrationOptions Parse(string[] args)
     {
@@ -95,7 +95,6 @@ public sealed record MigrationOptions(string Backup, Guid Owner, string Decision
         if (mode == MigrationMode.Ingredients && (!hasBackup || hasRecipeFile) ||
             mode == MigrationMode.Recipes && (!hasRecipeFile || hasBackup) ||
             mode == MigrationMode.Recipes && !hasReport ||
-            mode == MigrationMode.Recipes && write ||
             mode == MigrationMode.Recipes && hasImageManifest != hasImageRoot ||
             mode == MigrationMode.Ingredients && (hasReport || sourceOwners.Count > 0 || hasImageManifest || hasImageRoot) ||
             !values.TryGetValue("--decisions", out var decisions) || string.IsNullOrWhiteSpace(decisions) ||

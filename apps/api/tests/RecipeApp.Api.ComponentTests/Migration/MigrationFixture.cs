@@ -10,7 +10,9 @@ using RecipeApp.TestFixtures;
 
 namespace RecipeApp.Api.ComponentTests.Migration;
 
-public sealed record RecipeImportIdentity(Guid RecipeId, IReadOnlyList<Guid> ChildIds);
+public sealed record RecipeImportIdentity(Guid RecipeId, string? LegacyId, Guid OwnerUserId,
+    IReadOnlyList<Guid> ChildIds, IReadOnlyList<Guid?> IngredientIds, string SourceDocumentJson,
+    string DocumentSha256, string SourceFileSha256, Guid LastAppliedRunId);
 
 public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
 {
@@ -160,12 +162,21 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
         var recipe = await db.Recipes.AsNoTracking()
             .Include(row => row.Tags)
             .Include(row => row.Steps).ThenInclude(step => step.Items)
+            .Include(row => row.ImportProvenance)
             .SingleAsync();
         var childIds = recipe.Tags.OrderBy(tag => tag.Position).Select(tag => tag.Id)
             .Concat(recipe.Steps.OrderBy(step => step.Position).SelectMany(step =>
                 new[] { step.Id }.Concat(step.Items.OrderBy(item => item.Position).Select(item => item.Id))))
             .ToArray();
-        return new(recipe.Id, childIds);
+        var provenance = recipe.ImportProvenance
+            ?? throw new InvalidOperationException("The imported Recipe has no provenance.");
+        var ingredientIds = recipe.Steps.OrderBy(step => step.Position)
+            .SelectMany(step => step.Items.OrderBy(item => item.Position))
+            .Select(item => item.IngredientId)
+            .ToArray();
+        return new(recipe.Id, recipe.LegacyId, recipe.OwnerUserId, childIds, ingredientIds,
+            provenance.SourceDocumentJson, provenance.DocumentSha256,
+            provenance.SourceFileSha256, provenance.LastAppliedRunId);
     }
 
     public async Task<Ingredient> ReadAsync()

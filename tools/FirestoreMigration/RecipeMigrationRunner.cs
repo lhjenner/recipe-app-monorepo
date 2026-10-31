@@ -47,8 +47,6 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
         if (options.Mode != MigrationMode.Recipes || options.RecipeFile is null ||
             options.ReportFile is null)
             throw new ArgumentException("Recipe mode requires recipe and report paths.", nameof(options));
-        if (options.Write)
-            throw new InvalidOperationException("Recipe write mode is not implemented; no data was written.");
 
         var recipePath = Path.GetFullPath(options.RecipeFile);
         var decisionPath = Path.GetFullPath(options.Decisions);
@@ -79,7 +77,9 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
         var imageManifest = imageManifestJson is null
             ? null
             : RecipeImageManifestParser.Parse(imageManifestJson);
-        await ConfirmSelectionAsync(source, options, recipePath, decisionPath, imageManifestPath,
+        await RecipeMigrationInputConfirmation.ConfirmAsync(
+            source, options, recipePath, decisionPath, imageManifestPath,
+            confirmationInput, output,
             cancellationToken);
         var diagnostics = new List<string>(source.BlockingDiagnostics);
         var imageWarnings = new List<string>();
@@ -142,9 +142,37 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
         }
 
         var status = diagnostics.Count == 0 ? "preview-valid" : "validation-blocked";
+        var runId = Guid.CreateVersion7();
+        var committedInserts = 0;
+        var committedUpdates = 0;
+        var reportRecipes = plan.Recipes;
+        if (options.Write)
+        {
+            if (plan.ProposedUpdates > 0)
+                diagnostics.Add("Recipe updates require whole-Recipe approval; no Recipes were written.");
+            if (selectedSourceRecipes.Any(recipe => !string.IsNullOrWhiteSpace(recipe.ImageReference)))
+                diagnostics.Add("Recipe image imports require verified private-object staging; no Recipes were written.");
+
+            if (diagnostics.Count == 0)
+            {
+                var commit = await new RecipeImportWriter(db).CommitNewRecipesAsync(
+                    plan, selectedSourceRecipes, options, runId,
+                    Convert.ToHexString(SHA256.HashData(recipeBytes)),
+                    source.DecisionFingerprint,
+                    cancellationToken);
+                committedInserts = commit.Inserted;
+                reportRecipes = commit.Recipes;
+                status = "committed";
+            }
+            else
+            {
+                status = "validation-blocked";
+            }
+        }
+
         var report = new RecipeMigrationReport(
             3,
-            Guid.CreateVersion7(),
+            runId,
             status,
             started,
             DateTime.UtcNow,
@@ -162,8 +190,8 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
             plan.ProposedInserts,
             plan.ProposedUpdates,
             plan.Unchanged,
-            0,
-            0,
+            committedInserts,
+            committedUpdates,
             imageManifestBytes is null ? null : Convert.ToHexString(SHA256.HashData(imageManifestBytes)),
             imageResults.Count(image => image.Status == "validated"),
             RecipeMigrationReportBuilder.BuildSummary(selectedSourceRecipes, sourceValidation),
@@ -172,11 +200,11 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
                 source, selectedSourceRecipes.Select(recipe => recipe.LegacyId).ToHashSet(StringComparer.Ordinal)),
             source.Warnings.Concat(imageWarnings).Distinct(StringComparer.Ordinal).ToArray(),
             diagnostics.Distinct(StringComparer.Ordinal).ToArray(),
-            plan.Recipes);
+            reportRecipes);
         await RecipeMigrationReportWriter.WriteAsync(reportPath, report, cancellationToken);
-        output.WriteLine($"Recipe preview: owner={options.Owner}, status={status}, " +
+        output.WriteLine($"Recipe {(options.Write ? "write" : "preview")}: owner={options.Owner}, status={status}, " +
             $"proposed-inserts={report.ProposedInserts}, proposed-updates={report.ProposedUpdates}, " +
-            $"unchanged={report.Unchanged}, committed-inserts=0, committed-updates=0, " +
+            $"unchanged={report.Unchanged}, committed-inserts={report.CommittedInserts}, committed-updates={report.CommittedUpdates}, " +
             $"owner-fields-present={report.LegacyOwnerFieldsPresent}, owner-fields-missing={report.LegacyOwnerFieldsMissing}, " +
             $"blank-placeholders={report.BlankPlaceholdersOmitted}, unknown-fields={report.UnknownFieldOccurrences}, " +
             $"selected-source-recipes={report.SelectedSourceRecipes}, validated-images={report.ValidatedImages}, " +
@@ -186,32 +214,6 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
             $"warnings={report.Warnings.Count}, errors={report.Diagnostics.Count}.");
         output.WriteLine($"Report: {reportPath}");
         return new(report.Diagnostics.Count, status, reportPath);
-    }
-
-    private async Task ConfirmSelectionAsync(RecipeMigrationSource source, MigrationOptions options,
-        string recipePath, string decisionPath, string? imageManifestPath,
-        CancellationToken cancellationToken)
-    {
-        if (source.LegacyOwnerIds.Count > 1 && options.SelectedLegacyOwnerIds is null)
-            return;
-
-        var sourceOwners = source.LegacyOwnerIds.Order(StringComparer.Ordinal).ToArray();
-        var selectedOwners = options.SelectedLegacyOwnerIds?.Order(StringComparer.Ordinal).ToArray();
-        output.WriteLine($"Recipe source: {recipePath}");
-        output.WriteLine($"Decision file: {decisionPath}");
-        output.WriteLine($"Destination owner: {options.Owner}");
-        output.WriteLine(selectedOwners is null
-            ? $"Source-owner selection: all ({string.Join(", ", sourceOwners)}); missing owner fields: {source.OwnerFieldCounts.Missing}"
-            : $"Source-owner selection: {string.Join(", ", selectedOwners)}; missing owner fields: {source.OwnerFieldCounts.Missing}");
-        output.WriteLine(imageManifestPath is null
-            ? "Image inputs: none selected."
-            : $"Image manifest: {imageManifestPath}; image root: {options.ImageRoot}");
-        output.Write("Type the destination owner GUID to confirm these inputs: ");
-
-        var response = await confirmationInput.ReadLineAsync(cancellationToken);
-        if (!Guid.TryParse(response, out var confirmedOwner) || confirmedOwner != options.Owner)
-            throw new InvalidOperationException(
-                "Destination owner confirmation did not match; the Recipe preview was not run.");
     }
 
     private static RecipeTargetRecord ToTarget(Recipe recipe) => new(

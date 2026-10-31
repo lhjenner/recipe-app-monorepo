@@ -48,9 +48,11 @@ public sealed class RecipeImportSteps(MigrationFixture fixture)
     [When("I attempt a Recipe write with a missing Ingredient")]
     public async Task WriteRecipeWithMissingIngredientAsync()
     {
+        await fixture.SeedRecipeIngredientAsync();
         fixture.RecipeAttemptReportPath = fixture.NewRecipeReportPath();
         await fixture.RunRecipeAsync(
-            RecipeJson(Guid.NewGuid()), true, fixture.RecipeAttemptReportPath);
+            RecipesJson(fixture.IngredientId, Guid.NewGuid()),
+            true, fixture.RecipeAttemptReportPath);
     }
 
     [When("I confirm a Recipe preview with a different destination owner")]
@@ -84,6 +86,7 @@ public sealed class RecipeImportSteps(MigrationFixture fixture)
         report.Diagnostics.Should().Contain(diagnostic => diagnostic.Contains("does not exist"));
         await using var db = fixture.Database();
         (await db.Recipes.CountAsync()).Should().Be(0);
+        (await db.Ingredients.CountAsync()).Should().Be(1);
     }
 
     [Then("the Recipe mapping and child IDs remain stable with committed outcomes")]
@@ -92,10 +95,18 @@ public sealed class RecipeImportSteps(MigrationFixture fixture)
         var firstIdentity = fixture.FirstRecipeIdentity
             ?? throw new InvalidOperationException("The first Recipe import identity was not captured.");
         (await fixture.ReadRecipeIdentityAsync()).Should().BeEquivalentTo(firstIdentity);
+        firstIdentity.RecipeId.ToString("D")[14].Should().Be('7');
+        firstIdentity.LegacyId.Should().Be("synthetic-recipe");
+        firstIdentity.OwnerUserId.Should().Be(fixture.Owner);
+        firstIdentity.IngredientIds.Should().Equal(fixture.IngredientId);
+        firstIdentity.SourceDocumentJson.Should().Contain("Synthetic recipe");
+        firstIdentity.DocumentSha256.Should().NotBeNullOrWhiteSpace();
+        firstIdentity.SourceFileSha256.Should().NotBeNullOrWhiteSpace();
 
         var firstReport = await ReadRecipeReportAsync(fixture.FirstRecipeResult!.ReportPath);
         firstReport.Status.Should().Be("committed");
         firstReport.CommittedInserts.Should().Be(1);
+        firstIdentity.LastAppliedRunId.Should().Be(firstReport.RunId);
         firstReport.Recipes.Should().ContainSingle()
             .Which.ExistingRecipeId.Should().Be(firstIdentity.RecipeId);
 
@@ -184,6 +195,21 @@ public sealed class RecipeImportSteps(MigrationFixture fixture)
             "ingredients":[{"id":"{{{{ingredientId}}}}","name":"Synthetic flour","quantity":"1 cup"}]
           }]
         }]
+        """;
+
+    private static string RecipesJson(Guid availableIngredientId, Guid missingIngredientId) => $$$$"""
+        [
+          {"id":"valid-recipe","title":"Valid recipe","tags":[],"steps":[{
+            "instructions":"Mix.","ingredients":[{
+              "id":"{{{{availableIngredientId}}}}","name":"Synthetic flour"
+            }]
+          }]},
+          {"id":"invalid-recipe","title":"Invalid recipe","tags":[],"steps":[{
+            "instructions":"Mix.","ingredients":[{
+              "id":"{{{{missingIngredientId}}}}","name":"Missing Ingredient"
+            }]
+          }]}
+        ]
         """;
 
     private async Task<RecipeMigrationReport> ReadRecipeReportAsync(string? reportPath = null)
