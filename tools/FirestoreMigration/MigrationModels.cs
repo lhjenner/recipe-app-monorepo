@@ -45,15 +45,18 @@ public enum MigrationMode
 }
 
 public sealed record MigrationOptions(string Backup, Guid Owner, string Decisions, bool Write,
-    MigrationMode Mode = MigrationMode.Ingredients, string? RecipeFile = null)
+    MigrationMode Mode = MigrationMode.Ingredients, string? RecipeFile = null,
+    string? ReportFile = null, IReadOnlySet<string>? SelectedLegacyOwnerIds = null)
 {
     public const string Usage =
         "Ingredient mode: --backup <directory> --owner <GUID> --decisions <file> [--write]. Default mode: ingredients; default action: dry-run.\n" +
-        "Recipe mode: --mode recipes --recipes <file> --owner <GUID> --decisions <file> [--write].";
+        "Recipe mode: --mode recipes --recipes <file> --owner <GUID> --decisions <file> --report <file> " +
+        "[--source-owner <legacy ID> ...]. Recipe writes are not available.";
 
     public static MigrationOptions Parse(string[] args)
     {
         var values = new Dictionary<string, string>();
+        var sourceOwners = new HashSet<string>(StringComparer.Ordinal);
         var write = false;
         for (var i = 0; i < args.Length; i++)
         {
@@ -63,7 +66,14 @@ public sealed record MigrationOptions(string Backup, Guid Owner, string Decision
                 write = true;
                 continue;
             }
-            if (args[i] is not ("--mode" or "--backup" or "--recipes" or "--owner" or "--decisions") ||
+            if (args[i] == "--source-owner")
+            {
+                if (i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal) ||
+                    string.IsNullOrWhiteSpace(args[i + 1]) || !sourceOwners.Add(args[++i]))
+                    throw new FormatException("--source-owner requires a non-empty, unique legacy owner ID.");
+                continue;
+            }
+            if (args[i] is not ("--mode" or "--backup" or "--recipes" or "--owner" or "--decisions" or "--report") ||
                 i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal) ||
                 !values.TryAdd(args[i], args[++i]))
                 throw new FormatException(Usage);
@@ -76,13 +86,18 @@ public sealed record MigrationOptions(string Backup, Guid Owner, string Decision
         };
         var hasBackup = values.TryGetValue("--backup", out var backup) && !string.IsNullOrWhiteSpace(backup);
         var hasRecipeFile = values.TryGetValue("--recipes", out var recipeFile) && !string.IsNullOrWhiteSpace(recipeFile);
+        var hasReport = values.TryGetValue("--report", out var reportFile) && !string.IsNullOrWhiteSpace(reportFile);
         if (mode == MigrationMode.Ingredients && (!hasBackup || hasRecipeFile) ||
             mode == MigrationMode.Recipes && (!hasRecipeFile || hasBackup) ||
+            mode == MigrationMode.Recipes && (!hasReport || write) ||
+            mode == MigrationMode.Ingredients && (hasReport || sourceOwners.Count > 0) ||
             !values.TryGetValue("--decisions", out var decisions) || string.IsNullOrWhiteSpace(decisions) ||
             !values.TryGetValue("--owner", out var owner) || !Guid.TryParse(owner, out var id) || id == Guid.Empty)
             throw new FormatException(Usage);
         return new(mode == MigrationMode.Ingredients ? Path.GetFullPath(backup!) : string.Empty,
             id, Path.GetFullPath(decisions!), write, mode,
-            mode == MigrationMode.Recipes ? Path.GetFullPath(recipeFile!) : null);
+            mode == MigrationMode.Recipes ? Path.GetFullPath(recipeFile!) : null,
+            mode == MigrationMode.Recipes ? Path.GetFullPath(reportFile!) : null,
+            sourceOwners.Count == 0 ? null : sourceOwners);
     }
 }

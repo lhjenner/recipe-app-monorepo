@@ -8,7 +8,8 @@ public enum RecipeSourceItemKind
 }
 
 public sealed record RecipeSourceItem(int Position, RecipeSourceItemKind Kind, Guid? IngredientId,
-    string Text, string? QuantityText, string? UnitText, string? NotesText, string SourceJson);
+    Guid SourceId, string Text, string? QuantityText, string? UnitText, string? NotesText,
+    string SourceJson, string JsonPath);
 
 public sealed record RecipeSourceStep(int Position, string Instructions, IReadOnlyList<RecipeSourceItem> Items);
 

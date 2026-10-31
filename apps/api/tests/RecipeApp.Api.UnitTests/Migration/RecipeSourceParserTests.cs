@@ -125,4 +125,294 @@ public sealed class RecipeSourceParserTests
 
         act.Should().Throw<FormatException>();
     }
+
+    [Fact]
+    public void Validates_same_owner_ingredient_references_and_keeps_archived_or_excluded_ingredients_valid()
+    {
+        var source = RecipeSourceParser.Parse(
+            Fixture("recipe-source.json"),
+            Fixture("recipe-decisions.json"));
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+        var ingredients = new[]
+        {
+            new RecipeIngredientTarget(Guid.Parse("117c8374-5db4-4021-b106-5b466e2446ed"), owner, IsArchived: true),
+        };
+
+        var result = RecipeSourceValidator.Validate(source, owner, ingredients);
+
+        result.BlockingDiagnostics.Should().BeEmpty();
+        result.Recipes.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Blocks_missing_and_different_owner_ingredient_references_with_source_paths()
+    {
+        const string recipe = """
+            [{
+              "id":"legacy-recipe",
+              "title":"Synthetic recipe",
+              "tags":[],
+              "steps":[{
+                "instructions":"Mix",
+                "ingredients":[
+                  {"id":"117c8374-5db4-4021-b106-5b466e2446ed","name":"Flour"},
+                  {"id":"217c8374-5db4-4021-b106-5b466e2446ed","name":"Sugar"}
+                ]
+              }]
+            }]
+            """;
+        var source = RecipeSourceParser.Parse(recipe, "{}");
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+        var otherOwner = Guid.Parse("517c8374-5db4-4021-b106-5b466e2446ed");
+
+        var result = RecipeSourceValidator.Validate(source, owner,
+        [
+            new(Guid.Parse("117c8374-5db4-4021-b106-5b466e2446ed"), owner),
+            new(Guid.Parse("217c8374-5db4-4021-b106-5b466e2446ed"), otherOwner)
+        ]);
+
+        result.BlockingDiagnostics.Should().Contain(diagnostic =>
+            diagnostic.Contains("recipes[0].steps[0].ingredients[1]") &&
+            diagnostic.Contains("different owner"));
+        result.BlockingDiagnostics.Should().NotContain(diagnostic =>
+            diagnostic.Contains("recipes[0].steps[0].ingredients[0]"));
+
+        var missing = RecipeSourceValidator.Validate(source, owner, []);
+        missing.BlockingDiagnostics.Should().Contain(diagnostic =>
+            diagnostic.Contains("recipes[0].steps[0].ingredients[0]") &&
+            diagnostic.Contains("does not exist"));
+    }
+
+    [Theory]
+    [InlineData("217c8374-5db4-4021-b106-5b466e2446ed", "Heading")]
+    [InlineData("317c8374-5db4-4021-b106-5b466e2446ed", "Note")]
+    public void Blocks_structural_decisions_that_conflict_with_an_existing_ingredient(string id, string kind)
+    {
+        var source = RecipeSourceParser.Parse(
+            Fixture("recipe-source.json"),
+            Fixture("recipe-decisions.json"));
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+
+        var result = RecipeSourceValidator.Validate(source, owner,
+        [
+            new(Guid.Parse(id), owner)
+        ]);
+
+        result.BlockingDiagnostics.Should().Contain(diagnostic =>
+            diagnostic.Contains($"classified as {kind}") &&
+            diagnostic.Contains(id));
+    }
+
+    [Fact]
+    public void Blocks_structural_decisions_that_match_an_ingredient_owned_by_another_user()
+    {
+        var source = RecipeSourceParser.Parse(
+            Fixture("recipe-source.json"),
+            Fixture("recipe-decisions.json"));
+        var otherOwner = Guid.Parse("517c8374-5db4-4021-b106-5b466e2446ed");
+
+        var result = RecipeSourceValidator.Validate(source, Guid.NewGuid(),
+        [
+            new(Guid.Parse("217c8374-5db4-4021-b106-5b466e2446ed"), otherOwner)
+        ]);
+
+        result.BlockingDiagnostics.Should().Contain(diagnostic =>
+            diagnostic.Contains("classified as Heading") &&
+            diagnostic.Contains("217c8374-5db4-4021-b106-5b466e2446ed"));
+    }
+
+    [Fact]
+    public void Requires_an_explicit_allowed_source_set_for_multi_owner_exports()
+    {
+        const string recipes = """
+            [
+              {"id":"recipe-a","title":"A","userId":"legacy-owner-a","tags":[],"steps":[]},
+              {"id":"recipe-b","title":"B","userId":"legacy-owner-b","tags":[],"steps":[]}
+            ]
+            """;
+        var source = RecipeSourceParser.Parse(recipes, "{}");
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+
+        var ambiguous = RecipeSourceValidator.Validate(source, owner, []);
+        ambiguous.BlockingDiagnostics.Should().Contain(diagnostic => diagnostic.Contains("explicit source-owner selection"));
+        ambiguous.Recipes.Should().BeEmpty();
+
+        var selected = RecipeSourceValidator.Validate(source, owner, [],
+            new HashSet<string>(["legacy-owner-b"], StringComparer.Ordinal));
+        selected.BlockingDiagnostics.Should().BeEmpty();
+        selected.Recipes.Should().ContainSingle().Which.LegacyId.Should().Be("recipe-b");
+
+        var unknownSelection = RecipeSourceValidator.Validate(source, owner, [],
+            new HashSet<string>(["not-in-export"], StringComparer.Ordinal));
+        unknownSelection.BlockingDiagnostics.Should().Contain(diagnostic =>
+            diagnostic.Contains("not present in the export"));
+    }
+
+    [Fact]
+    public void Blocks_unowned_recipes_when_selecting_from_a_multi_owner_export()
+    {
+        const string recipes = """
+            [
+              {"id":"recipe-a","title":"A","userId":"legacy-owner-a","tags":[],"steps":[]},
+              {"id":"recipe-b","title":"B","userId":"legacy-owner-b","tags":[],"steps":[]},
+              {"id":"recipe-c","title":"C","tags":[],"steps":[]}
+            ]
+            """;
+        var source = RecipeSourceParser.Parse(recipes, "{}");
+
+        var result = RecipeSourceValidator.Validate(source, Guid.NewGuid(), [],
+            new HashSet<string>(["legacy-owner-a"], StringComparer.Ordinal));
+
+        result.BlockingDiagnostics.Should().Contain(diagnostic =>
+            diagnostic.Contains("missing legacy owner IDs") &&
+            diagnostic.Contains("multi-owner export"));
+        result.Recipes.Should().ContainSingle().Which.LegacyId.Should().Be("recipe-a");
+    }
+
+    [Fact]
+    public void Preview_matches_only_exact_owner_scoped_legacy_ids_and_does_not_assign_new_ids()
+    {
+        var source = RecipeSourceParser.Parse(
+            Fixture("recipe-source.json"),
+            Fixture("recipe-decisions.json"));
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+        var ingredientValidation = RecipeSourceValidator.Validate(source, owner,
+        [
+            new(Guid.Parse("117c8374-5db4-4021-b106-5b466e2446ed"), owner)
+        ]);
+        var first = source.Recipes[0];
+        var target = Target(first, Guid.Parse("617c8374-5db4-4021-b106-5b466e2446ed"), owner);
+
+        var plan = RecipePreviewPlanner.Create(ingredientValidation, owner, [target]);
+
+        plan.Recipes.Should().ContainSingle(recipe => recipe.LegacyId == first.LegacyId)
+            .Which.Outcome.Should().Be("unchanged");
+        plan.Recipes.Should().ContainSingle(recipe => recipe.LegacyId == "legacy-recipe-002")
+            .Which.Outcome.Should().Be("proposed-insert");
+        plan.ProposedInserts.Should().Be(1);
+        plan.ProposedUpdates.Should().Be(0);
+        plan.Unchanged.Should().Be(1);
+        plan.Recipes.Single(recipe => recipe.LegacyId == "legacy-recipe-002")
+            .ExistingRecipeId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Preview_includes_provenance_and_typed_field_differences_for_updates()
+    {
+        var source = RecipeSourceParser.Parse(
+            Fixture("recipe-source.json"),
+            Fixture("recipe-decisions.json"));
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+        var validation = RecipeSourceValidator.Validate(source, owner,
+        [
+            new(Guid.Parse("117c8374-5db4-4021-b106-5b466e2446ed"), owner)
+        ]);
+        var recipe = source.Recipes[0];
+        var target = Target(recipe, Guid.Parse("617c8374-5db4-4021-b106-5b466e2446ed"), owner) with
+        {
+            Name = "Renamed in target",
+            SourceDocumentJson = """{"id":"legacy-recipe-001","title":"Synthetic soup"}"""
+        };
+
+        var plan = RecipePreviewPlanner.Create(validation, owner, [target]);
+
+        var update = plan.Recipes.Single(recipePlan => recipePlan.LegacyId == recipe.LegacyId);
+        update.Outcome.Should().Be("proposed-update");
+        update.ExistingRecipeId.Should().Be(target.Id);
+        update.Differences.Should().Contain("Name").And.Contain("SourceProvenance");
+    }
+
+    [Fact]
+    public void Preview_does_not_match_case_distinct_legacy_ids()
+    {
+        var source = RecipeSourceParser.Parse(
+            Fixture("recipe-source.json"),
+            Fixture("recipe-decisions.json"));
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+        var validation = RecipeSourceValidator.Validate(source, owner,
+        [
+            new(Guid.Parse("117c8374-5db4-4021-b106-5b466e2446ed"), owner)
+        ]);
+        var target = Target(source.Recipes[0] with { LegacyId = "LEGACY-RECIPE-001" },
+            Guid.Parse("617c8374-5db4-4021-b106-5b466e2446ed"), owner);
+
+        var plan = RecipePreviewPlanner.Create(validation, owner, [target]);
+
+        plan.Recipes.Single(recipe => recipe.LegacyId == "legacy-recipe-001")
+            .Outcome.Should().Be("proposed-insert");
+        plan.Recipes.Single(recipe => recipe.LegacyId == "legacy-recipe-001")
+            .ExistingRecipeId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Provenance_object_property_order_is_not_a_change_but_array_order_is()
+    {
+        const string recipeJson = """
+            [{"id":"legacy-recipe","title":"Soup","tags":["A","B"],"steps":[],"extra":{"a":1,"b":2}}]
+            """;
+        var source = RecipeSourceParser.Parse(recipeJson, "{}");
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+        var validation = RecipeSourceValidator.Validate(source, owner, []);
+        var target = Target(source.Recipes.Single(), Guid.NewGuid(), owner) with
+        {
+            SourceDocumentJson = """
+                {"extra":{"b":2,"a":1},"steps":[],"tags":["A","B"],"title":"Soup","id":"legacy-recipe"}
+                """
+        };
+
+        var unchanged = RecipePreviewPlanner.Create(validation, owner, [target]);
+        unchanged.Recipes.Single().Outcome.Should().Be("unchanged");
+
+        var reordered = RecipePreviewPlanner.Create(validation, owner,
+        [
+            target with
+            {
+                Tags = ["B", "A"],
+                SourceDocumentJson = """{"id":"legacy-recipe","title":"Soup","tags":["B","A"],"steps":[],"extra":{"a":1,"b":2}}"""
+            }
+        ]);
+        reordered.Recipes.Single().Differences.Should().Contain("Tags").And.Contain("SourceProvenance");
+    }
+
+    [Fact]
+    public void Preview_refuses_to_match_a_target_recipe_from_another_owner()
+    {
+        const string recipeJson = """[{"id":"legacy-recipe","title":"Soup","tags":[],"steps":[]}]""";
+        var source = RecipeSourceParser.Parse(recipeJson, "{}");
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+        var otherOwner = Guid.Parse("517c8374-5db4-4021-b106-5b466e2446ed");
+        var validation = RecipeSourceValidator.Validate(source, owner, []);
+        var target = Target(source.Recipes.Single(), Guid.NewGuid(), otherOwner);
+
+        var plan = RecipePreviewPlanner.Create(validation, owner, [target]);
+
+        plan.Recipes.Single().Outcome.Should().Be("proposed-insert");
+        plan.BlockingDiagnostics.Should().Contain(diagnostic => diagnostic.Contains("different owner"));
+    }
+
+    private static RecipeTargetRecord Target(RecipeSourceRecord source, Guid id, Guid owner) => new(
+        id,
+        source.LegacyId,
+        owner,
+        source.Name,
+        source.SourceText,
+        source.SourceUrl,
+        source.ServingsText,
+        source.PrepTimeText,
+        source.CookTimeText,
+        source.DateAddedAtUtc,
+        source.IsArchived,
+        source.Tags,
+        source.Steps.Select(step => new RecipeTargetStep(
+            step.Position,
+            step.Instructions,
+            step.Items.Select(item => new RecipeTargetItem(
+                item.Position,
+                item.Kind.ToString(),
+                item.IngredientId,
+                item.Text,
+                item.QuantityText,
+                item.UnitText,
+                item.NotesText)).ToArray())).ToArray(),
+        source.SourceDocumentJson);
 }

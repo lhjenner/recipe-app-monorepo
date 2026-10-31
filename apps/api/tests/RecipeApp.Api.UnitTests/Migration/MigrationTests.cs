@@ -30,24 +30,39 @@ public sealed class MigrationTests
     public void Selects_recipe_mode_only_with_an_explicit_recipe_file()
     {
         var options = MigrationOptions.Parse([
-            "--mode", "recipes", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json"
+            "--mode", "recipes", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json",
+            "--report", "report.json"
         ]);
 
         options.Mode.Should().Be(MigrationMode.Recipes);
         options.RecipeFile.Should().Be(Path.GetFullPath("recipes.json"));
         options.Backup.Should().BeEmpty();
         options.Write.Should().BeFalse();
+        options.ReportFile.Should().Be(Path.GetFullPath("report.json"));
     }
 
     [Theory]
-    [InlineData("--mode", "recipes", "--backup", "backup", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json")]
-    [InlineData("--mode", "recipes", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json")]
+    [InlineData("--mode", "recipes", "--backup", "backup", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json", "--report", "report.json")]
+    [InlineData("--mode", "recipes", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json", "--report", "report.json")]
     [InlineData("--mode", "ingredients", "--recipes", "recipes.json", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json")]
     [InlineData("--mode", "unknown", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json")]
+    [InlineData("--mode", "recipes", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json")]
+    [InlineData("--mode", "recipes", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json", "--report", "report.json", "--write")]
     public void Rejects_ambiguous_or_unsupported_mode_arguments(params string[] args)
     {
         var act = () => MigrationOptions.Parse(args);
         act.Should().Throw<FormatException>();
+    }
+
+    [Fact]
+    public void Recipe_mode_accepts_explicit_source_owner_selections()
+    {
+        var options = MigrationOptions.Parse([
+            "--mode", "recipes", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json",
+            "--report", "report.json", "--source-owner", "legacy-owner-a", "--source-owner", "legacy-owner-b"
+        ]);
+
+        options.SelectedLegacyOwnerIds.Should().BeEquivalentTo("legacy-owner-a", "legacy-owner-b");
     }
 
     [Fact]

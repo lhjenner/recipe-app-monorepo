@@ -89,3 +89,11 @@ Feature: Standalone Firestore migration (PRD03, issue 42)
       | decisions   |
       | owner       |
       | schema      |
+
+  Scenario: PRD04 Recipe preview validates Ingredient ownership without writing
+    When I preview a synthetic Recipe that references the existing Ingredient
+    Then the Recipe preview reports a proposed insert without committing it
+
+  Scenario: PRD04 Recipe preview reports a missing Ingredient without writing
+    When I preview a synthetic Recipe that references a missing Ingredient
+    Then the Recipe preview is blocked and still writes its report

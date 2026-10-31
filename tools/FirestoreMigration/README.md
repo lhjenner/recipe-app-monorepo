@@ -6,8 +6,10 @@ and the upcoming Recipe migration under [PRD04](../../docs/prd/04-recipe-foundat
 [issue #56](https://github.com/lhjenner/recipe-app-monorepo/issues/56).
 It reuses the API's `AppDbContext` and configurations; the application does not reference
 or register the tool. Ingredient mode remains the default and preserves its existing invocation.
-Recipe source parsing is available for tests, but Recipe mode is not yet connected to a
-migration flow and intentionally exits without reading or writing target data.
+Recipe mode currently performs a read-only preview. It validates source-owner selection,
+destination owner and schema, Ingredient references, and exact LegacyId matches. It does
+not write database changes or upload images; image-referencing Recipes block until an
+explicit manifest is supported.
 
 ## Prepare the target
 
@@ -127,7 +129,9 @@ following arguments to the tool rather than to .NET:
 - `--owner`: existing destination user GUID.
 - `--decisions`: explicit retained decision file.
 - Ingredient mode is the default and continues to accept the existing arguments.
-- Recipe mode is selected explicitly with `--mode recipes --recipes <file>`; it cannot be combined with `--backup`.
+- Recipe mode is selected explicitly with `--mode recipes --recipes <file>` and requires
+  `--report <file>` outside the repository. Repeat `--source-owner <legacy ID>` for each
+  owner in a multi-owner export. It cannot be combined with `--backup` or `--write`.
 - No `--write`: **dry-run**, including diagnostics, counts and complete update diffs.
 - `--write`: fresh preview, individual update approvals, then one atomic commit.
 
@@ -137,11 +141,10 @@ Replace the synthetic paths and owner before executing:
 dotnet run --project tools\FirestoreMigration --configuration Release -- --backup "C:\MigrationBackups\latest" --owner "11111111-2222-4333-8444-555555555555" --decisions "C:\MigrationBackups\decisions.json"
 ```
 
-Recipe mode currently exits with an explicit not-implemented error rather than invoking
-the Ingredient importer. Its planned command shape is:
+Recipe preview command shape:
 
 ```powershell
-dotnet run --project tools\FirestoreMigration --configuration Release -- --mode recipes --recipes "C:\MigrationBackups\recipes.json" --owner "11111111-2222-4333-8444-555555555555" --decisions "C:\MigrationBackups\decisions.json"
+dotnet run --project tools\FirestoreMigration --configuration Release -- --mode recipes --recipes "C:\MigrationBackups\recipes.json" --owner "11111111-2222-4333-8444-555555555555" --decisions "C:\MigrationBackups\decisions.json" --report "C:\MigrationReports\recipe-preview-001.json"
 ```
 
 Review the printed server, database and destination owner. Fix blocking diagnostics

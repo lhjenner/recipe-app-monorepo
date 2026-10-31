@@ -169,11 +169,13 @@ public static class RecipeSourceParser
                     source.BlockingDiagnostics.Add($"{path}.name: structural text is unavailable.");
                 result.Add(new(itemPosition, kind,
                     kind == RecipeSourceItemKind.Ingredient ? id : null,
+                    id,
                     text,
                     Text(line, "quantity", path),
                     Text(line, "unit", path),
                     Text(line, "notes", path),
-                    line.GetRawText()));
+                    line.GetRawText(),
+                    path));
             }
             AddUnknownFields(line, path, source, "id", "name", "quantity", "unit", "notes");
             itemPosition++;

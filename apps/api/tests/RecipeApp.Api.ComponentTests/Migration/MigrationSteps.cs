@@ -33,6 +33,46 @@ public sealed class MigrationSteps(MigrationFixture fixture)
             .And.Contain("unmapped=1").And.NotContain("Password");
     }
 
+    [When("I preview a synthetic Recipe that references the existing Ingredient")]
+    public async Task PreviewRecipeWithIngredientAsync()
+    {
+        await fixture.SeedRecipeIngredientAsync();
+        fixture.Result = null;
+        await fixture.RunRecipePreviewAsync(RecipeJson(fixture.IngredientId));
+    }
+
+    [When("I preview a synthetic Recipe that references a missing Ingredient")]
+    public async Task PreviewRecipeWithMissingIngredientAsync()
+    {
+        var missingIngredient = Guid.NewGuid();
+        await fixture.RunRecipePreviewAsync(RecipeJson(missingIngredient));
+    }
+
+    [Then("the Recipe preview reports a proposed insert without committing it")]
+    public async Task RecipePreviewIsReadOnlyAsync()
+    {
+        var report = await ReadRecipeReportAsync();
+        report.Status.Should().Be("preview-valid");
+        report.ProposedInserts.Should().Be(1);
+        report.CommittedInserts.Should().Be(0);
+        report.Recipes.Should().ContainSingle()
+            .Which.ExistingRecipeId.Should().BeNull();
+        await using var db = fixture.Database();
+        (await db.Recipes.CountAsync()).Should().Be(0);
+        (await db.Ingredients.CountAsync()).Should().Be(1);
+    }
+
+    [Then("the Recipe preview is blocked and still writes its report")]
+    public async Task RecipePreviewBlockedAsync()
+    {
+        var report = await ReadRecipeReportAsync();
+        report.Status.Should().Be("validation-blocked");
+        report.Diagnostics.Should().Contain(diagnostic => diagnostic.Contains("does not exist"));
+        report.CommittedInserts.Should().Be(0);
+        await using var db = fixture.Database();
+        (await db.Recipes.CountAsync()).Should().Be(0);
+    }
+
     [When("I write the synthetic migration and repeat it")]
     public async Task RepeatAsync()
     {
@@ -150,6 +190,25 @@ public sealed class MigrationSteps(MigrationFixture fixture)
         fixture.Failure.Should().NotBeNull();
     }
 
+    private static string RecipeJson(Guid ingredientId) => $$$$"""
+        [{
+          "id":"synthetic-recipe",
+          "title":"Synthetic recipe",
+          "tags":["Dinner"],
+          "steps":[{
+            "instructions":"Mix.",
+            "ingredients":[{"id":"{{{{ingredientId}}}}","name":"Synthetic flour","quantity":"1 cup"}]
+          }]
+        }]
+        """;
+
+    private async Task<RecipeMigrationReport> ReadRecipeReportAsync()
+    {
+        await using var stream = File.OpenRead(fixture.RecipeReportFile);
+        return await System.Text.Json.JsonSerializer.DeserializeAsync<RecipeMigrationReport>(stream)
+            ?? throw new InvalidOperationException("Recipe preview report could not be read.");
+    }
+
     private sealed class FailSecondSave : SaveChangesInterceptor
     {
         private int _calls;
@@ -159,5 +218,6 @@ public sealed class MigrationSteps(MigrationFixture fixture)
             if (++_calls == 2) throw new InvalidOperationException("Synthetic mid-write failure.");
             return ValueTask.FromResult(result);
         }
+
     }
 }

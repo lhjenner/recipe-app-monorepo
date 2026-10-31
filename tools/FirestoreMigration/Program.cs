@@ -24,11 +24,6 @@ internal static class Program
         try
         {
             var options = MigrationOptions.Parse(args);
-            if (options.Mode == MigrationMode.Recipes)
-            {
-                Console.Error.WriteLine("ERROR: Recipe mode is selected, but recipe parsing and migration are not implemented yet.");
-                return 1;
-            }
             var configuration = new ConfigurationBuilder()
                 .AddUserSecrets<MigrationOptions>(optional: true)
                 .AddEnvironmentVariables()
@@ -38,6 +33,12 @@ internal static class Program
                 throw new InvalidOperationException("Configure ConnectionStrings:DefaultConnection with tool User Secrets or environment variables.");
             await using var database = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
                 .UseNpgsql(connectionString).Options);
+            if (options.Mode == MigrationMode.Recipes)
+            {
+                var recipeResult = await new RecipeMigrationRunner(database, Console.Out)
+                    .RunAsync(options, cancellation.Token);
+                return recipeResult.Errors == 0 ? 0 : 1;
+            }
             var result = await new MigrationRunner(database, Console.In, Console.Out).RunAsync(options, cancellation.Token);
             return result.Errors == 0 ? 0 : 1;
         }
