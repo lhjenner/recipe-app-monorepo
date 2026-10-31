@@ -122,6 +122,39 @@ public sealed class RecipeSourceParserTests
     }
 
     [Fact]
+    public void Reports_planned_structural_conversion_and_missing_ingredient_occurrences()
+    {
+        const string recipe = """
+            [{
+              "id":"legacy-recipe",
+              "title":"Synthetic recipe",
+              "tags":[],
+              "steps":[{
+                "instructions":"Mix",
+                "ingredients":[
+                  {"id":"117c8374-5db4-4021-b106-5b466e2446ed","name":"Flour"},
+                  {"id":"117c8374-5db4-4021-b106-5b466e2446ed","name":"Flour"},
+                  {"id":"217c8374-5db4-4021-b106-5b466e2446ed","name":"Optional:"},
+                  {"id":"317c8374-5db4-4021-b106-5b466e2446ed","name":"To serve"}
+                ]
+              }]
+            }]
+            """;
+        var source = RecipeSourceParser.Parse(recipe, Fixture("recipe-decisions.json"));
+        var owner = Guid.Parse("417c8374-5db4-4021-b106-5b466e2446ed");
+        var validation = RecipeSourceValidator.Validate(source, owner, []);
+
+        validation.MissingIngredientReferences.Should().Be(2);
+        validation.CrossOwnerIngredientReferences.Should().Be(0);
+        var summary = RecipeMigrationReportBuilder.BuildSummary(
+            validation.Recipes, validation);
+
+        summary.PlannedHeadingsConverted.Should().Be(1);
+        summary.PlannedNotesConverted.Should().Be(1);
+        summary.MissingIngredientReferences.Should().Be(2);
+    }
+
+    [Fact]
     public void Missing_dates_are_preserved_as_null_and_structural_text_is_a_blocker()
     {
         const string recipe = """

@@ -175,6 +175,8 @@ selected, the ordered source Steps/items, and each item's outcome (`ingredient`,
 `heading`, `note`, or `blank-placeholder-omitted`). Field-level paths identify their
 typed destination or retention, selection, and validation disposition. This makes
 source counts and omissions reviewable without copying source values into console output.
+The run summary separately counts planned Heading/Note occurrences and missing or
+cross-owner Ingredient references; repeated uses count as separate occurrences.
 
 Review the printed server, database and destination owner. Fix blocking diagnostics
 and classify every unresolved invalid item. Source names are preserved unchanged;

@@ -5,7 +5,9 @@ public sealed record RecipeIngredientTarget(Guid IngredientId, Guid OwnerUserId,
 
 public sealed record RecipeSourceValidationResult(
     IReadOnlyList<RecipeSourceRecord> Recipes,
-    IReadOnlyList<string> BlockingDiagnostics)
+    IReadOnlyList<string> BlockingDiagnostics,
+    int MissingIngredientReferences = 0,
+    int CrossOwnerIngredientReferences = 0)
 {
     public bool CanContinue => BlockingDiagnostics.Count == 0;
 }
@@ -56,6 +58,8 @@ public static class RecipeSourceValidator
         var ingredientRows = targetIngredients
             .GroupBy(ingredient => ingredient.IngredientId)
             .ToDictionary(group => group.Key, group => group.ToArray());
+        var missingIngredientReferences = 0;
+        var crossOwnerIngredientReferences = 0;
         foreach (var duplicate in ingredientRows.Where(entry => entry.Value.Length > 1))
             diagnostics.Add($"Target Ingredient snapshot contains duplicate ID {duplicate.Key}.");
 
@@ -79,13 +83,18 @@ public static class RecipeSourceValidator
             var id = item.IngredientId.Value;
             if (!ingredientRows.TryGetValue(id, out var matches))
             {
+                missingIngredientReferences++;
                 diagnostics.Add($"{item.JsonPath}: Ingredient {id} does not exist in the target database.");
                 continue;
             }
             if (matches.All(ingredient => ingredient.OwnerUserId != destinationOwnerId))
+            {
+                crossOwnerIngredientReferences++;
                 diagnostics.Add($"{item.JsonPath}: Ingredient {id} belongs to a different owner.");
+            }
         }
 
-        return new(selectedRecipes, diagnostics);
+        return new(selectedRecipes, diagnostics, missingIngredientReferences,
+            crossOwnerIngredientReferences);
     }
 }

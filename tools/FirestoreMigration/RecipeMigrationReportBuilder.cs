@@ -4,6 +4,9 @@ public sealed record RecipeMigrationSourceDisposition(string LegacyId, string? L
     bool Selected, IReadOnlyList<RecipeMigrationFieldDisposition> Fields,
     IReadOnlyList<RecipeMigrationStepDisposition> Steps);
 
+public sealed record RecipeMigrationRunSummary(int PlannedHeadingsConverted,
+    int PlannedNotesConverted, int MissingIngredientReferences, int CrossOwnerIngredientReferences);
+
 public sealed record RecipeMigrationFieldDisposition(string JsonPath, string Disposition);
 
 public sealed record RecipeMigrationStepDisposition(int Position, string InstructionDisposition,
@@ -14,6 +17,20 @@ public sealed record RecipeMigrationItemDisposition(int Position, string JsonPat
 
 public static class RecipeMigrationReportBuilder
 {
+    public static RecipeMigrationRunSummary BuildSummary(
+        IReadOnlyList<RecipeSourceRecord> selectedRecipes, RecipeSourceValidationResult validation)
+    {
+        ArgumentNullException.ThrowIfNull(selectedRecipes);
+        ArgumentNullException.ThrowIfNull(validation);
+        var items = selectedRecipes.SelectMany(recipe => recipe.Steps)
+            .SelectMany(step => step.Items);
+        return new(
+            items.Count(item => item.Kind == RecipeSourceItemKind.Heading),
+            items.Count(item => item.Kind == RecipeSourceItemKind.Note),
+            validation.MissingIngredientReferences,
+            validation.CrossOwnerIngredientReferences);
+    }
+
     public static IReadOnlyList<RecipeMigrationSourceDisposition> BuildSourceDispositions(
         RecipeMigrationSource source, IReadOnlySet<string> selectedLegacyIds)
     {

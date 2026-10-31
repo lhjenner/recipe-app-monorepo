@@ -68,7 +68,7 @@ public sealed class MigrationSteps(MigrationFixture fixture)
     {
         var report = await ReadRecipeReportAsync();
         report.Status.Should().Be("preview-valid");
-        report.SchemaVersion.Should().Be(2);
+        report.SchemaVersion.Should().Be(3);
         report.ProposedInserts.Should().Be(1);
         report.CommittedInserts.Should().Be(0);
         report.Recipes.Should().ContainSingle()
@@ -91,6 +91,9 @@ public sealed class MigrationSteps(MigrationFixture fixture)
         var report = await ReadRecipeReportAsync();
         report.Status.Should().Be("validation-blocked");
         report.Diagnostics.Should().Contain(diagnostic => diagnostic.Contains("does not exist"));
+        report.Summary.MissingIngredientReferences.Should().Be(1);
+        report.Summary.PlannedHeadingsConverted.Should().Be(0);
+        report.Summary.PlannedNotesConverted.Should().Be(0);
         report.CommittedInserts.Should().Be(0);
         await using var db = fixture.Database();
         (await db.Recipes.CountAsync()).Should().Be(0);

@@ -1,7 +1,6 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using RecipeApp.Api.Infrastructure.Persistence;
 
@@ -33,6 +32,7 @@ public sealed record RecipeMigrationReport(
     int CommittedUpdates,
     string? ImageManifestSha256,
     int ValidatedImages,
+    RecipeMigrationRunSummary Summary,
     IReadOnlyList<RecipeImageValidationResult> Images,
     IReadOnlyList<RecipeMigrationSourceDisposition> SourceDispositions,
     IReadOnlyList<string> Warnings,
@@ -56,8 +56,8 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
         var imageManifestPath = options.ImageManifestFile is null ? null : Path.GetFullPath(options.ImageManifestFile);
         var inputPaths = new List<string> { recipePath, decisionPath, reportPath };
         if (imageManifestPath is not null) inputPaths.Add(imageManifestPath);
-        EnsureDistinctInputs(inputPaths);
-        EnsureReportOutsideRepository(reportPath);
+        RecipeMigrationReportWriter.EnsureDistinctInputs(inputPaths);
+        RecipeMigrationReportWriter.EnsureOutsideRepository(reportPath);
         if (File.Exists(reportPath))
             throw new IOException("Report destination already exists; choose a new path to preserve prior reports.");
         if (!Directory.Exists(Path.GetDirectoryName(reportPath)))
@@ -91,6 +91,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
 
         RecipePreviewPlan plan;
         IReadOnlyList<RecipeSourceRecord> selectedSourceRecipes = [];
+        var sourceValidation = new RecipeSourceValidationResult([], []);
         await using (var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.RepeatableRead, cancellationToken))
         {
@@ -113,6 +114,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
                     .ToListAsync(cancellationToken);
             var validation = RecipeSourceValidator.Validate(source, options.Owner, ingredients,
                 options.SelectedLegacyOwnerIds);
+            sourceValidation = validation;
             selectedSourceRecipes = validation.Recipes;
             diagnostics.AddRange(validation.BlockingDiagnostics);
             var imageValidation = RecipeImageManifestValidator.Validate(
@@ -144,7 +146,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             ? $"Source owners: {string.Join(", ", source.LegacyOwnerIds.Order(StringComparer.Ordinal))} (all; explicit selection not required)"
             : $"Source-owner selection: {string.Join(", ", options.SelectedLegacyOwnerIds.Order(StringComparer.Ordinal))}");
         var report = new RecipeMigrationReport(
-            2,
+            3,
             Guid.CreateVersion7(),
             status,
             started,
@@ -167,19 +169,23 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             0,
             imageManifestBytes is null ? null : Convert.ToHexString(SHA256.HashData(imageManifestBytes)),
             imageResults.Count(image => image.Status == "validated"),
+            RecipeMigrationReportBuilder.BuildSummary(selectedSourceRecipes, sourceValidation),
             imageResults,
             RecipeMigrationReportBuilder.BuildSourceDispositions(
                 source, selectedSourceRecipes.Select(recipe => recipe.LegacyId).ToHashSet(StringComparer.Ordinal)),
             source.Warnings.Concat(imageWarnings).Distinct(StringComparer.Ordinal).ToArray(),
             diagnostics.Distinct(StringComparer.Ordinal).ToArray(),
             plan.Recipes);
-        await WriteReportAsync(reportPath, report, cancellationToken);
+        await RecipeMigrationReportWriter.WriteAsync(reportPath, report, cancellationToken);
         output.WriteLine($"Recipe preview: owner={options.Owner}, status={status}, " +
             $"proposed-inserts={report.ProposedInserts}, proposed-updates={report.ProposedUpdates}, " +
             $"unchanged={report.Unchanged}, committed-inserts=0, committed-updates=0, " +
             $"owner-fields-present={report.LegacyOwnerFieldsPresent}, owner-fields-missing={report.LegacyOwnerFieldsMissing}, " +
             $"blank-placeholders={report.BlankPlaceholdersOmitted}, unknown-fields={report.UnknownFieldOccurrences}, " +
             $"selected-source-recipes={report.SelectedSourceRecipes}, validated-images={report.ValidatedImages}, " +
+            $"planned-headings={report.Summary.PlannedHeadingsConverted}, " +
+            $"planned-notes={report.Summary.PlannedNotesConverted}, " +
+            $"missing-ingredient-references={report.Summary.MissingIngredientReferences}, " +
             $"warnings={report.Warnings.Count}, errors={report.Diagnostics.Count}.");
         output.WriteLine($"Report: {reportPath}");
         return new(report.Diagnostics.Count, status, reportPath);
@@ -211,33 +217,4 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
                 item.NotesText)).ToArray())).ToArray(),
         recipe.ImportProvenance?.SourceDocumentJson);
 
-    private static void EnsureDistinctInputs(IReadOnlyCollection<string> paths)
-    {
-        if (paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != paths.Count)
-            throw new FormatException("Recipe, decision, image manifest and report paths must be separate files.");
-    }
-
-    private static void EnsureReportOutsideRepository(string reportPath)
-    {
-        var root = new DirectoryInfo(Environment.CurrentDirectory);
-        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, ".git")) &&
-            !File.Exists(Path.Combine(root.FullName, ".git")))
-            root = root.Parent;
-        if (root is null) return;
-        var repositoryPath = Path.GetFullPath(root.FullName) + Path.DirectorySeparatorChar;
-        if (reportPath.StartsWith(repositoryPath, StringComparison.OrdinalIgnoreCase))
-            throw new FormatException("Recipe report must be written outside the repository.");
-    }
-
-    private static async Task WriteReportAsync(string reportPath, RecipeMigrationReport report,
-        CancellationToken cancellationToken)
-    {
-        var json = JsonSerializer.SerializeToUtf8Bytes(report, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
-        await using var stream = new FileStream(reportPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await stream.WriteAsync(json, cancellationToken);
-        await stream.FlushAsync(cancellationToken);
-    }
 }
