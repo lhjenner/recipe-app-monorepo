@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using RecipeApp.Api.Auth;
+using RecipeApp.Api.Images;
 using RecipeApp.Api.ComponentTests.Auth;
 using RecipeApp.Api.Infrastructure.Persistence;
 using RecipeApp.TestFixtures;
@@ -39,6 +40,10 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     public Ingredient? Before { get; set; }
     public string? DecisionContents { get; set; }
     public string ConnectionString { get; private set; } = "";
+    public IPrivateObjectMigrationStorage? ImageStorage { get; set; }
+    public string? ImageJournalPath { get; set; }
+    public byte[]? ImageBytes { get; set; }
+    public IInterceptor? RecipeInterceptor { get; set; }
 
     public async Task InitializeAsync()
     {
@@ -76,7 +81,7 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     {
         await using var db = Database(interceptor);
         TextReader input = onApproval is null ? new StringReader(answer is null ? "" : answer + "\n")
-            : new ApprovalReader(onApproval, answer);
+            : new MigrationApprovalReader(onApproval, answer);
         using (input)
             return await new MigrationRunner(db, input, Output)
                 .RunAsync(new(_directory, Owner, DecisionFile, write), token);
@@ -110,10 +115,15 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
             "--decisions", DecisionFile, "--report", reportPath
         };
         if (write) args.Add("--write");
+        if (ImageJournalPath is not null)
+        {
+            args.Add("--image-journal");
+            args.Add(ImageJournalPath);
+        }
         if (includeImageManifest)
         {
             Directory.CreateDirectory(ImageRoot);
-            var imageBytes = corruptImage ? "not an image"u8.ToArray() : SyntheticImage.Png;
+            var imageBytes = corruptImage ? "not an image"u8.ToArray() : ImageBytes ?? SyntheticImage.Png;
             File.WriteAllBytes(Path.Combine(ImageRoot, "synthetic.png"), imageBytes);
             var manifest = new[]
             {
@@ -138,14 +148,14 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
             args.Add(selectedLegacyOwnerId);
         }
         var options = MigrationOptions.Parse(args.ToArray());
-        await using var db = Database();
+        await using var db = Database(RecipeInterceptor);
         var ownerResponse = ownerConfirmation ?? Owner.ToString();
         using TextReader confirmation = onUpdateApproval is null
             ? new StringReader(updateApproval is null
                 ? ownerResponse
                 : $"{ownerResponse}{Environment.NewLine}{updateApproval}")
             : new RecipeApprovalReader(ownerResponse, onUpdateApproval, updateApproval);
-        return await new RecipeMigrationRunner(db, Output, confirmation).RunAsync(options);
+        return await new RecipeMigrationRunner(db, Output, confirmation, ImageStorage).RunAsync(options);
     }
 
     public async Task SeedRecipeIngredientAsync()
@@ -226,19 +236,14 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
                      "recipe-preview.json", "recipe-preview-report.json" })
             File.Delete(Path.Combine(_directory, name));
         foreach (var reportFile in _recipeReportFiles)
+        {
             File.Delete(reportFile);
+            File.Delete(reportFile + ".lock");
+        }
         File.Delete(ImageManifestFile);
         if (Directory.Exists(ImageRoot)) Directory.Delete(ImageRoot, recursive: true);
         Directory.Delete(_directory);
         Output.Dispose();
     }
 
-    private sealed class ApprovalReader(Func<Task> callback, string? answer) : TextReader
-    {
-        public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
-        {
-            await callback();
-            return answer;
-        }
-    }
 }

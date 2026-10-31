@@ -28,5 +28,7 @@ internal static class RecipeTargetMapper
                 item.QuantityText,
                 item.UnitText,
                 item.NotesText)).ToArray())).ToArray(),
-        recipe.ImportProvenance?.SourceDocumentJson);
+        recipe.ImportProvenance?.SourceDocumentJson,
+        recipe.Image is null ? null : new(recipe.Image.ObjectKey, recipe.Image.ContentType,
+            recipe.Image.ByteSize, recipe.Image.Sha256, recipe.Image.Width, recipe.Image.Height));
 }

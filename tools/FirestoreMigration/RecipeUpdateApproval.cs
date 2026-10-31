@@ -75,6 +75,9 @@ public static class RecipeUpdateApproval
             case "SourceProvenance":
                 output.WriteLine("  SourceProvenance: source JSON changed (retained in provenance; values not printed).");
                 break;
+            case "Image":
+                output.WriteLine("  Image: association added, replaced or removed; checksum/bytes differ from the target.");
+                break;
             default:
                 output.WriteLine($"  {difference}: changed.");
                 break;

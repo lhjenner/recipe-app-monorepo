@@ -47,13 +47,14 @@ public enum MigrationMode
 public sealed record MigrationOptions(string Backup, Guid Owner, string Decisions, bool Write,
     MigrationMode Mode = MigrationMode.Ingredients, string? RecipeFile = null,
     string? ReportFile = null, IReadOnlySet<string>? SelectedLegacyOwnerIds = null,
-    string? ImageManifestFile = null, string? ImageRoot = null)
+    string? ImageManifestFile = null, string? ImageRoot = null, string? ImageJournalFile = null)
 {
     public const string Usage =
         "Ingredient mode: --backup <directory> --owner <GUID> --decisions <file> [--write]. Default mode: ingredients; default action: dry-run.\n" +
         "Recipe mode: --mode recipes --recipes <file> --owner <GUID> --decisions <file> --report <file> " +
         "[--source-owner <legacy ID> ...] [--image-manifest <file> --image-root <directory>]. " +
-        "Recipe mode defaults to preview; --write commits only new or unchanged recipes without image references.";
+        "[--write] [--image-journal <file>]. Image writes require a durable journal outside the repository.\n" +
+        "Recovery: --recover-image-journal <file> [--cleanup-staged-images].";
 
     public static MigrationOptions Parse(string[] args)
     {
@@ -76,7 +77,7 @@ public sealed record MigrationOptions(string Backup, Guid Owner, string Decision
                 continue;
             }
             if (args[i] is not ("--mode" or "--backup" or "--recipes" or "--owner" or "--decisions" or
-                "--report" or "--image-manifest" or "--image-root") ||
+                "--report" or "--image-manifest" or "--image-root" or "--image-journal") ||
                 i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal) ||
                 !values.TryAdd(args[i], args[++i]))
                 throw new FormatException(Usage);
@@ -92,11 +93,13 @@ public sealed record MigrationOptions(string Backup, Guid Owner, string Decision
         var hasReport = values.TryGetValue("--report", out var reportFile) && !string.IsNullOrWhiteSpace(reportFile);
         var hasImageManifest = values.TryGetValue("--image-manifest", out var imageManifest) && !string.IsNullOrWhiteSpace(imageManifest);
         var hasImageRoot = values.TryGetValue("--image-root", out var imageRoot) && !string.IsNullOrWhiteSpace(imageRoot);
+        var hasJournal = values.TryGetValue("--image-journal", out var journal) && !string.IsNullOrWhiteSpace(journal);
         if (mode == MigrationMode.Ingredients && (!hasBackup || hasRecipeFile) ||
             mode == MigrationMode.Recipes && (!hasRecipeFile || hasBackup) ||
             mode == MigrationMode.Recipes && !hasReport ||
             mode == MigrationMode.Recipes && hasImageManifest != hasImageRoot ||
-            mode == MigrationMode.Ingredients && (hasReport || sourceOwners.Count > 0 || hasImageManifest || hasImageRoot) ||
+            mode == MigrationMode.Ingredients && (hasReport || sourceOwners.Count > 0 || hasImageManifest || hasImageRoot || hasJournal) ||
+            values.ContainsKey("--image-journal") && !hasJournal ||
             !values.TryGetValue("--decisions", out var decisions) || string.IsNullOrWhiteSpace(decisions) ||
             !values.TryGetValue("--owner", out var owner) || !Guid.TryParse(owner, out var id) || id == Guid.Empty)
             throw new FormatException(Usage);
@@ -106,6 +109,7 @@ public sealed record MigrationOptions(string Backup, Guid Owner, string Decision
             mode == MigrationMode.Recipes ? Path.GetFullPath(reportFile!) : null,
             sourceOwners.Count == 0 ? null : sourceOwners,
             hasImageManifest ? Path.GetFullPath(imageManifest!) : null,
-            hasImageRoot ? Path.GetFullPath(imageRoot!) : null);
+            hasImageRoot ? Path.GetFullPath(imageRoot!) : null,
+            hasJournal ? Path.GetFullPath(journal!) : null);
     }
 }

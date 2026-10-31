@@ -2,17 +2,18 @@
 
 Temporary standalone .NET 10 tool for Ingredient migration under
 [PRD03](../../docs/prd/03-ingredient-maintenance.md), [issue #42](https://github.com/lhjenner/recipe-app-monorepo/issues/42),
-and the upcoming Recipe migration under [PRD04](../../docs/prd/04-recipe-foundation-and-browsing.md),
-[issue #56](https://github.com/lhjenner/recipe-app-monorepo/issues/56).
+and Recipe migration under [PRD04](../../docs/prd/04-recipe-foundation-and-browsing.md),
+[issue #56](https://github.com/lhjenner/recipe-app-monorepo/issues/56) and
+[issue #57](https://github.com/lhjenner/recipe-app-monorepo/issues/57).
 It reuses the API's `AppDbContext` and configurations; the application does not reference
 or register the tool. Ingredient mode remains the default and preserves its existing invocation.
 Recipe mode defaults to a read-only preview. Its write path commits new Recipes, skips
 unchanged Recipes, and requires whole-Recipe approval before applying changed Recipes.
-Image-bearing imports remain blocked until private-object staging is available. It validates
-source-owner selection, destination owner and schema, Ingredient references, and exact LegacyId
-matches.
+Accepted images are staged under immutable, run-specific private object keys and verified
+before their associations are committed with Recipes. It validates source-owner selection,
+destination owner and schema, Ingredient references, and exact LegacyId matches.
 Referenced images are validated only when an explicit manifest and backup directory are
-supplied; no images are uploaded by this version.
+supplied; previews never upload images.
 
 ## Prepare the target
 
@@ -141,11 +142,12 @@ following arguments to the tool rather than to .NET:
 - No `--write`: **dry-run**, including diagnostics, counts and complete update diffs.
 - Recipe `--write` commits new Recipes and skips unchanged ones atomically. Each changed
   Recipe prints a whole-record change summary and requires **`yes`** before its replacement
-  is applied; any other answer (including EOF) declines that Recipe. Image-bearing imports
-  still block the write rather than being partially applied. Before commit, the tool
-  rechecks the recipe, decision and image-manifest files, plus target Recipe rows, children,
-  images, provenance and referenced Ingredients under write locks. Stale state aborts the
-  run so it can be previewed again.
+  is applied; any other answer (including EOF) declines that Recipe. Image writes require
+  `--image-journal <file>` outside the repository and configured private storage. After
+  approval, accepted revisions are staged and read back to verify size and SHA-256.
+  Before commit, the tool rechecks and holds recipe, decision, image-manifest and selected
+  image files, plus target Recipe rows, children, images, provenance and referenced
+  Ingredients under write locks. Stale state aborts the run so it can be previewed again.
 
 Replace the synthetic paths and owner before executing:
 
@@ -180,6 +182,59 @@ content, and fully decodes PNG, JPEG or WebP. It rejects GIF, SVG and other form
 files larger than 20 MiB, either dimension above 10,000 pixels, or images above 40
 megapixels. Extensions and manifest MIME types are not trusted. Preview never uploads
 images or writes image associations.
+
+### Private image staging, retry and recovery
+
+Configure the tool with `ObjectStorage:BucketName` (environment form
+`ObjectStorage__BucketName`) and the server-side `AWS_ENDPOINT_URL_S3`, `AWS_REGION`,
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` settings. Use tool User Secrets or
+injected environment variables, never committed values. The bucket must be private.
+The tool reuses the API's S3 adapter; it never creates buckets or changes their access.
+Before real-data use, verify the provider's conditional `PutObject` (`If-None-Match: *`)
+support as well as its private-access, free-plan and recovery guarantees. Unsupported
+conditional writes must fail; there is no unconditional-overwrite fallback.
+
+For image writes, append `--write --image-manifest <file> --image-root <directory>
+--image-journal <file>` to the Recipe command. All paths are explicit inputs, the
+journal and report must be distinct and outside Git, and their parent directories must
+already exist. Keep them in restricted durable storage; source identifiers are sensitive.
+
+The journal records owner, database/storage target fingerprints, input fingerprint,
+run ID, opaque keys, checksums, dimensions and staging/commit state. It uses an exclusive
+sidecar lock and flushed, atomic file replacement. Each key is journaled **before**
+upload, so an interrupted upload can be found. Keep the journal and its `.lock` sidecar;
+do not edit them or delete a lock file while a run is active.
+
+To retry, rerun the same inputs with the same journal and a **new report path**. The tool
+makes a fresh preview and prompts again. It verifies and reuses journaled objects rather
+than duplicating uploads. A changed input, selected Recipe set, owner, database or storage
+target requires a new journal. Explicitly deleted entries cannot be silently reuploaded.
+An unchanged checksum/manifest retains its current association and avoids another upload;
+checksum changes at the same source URL still require whole-Recipe approval. Approved
+removal clears only the database association; old bytes are retained. Archived Recipes
+receive image associations too.
+
+Reconciliation reads actual database associations and provenance before deciding whether
+staging was committed. `--recover-image-journal` selects the journal to reconcile;
+`--project` selects the tool, and `--` separates tool arguments from `dotnet run`:
+
+```powershell
+dotnet run --project tools\FirestoreMigration -- --recover-image-journal "C:\MigrationReports\images-run-001.json"
+```
+
+This verifies journaled objects and reports referenced, unreferenced, missing and deleted
+counts. It does not delete anything. To explicitly clean confirmed-unreferenced staged
+objects, add `--cleanup-staged-images`. Cleanup holds the image-association write lock,
+requires the original database and storage target, checks journal key scope and bytes,
+and deletes **only** journaled, unreferenced keys. Referenced objects are never deleted.
+Superseded objects from earlier journals remain until backup and migration verification
+are complete; neither migration nor recovery performs bucket-wide cleanup.
+
+Failures/cancellation leave staged objects and the journal for reconciliation, not an
+automatic delete. A missing or corrupt target object blocks verification. A lost commit
+response is **uncertain**, not proof of rollback: reconcile the journal before retry or
+cleanup. A report failure after commit explicitly prints the committed run ID; recover
+against database provenance and the image journal rather than treating it as a rollback.
 
 The JSON report includes one source disposition per Recipe, including whether it was
 selected, the ordered source Steps/items, and each item's outcome (`ingredient`,

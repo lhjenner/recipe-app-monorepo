@@ -5,10 +5,13 @@ public sealed record RecipeTargetItem(int Position, string Kind, Guid? Ingredien
 
 public sealed record RecipeTargetStep(int Position, string Instructions, IReadOnlyList<RecipeTargetItem> Items);
 
+public sealed record RecipeTargetImage(string ObjectKey, string ContentType, long ByteSize,
+    string Sha256, int Width, int Height);
+
 public sealed record RecipeTargetRecord(Guid Id, string LegacyId, Guid OwnerUserId, string Name,
     string? SourceText, string? SourceUrl, string? ServingsText, string? PrepTimeText, string? CookTimeText,
     DateTime? DateAddedAtUtc, bool IsArchived, IReadOnlyList<string> Tags,
-    IReadOnlyList<RecipeTargetStep> Steps, string? SourceDocumentJson);
+    IReadOnlyList<RecipeTargetStep> Steps, string? SourceDocumentJson, RecipeTargetImage? Image = null);
 
 public sealed record RecipePreviewItem(string LegacyId, Guid? ExistingRecipeId, string Outcome,
     IReadOnlyList<string> Differences);

@@ -12,7 +12,8 @@ public sealed class RecipeImportWriter(AppDbContext db)
         MigrationOptions options, Guid runId, string sourceFileSha256,
         string decisionFingerprint, string targetFingerprint,
         RecipeSourceFiles sourceFiles, IReadOnlyList<Guid> sourceIds,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, RecipeTargetImage>? stagedImages = null)
     {
         var sourceByLegacyId = sourceRecipes.ToDictionary(recipe => recipe.LegacyId, StringComparer.Ordinal);
         var insertedRecipes = new Dictionary<string, Guid>(StringComparer.Ordinal);
@@ -60,6 +61,7 @@ public sealed class RecipeImportWriter(AppDbContext db)
                 .Include(recipe => recipe.Tags)
                 .Include(recipe => recipe.Steps).ThenInclude(step => step.Items)
                 .Include(recipe => recipe.ImportProvenance)
+                .Include(recipe => recipe.Image)
                 .AsSplitQuery()
                 .ToListAsync(cancellationToken);
         if (updateTargets.Count != updateIds.Length)
@@ -75,6 +77,7 @@ public sealed class RecipeImportWriter(AppDbContext db)
 
             var recipe = RecipeEntityMapper.Create(source, options.Owner, sourceFileSha256,
                 decisionFingerprint, runId, now);
+            RecipeImageStaging.Apply(recipe, AcceptedImage(source, stagedImages));
             db.Recipes.Add(recipe);
             insertedRecipes.Add(item.LegacyId, recipe.Id);
         }
@@ -88,6 +91,7 @@ public sealed class RecipeImportWriter(AppDbContext db)
             var target = targetsByLegacyId[legacyId];
             RecipeEntityMapper.Update(db, target, source, options.Owner, sourceFileSha256,
                 decisionFingerprint, runId, now);
+            RecipeImageStaging.Apply(target, AcceptedImage(source, stagedImages));
             updatedRecipes.Add(legacyId, target.Id);
         }
 
@@ -105,5 +109,13 @@ public sealed class RecipeImportWriter(AppDbContext db)
             return item;
         }).ToArray();
         return (insertedRecipes.Count, updatedRecipes.Count, results);
+    }
+
+    private static RecipeTargetImage? AcceptedImage(RecipeSourceRecord source,
+        IReadOnlyDictionary<string, RecipeTargetImage>? images)
+    {
+        if (string.IsNullOrWhiteSpace(source.ImageReference)) return null;
+        return images?.GetValueOrDefault(source.LegacyId)
+            ?? throw new InvalidOperationException("An accepted Recipe image was not verified and staged; no Recipes were committed.");
     }
 }

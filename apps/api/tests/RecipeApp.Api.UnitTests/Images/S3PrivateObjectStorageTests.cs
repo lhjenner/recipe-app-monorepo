@@ -78,4 +78,39 @@ public sealed class S3PrivateObjectStorageTests
         content.CanRead.Should().BeTrue();
         content.Position.Should().Be(1);
     }
+
+    [Fact]
+    public async Task CreateOnly_RequiresConditionalCreationAndExplicitContentType()
+    {
+        using var content = new MemoryStream([1, 2, 3]);
+        var storage = new S3PrivateObjectStorage(_client, Options.Create(_options));
+        await storage.CreateOnlyAsync("imports/opaque", content, "image/png");
+        await _client.Received(1).PutObjectAsync(Arg.Is<PutObjectRequest>(request =>
+            request.IfNoneMatch == "*" && request.BucketName == _options.BucketName
+            && request.Key == "imports/opaque" && request.ContentType == "image/png"
+            && !request.AutoCloseStream && !request.UseChunkEncoding), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Delete_IsLimitedToTheExplicitKey()
+    {
+        var storage = new S3PrivateObjectStorage(_client, Options.Create(_options));
+        await storage.DeleteAsync("imports/opaque");
+        await _client.Received(1).DeleteObjectAsync(Arg.Is<DeleteObjectRequest>(request =>
+            request.Key == "imports/opaque" && request.BucketName == _options.BucketName),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateOnly_PropagatesPreconditionFailureWithoutOverwriteFallback()
+    {
+        _client.PutObjectAsync(Arg.Any<PutObjectRequest>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new AmazonS3Exception("Already exists") { StatusCode = HttpStatusCode.PreconditionFailed });
+        var storage = new S3PrivateObjectStorage(_client, Options.Create(_options));
+        using var content = new MemoryStream([1, 2, 3]);
+        var create = () => storage.CreateOnlyAsync("imports/existing", content, "image/png");
+        await create.Should().ThrowAsync<AmazonS3Exception>();
+        await _client.Received(1).PutObjectAsync(Arg.Is<PutObjectRequest>(request => request.IfNoneMatch == "*"),
+            Arg.Any<CancellationToken>());
+    }
 }
