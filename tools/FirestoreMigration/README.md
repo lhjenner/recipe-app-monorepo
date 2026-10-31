@@ -1,10 +1,13 @@
-# Firestore ingredient migration
+# Firestore migration tool
 
-Temporary standalone .NET 10 tool for [PRD03](../../docs/prd/03-ingredient-maintenance.md),
-[issue #42](https://github.com/lhjenner/recipe-app-monorepo/issues/42), part of
-[epic #39](https://github.com/lhjenner/recipe-app-monorepo/issues/39).
+Temporary standalone .NET 10 tool for Ingredient migration under
+[PRD03](../../docs/prd/03-ingredient-maintenance.md), [issue #42](https://github.com/lhjenner/recipe-app-monorepo/issues/42),
+and the upcoming Recipe migration under [PRD04](../../docs/prd/04-recipe-foundation-and-browsing.md),
+[issue #56](https://github.com/lhjenner/recipe-app-monorepo/issues/56).
 It reuses the API's `AppDbContext` and configurations; the application does not reference
-or register the tool. It imports **ingredients only**, not recipes, grocery lists or users.
+or register the tool. Ingredient mode remains the default and preserves its existing invocation.
+Recipe source parsing is available for tests, but Recipe mode is not yet connected to a
+migration flow and intentionally exits without reading or writing target data.
 
 ## Prepare the target
 
@@ -32,8 +35,9 @@ override User Secrets. The tool does not load `.env` or the API's settings autom
 ## Inputs
 
 Keep real backups, classification decisions and reports **outside the repository**.
-Only `ingredients.json`, `meta.json` and the explicitly selected decision file are opened.
-The tool never enumerates or reads other exports, including users and recipes.
+In Ingredient mode, only `ingredients.json`, `meta.json` and the explicitly selected
+decision file are opened. The tool never enumerates or reads other exports, including
+users and recipes.
 
 Both export files are JSON arrays, matching the legacy Firestore document export:
 
@@ -122,6 +126,8 @@ following arguments to the tool rather than to .NET:
 - `--backup`: explicit directory containing the two export files.
 - `--owner`: existing destination user GUID.
 - `--decisions`: explicit retained decision file.
+- Ingredient mode is the default and continues to accept the existing arguments.
+- Recipe mode is selected explicitly with `--mode recipes --recipes <file>`; it cannot be combined with `--backup`.
 - No `--write`: **dry-run**, including diagnostics, counts and complete update diffs.
 - `--write`: fresh preview, individual update approvals, then one atomic commit.
 
@@ -129,6 +135,13 @@ Replace the synthetic paths and owner before executing:
 
 ```powershell
 dotnet run --project tools\FirestoreMigration --configuration Release -- --backup "C:\MigrationBackups\latest" --owner "11111111-2222-4333-8444-555555555555" --decisions "C:\MigrationBackups\decisions.json"
+```
+
+Recipe mode currently exits with an explicit not-implemented error rather than invoking
+the Ingredient importer. Its planned command shape is:
+
+```powershell
+dotnet run --project tools\FirestoreMigration --configuration Release -- --mode recipes --recipes "C:\MigrationBackups\recipes.json" --owner "11111111-2222-4333-8444-555555555555" --decisions "C:\MigrationBackups\decisions.json"
 ```
 
 Review the printed server, database and destination owner. Fix blocking diagnostics

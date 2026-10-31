@@ -38,10 +38,18 @@ public static class MigrationNames
     public static string Clean(string value) => LookupName.Clean(value);
 }
 
-public sealed record MigrationOptions(string Backup, Guid Owner, string Decisions, bool Write)
+public enum MigrationMode
+{
+    Ingredients,
+    Recipes
+}
+
+public sealed record MigrationOptions(string Backup, Guid Owner, string Decisions, bool Write,
+    MigrationMode Mode = MigrationMode.Ingredients, string? RecipeFile = null)
 {
     public const string Usage =
-        "Usage: --backup <directory> --owner <GUID> --decisions <file> [--write]. Default: dry-run.";
+        "Ingredient mode: --backup <directory> --owner <GUID> --decisions <file> [--write]. Default mode: ingredients; default action: dry-run.\n" +
+        "Recipe mode: --mode recipes --recipes <file> --owner <GUID> --decisions <file> [--write].";
 
     public static MigrationOptions Parse(string[] args)
     {
@@ -55,15 +63,26 @@ public sealed record MigrationOptions(string Backup, Guid Owner, string Decision
                 write = true;
                 continue;
             }
-            if (args[i] is not ("--backup" or "--owner" or "--decisions") ||
+            if (args[i] is not ("--mode" or "--backup" or "--recipes" or "--owner" or "--decisions") ||
                 i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal) ||
                 !values.TryAdd(args[i], args[++i]))
                 throw new FormatException(Usage);
         }
-        if (!values.TryGetValue("--backup", out var backup) || string.IsNullOrWhiteSpace(backup) ||
+        var mode = values.GetValueOrDefault("--mode") switch
+        {
+            null or "ingredients" => MigrationMode.Ingredients,
+            "recipes" => MigrationMode.Recipes,
+            _ => throw new FormatException("--mode must be either 'ingredients' or 'recipes'.")
+        };
+        var hasBackup = values.TryGetValue("--backup", out var backup) && !string.IsNullOrWhiteSpace(backup);
+        var hasRecipeFile = values.TryGetValue("--recipes", out var recipeFile) && !string.IsNullOrWhiteSpace(recipeFile);
+        if (mode == MigrationMode.Ingredients && (!hasBackup || hasRecipeFile) ||
+            mode == MigrationMode.Recipes && (!hasRecipeFile || hasBackup) ||
             !values.TryGetValue("--decisions", out var decisions) || string.IsNullOrWhiteSpace(decisions) ||
             !values.TryGetValue("--owner", out var owner) || !Guid.TryParse(owner, out var id) || id == Guid.Empty)
             throw new FormatException(Usage);
-        return new(Path.GetFullPath(backup), id, Path.GetFullPath(decisions), write);
+        return new(mode == MigrationMode.Ingredients ? Path.GetFullPath(backup!) : string.Empty,
+            id, Path.GetFullPath(decisions!), write, mode,
+            mode == MigrationMode.Recipes ? Path.GetFullPath(recipeFile!) : null);
     }
 }

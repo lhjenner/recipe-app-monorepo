@@ -1,0 +1,77 @@
+[
+  {
+    "id": "legacy-recipe-001",
+    "title": "Synthetic soup",
+    "source": "Synthetic cookbook",
+    "link": "https://example.test/soup",
+    "servings": "4-6",
+    "prepTime": "about 20 minutes",
+    "cookTime": "1-2 hours",
+    "tags": ["Family", "Dinner", "Family"],
+    "archived": true,
+    "dateAdded": {
+      "_seconds": 1769393852,
+      "_nanoseconds": 474000000
+    },
+    "userId": "legacy-owner-a",
+    "steps": [
+      {
+        "instructions": "Mix gently.\nDo not overwork.",
+        "ingredients": [
+          {
+            "id": "117c8374-5db4-4021-b106-5b466e2446ed",
+            "name": "Flour",
+            "quantity": "1/2",
+            "unit": "cup",
+            "notes": "sifted",
+            "department": "Legacy pantry"
+          },
+          {
+            "id": "217c8374-5db4-4021-b106-5b466e2446ed",
+            "name": "Optional:",
+            "quantity": "to taste",
+            "unit": "",
+            "notes": "if desired"
+          },
+          {
+            "id": "317c8374-5db4-4021-b106-5b466e2446ed",
+            "name": "To serve",
+            "quantity": "",
+            "unit": "",
+            "notes": "with herbs"
+          },
+          {
+            "id": "",
+            "name": "",
+            "quantity": "",
+            "unit": ""
+          }
+        ]
+      },
+      {
+        "instructions": "",
+        "ingredients": []
+      }
+    ],
+    "futureMetadata": {
+      "sourceRevision": 3
+    }
+  },
+  {
+    "id": "legacy-recipe-002",
+    "title": "Synthetic tea",
+    "servings": "one mug",
+    "tags": [],
+    "dateAdded": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1769393853,
+      "nanoseconds": 123456000
+    },
+    "steps": [
+      {
+        "instructions": "Steep.",
+        "ingredients": []
+      }
+    ]
+  }
+]

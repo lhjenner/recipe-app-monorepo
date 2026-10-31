@@ -20,8 +20,34 @@ public sealed class MigrationTests
     {
         var options = MigrationOptions.Parse(["--backup", "backup", "--owner", Id, "--decisions", "decisions.json"]);
         options.Write.Should().BeFalse();
+        options.Mode.Should().Be(MigrationMode.Ingredients);
+        options.RecipeFile.Should().BeNull();
         var invalid = () => MigrationOptions.Parse(["--accept-all"]);
         invalid.Should().Throw<FormatException>();
+    }
+
+    [Fact]
+    public void Selects_recipe_mode_only_with_an_explicit_recipe_file()
+    {
+        var options = MigrationOptions.Parse([
+            "--mode", "recipes", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json"
+        ]);
+
+        options.Mode.Should().Be(MigrationMode.Recipes);
+        options.RecipeFile.Should().Be(Path.GetFullPath("recipes.json"));
+        options.Backup.Should().BeEmpty();
+        options.Write.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("--mode", "recipes", "--backup", "backup", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json")]
+    [InlineData("--mode", "recipes", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json")]
+    [InlineData("--mode", "ingredients", "--recipes", "recipes.json", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json")]
+    [InlineData("--mode", "unknown", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json")]
+    public void Rejects_ambiguous_or_unsupported_mode_arguments(params string[] args)
+    {
+        var act = () => MigrationOptions.Parse(args);
+        act.Should().Throw<FormatException>();
     }
 
     [Fact]

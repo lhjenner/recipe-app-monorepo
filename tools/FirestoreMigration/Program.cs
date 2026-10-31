@@ -24,6 +24,11 @@ internal static class Program
         try
         {
             var options = MigrationOptions.Parse(args);
+            if (options.Mode == MigrationMode.Recipes)
+            {
+                Console.Error.WriteLine("ERROR: Recipe mode is selected, but recipe parsing and migration are not implemented yet.");
+                return 1;
+            }
             var configuration = new ConfigurationBuilder()
                 .AddUserSecrets<MigrationOptions>(optional: true)
                 .AddEnvironmentVariables()
