@@ -53,7 +53,7 @@ public sealed record MigrationOptions(string Backup, Guid Owner, string Decision
         "Ingredient mode: --backup <directory> --owner <GUID> --decisions <file> [--write]. Default mode: ingredients; default action: dry-run.\n" +
         "Recipe mode: --mode recipes --recipes <file> --owner <GUID> --decisions <file> --report <file> " +
         "[--source-owner <legacy ID> ...] [--image-manifest <file> --image-root <directory>]. " +
-        "Recipe preview is read-only.";
+        "Recipe preview is read-only and requires typing the destination owner GUID to confirm selected inputs.";
 
     public static MigrationOptions Parse(string[] args)
     {

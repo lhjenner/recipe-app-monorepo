@@ -96,7 +96,7 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
 
     public async Task<RecipeMigrationRunResult> RunRecipeAsync(string recipeJson, bool write,
         string reportPath, string? selectedLegacyOwnerId = null, bool includeImageManifest = false,
-        bool corruptImage = false)
+        bool corruptImage = false, string? ownerConfirmation = null)
     {
         File.WriteAllText(RecipeFile, recipeJson);
         File.WriteAllText(DecisionFile, "{}");
@@ -135,7 +135,8 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
         }
         var options = MigrationOptions.Parse(args.ToArray());
         await using var db = Database();
-        return await new RecipeMigrationRunner(db, Output).RunAsync(options);
+        using var confirmation = new StringReader(ownerConfirmation ?? Owner.ToString());
+        return await new RecipeMigrationRunner(db, Output, confirmation).RunAsync(options);
     }
 
     public async Task SeedRecipeIngredientAsync()

@@ -39,7 +39,7 @@ public sealed record RecipeMigrationReport(
     IReadOnlyList<string> Diagnostics,
     IReadOnlyList<RecipePreviewItem> Recipes);
 
-public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
+public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, TextReader confirmationInput)
 {
     public async Task<RecipeMigrationRunResult> RunAsync(MigrationOptions options,
         CancellationToken cancellationToken = default)
@@ -79,6 +79,8 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
         var imageManifest = imageManifestJson is null
             ? null
             : RecipeImageManifestParser.Parse(imageManifestJson);
+        await ConfirmSelectionAsync(source, options, recipePath, decisionPath, imageManifestPath,
+            cancellationToken);
         var diagnostics = new List<string>(source.BlockingDiagnostics);
         var imageWarnings = new List<string>();
         var imageResults = new List<RecipeImageValidationResult>();
@@ -141,10 +143,6 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
         }
 
         var status = diagnostics.Count == 0 ? "preview-valid" : "validation-blocked";
-        output.WriteLine($"Destination owner: {options.Owner}");
-        output.WriteLine(options.SelectedLegacyOwnerIds is null
-            ? $"Source owners: {string.Join(", ", source.LegacyOwnerIds.Order(StringComparer.Ordinal))} (all; explicit selection not required)"
-            : $"Source-owner selection: {string.Join(", ", options.SelectedLegacyOwnerIds.Order(StringComparer.Ordinal))}");
         var report = new RecipeMigrationReport(
             3,
             Guid.CreateVersion7(),
@@ -189,6 +187,32 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             $"warnings={report.Warnings.Count}, errors={report.Diagnostics.Count}.");
         output.WriteLine($"Report: {reportPath}");
         return new(report.Diagnostics.Count, status, reportPath);
+    }
+
+    private async Task ConfirmSelectionAsync(RecipeMigrationSource source, MigrationOptions options,
+        string recipePath, string decisionPath, string? imageManifestPath,
+        CancellationToken cancellationToken)
+    {
+        if (source.LegacyOwnerIds.Count > 1 && options.SelectedLegacyOwnerIds is null)
+            return;
+
+        var sourceOwners = source.LegacyOwnerIds.Order(StringComparer.Ordinal).ToArray();
+        var selectedOwners = options.SelectedLegacyOwnerIds?.Order(StringComparer.Ordinal).ToArray();
+        output.WriteLine($"Recipe source: {recipePath}");
+        output.WriteLine($"Decision file: {decisionPath}");
+        output.WriteLine($"Destination owner: {options.Owner}");
+        output.WriteLine(selectedOwners is null
+            ? $"Source-owner selection: all ({string.Join(", ", sourceOwners)}); missing owner fields: {source.OwnerFieldCounts.Missing}"
+            : $"Source-owner selection: {string.Join(", ", selectedOwners)}; missing owner fields: {source.OwnerFieldCounts.Missing}");
+        output.WriteLine(imageManifestPath is null
+            ? "Image inputs: none selected."
+            : $"Image manifest: {imageManifestPath}; image root: {options.ImageRoot}");
+        output.Write("Type the destination owner GUID to confirm these inputs: ");
+
+        var response = await confirmationInput.ReadLineAsync(cancellationToken);
+        if (!Guid.TryParse(response, out var confirmedOwner) || confirmedOwner != options.Owner)
+            throw new InvalidOperationException(
+                "Destination owner confirmation did not match; the Recipe preview was not run.");
     }
 
     private static RecipeTargetRecord ToTarget(Recipe recipe) => new(

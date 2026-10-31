@@ -133,6 +133,8 @@ following arguments to the tool rather than to .NET:
   `--report <file>` outside the repository. Repeat `--source-owner <legacy ID>` for each
   owner in a multi-owner export. For referenced images, pass both `--image-manifest <file>`
   and `--image-root <directory>`. It cannot be combined with `--backup` or `--write`.
+  Before preview, the tool displays the selected source, destination owner, source-owner
+  selection, and image inputs; type the destination owner GUID to confirm them.
 - No `--write`: **dry-run**, including diagnostics, counts and complete update diffs.
 - `--write`: fresh preview, individual update approvals, then one atomic commit.
 

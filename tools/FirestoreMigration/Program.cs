@@ -35,7 +35,7 @@ internal static class Program
                 .UseNpgsql(connectionString).Options);
             if (options.Mode == MigrationMode.Recipes)
             {
-                var recipeResult = await new RecipeMigrationRunner(database, Console.Out)
+                var recipeResult = await new RecipeMigrationRunner(database, Console.Out, Console.In)
                     .RunAsync(options, cancellation.Token);
                 return recipeResult.Errors == 0 ? 0 : 1;
             }
