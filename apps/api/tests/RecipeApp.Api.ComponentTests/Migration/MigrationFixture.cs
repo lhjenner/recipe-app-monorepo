@@ -10,9 +10,12 @@ using RecipeApp.TestFixtures;
 
 namespace RecipeApp.Api.ComponentTests.Migration;
 
+public sealed record RecipeImportIdentity(Guid RecipeId, IReadOnlyList<Guid> ChildIds);
+
 public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"recipe-migration-test-{Guid.NewGuid():N}");
+    private readonly List<string> _recipeReportFiles = [];
     public Guid Owner { get; } = Guid.NewGuid();
     public Guid IngredientId { get; } = Guid.NewGuid();
     public string Password { get; } = Guid.NewGuid().ToString("N");
@@ -25,6 +28,10 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     public StringWriter Output { get; } = new();
     public MigrationResult? Result { get; set; }
     public MigrationResult? FirstResult { get; set; }
+    public RecipeMigrationRunResult? FirstRecipeResult { get; set; }
+    public RecipeMigrationRunResult? RecipeResult { get; set; }
+    public string? RecipeAttemptReportPath { get; set; }
+    public RecipeImportIdentity? FirstRecipeIdentity { get; set; }
     public Exception? Failure { get; set; }
     public Ingredient? Before { get; set; }
     public string? DecisionContents { get; set; }
@@ -76,13 +83,29 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
         string? selectedLegacyOwnerId = null, bool includeImageManifest = false,
         bool corruptImage = false)
     {
+        return await RunRecipeAsync(recipeJson, false, RecipeReportFile, selectedLegacyOwnerId,
+            includeImageManifest, corruptImage);
+    }
+
+    public string NewRecipeReportPath()
+    {
+        var path = Path.Combine(_directory, $"recipe-import-report-{Guid.NewGuid():N}.json");
+        _recipeReportFiles.Add(path);
+        return path;
+    }
+
+    public async Task<RecipeMigrationRunResult> RunRecipeAsync(string recipeJson, bool write,
+        string reportPath, string? selectedLegacyOwnerId = null, bool includeImageManifest = false,
+        bool corruptImage = false)
+    {
         File.WriteAllText(RecipeFile, recipeJson);
         File.WriteAllText(DecisionFile, "{}");
         var args = new List<string>
         {
             "--mode", "recipes", "--recipes", RecipeFile, "--owner", Owner.ToString(),
-            "--decisions", DecisionFile, "--report", RecipeReportFile
+            "--decisions", DecisionFile, "--report", reportPath
         };
+        if (write) args.Add("--write");
         if (includeImageManifest)
         {
             Directory.CreateDirectory(ImageRoot);
@@ -130,6 +153,20 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
         await db.SaveChangesAsync();
     }
 
+    public async Task<RecipeImportIdentity> ReadRecipeIdentityAsync()
+    {
+        await using var db = Database();
+        var recipe = await db.Recipes.AsNoTracking()
+            .Include(row => row.Tags)
+            .Include(row => row.Steps).ThenInclude(step => step.Items)
+            .SingleAsync();
+        var childIds = recipe.Tags.OrderBy(tag => tag.Position).Select(tag => tag.Id)
+            .Concat(recipe.Steps.OrderBy(step => step.Position).SelectMany(step =>
+                new[] { step.Id }.Concat(step.Items.OrderBy(item => item.Position).Select(item => item.Id))))
+            .ToArray();
+        return new(recipe.Id, childIds);
+    }
+
     public async Task<Ingredient> ReadAsync()
     {
         await using var db = Database();
@@ -169,6 +206,8 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
         foreach (var name in new[] { "ingredients.json", "meta.json", "decisions.json", "users.json", "recipes.json",
                      "recipe-preview.json", "recipe-preview-report.json" })
             File.Delete(Path.Combine(_directory, name));
+        foreach (var reportFile in _recipeReportFiles)
+            File.Delete(reportFile);
         File.Delete(ImageManifestFile);
         if (Directory.Exists(ImageRoot)) Directory.Delete(ImageRoot, recursive: true);
         Directory.Delete(_directory);

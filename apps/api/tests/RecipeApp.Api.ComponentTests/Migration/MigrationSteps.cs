@@ -63,6 +63,67 @@ public sealed class MigrationSteps(MigrationFixture fixture)
             includeImageManifest: true, corruptImage: true);
     }
 
+    [When("I write and repeat a synthetic Recipe import")]
+    public async Task WriteAndRepeatRecipeImportAsync()
+    {
+        await fixture.SeedRecipeIngredientAsync();
+        var recipeJson = RecipeJson(fixture.IngredientId);
+        fixture.FirstRecipeResult = await fixture.RunRecipeAsync(
+            recipeJson, true, fixture.NewRecipeReportPath());
+        fixture.FirstRecipeIdentity = await fixture.ReadRecipeIdentityAsync();
+        fixture.RecipeResult = await fixture.RunRecipeAsync(
+            recipeJson, true, fixture.NewRecipeReportPath());
+    }
+
+    [When("I attempt a Recipe write with a missing Ingredient")]
+    public async Task WriteRecipeWithMissingIngredientAsync()
+    {
+        fixture.RecipeAttemptReportPath = fixture.NewRecipeReportPath();
+        await fixture.RunRecipeAsync(
+            RecipeJson(Guid.NewGuid()), true, fixture.RecipeAttemptReportPath);
+    }
+
+    [Then("the Recipe write is blocked without committing any Recipes")]
+    public async Task InvalidRecipeWriteIsBlockedAsync()
+    {
+        var report = await ReadRecipeReportAsync(fixture.RecipeAttemptReportPath);
+        report.Status.Should().Be("validation-blocked");
+        report.CommittedInserts.Should().Be(0);
+        report.CommittedUpdates.Should().Be(0);
+        report.Diagnostics.Should().Contain(diagnostic => diagnostic.Contains("does not exist"));
+        await using var db = fixture.Database();
+        (await db.Recipes.CountAsync()).Should().Be(0);
+    }
+
+    [Then("the Recipe mapping and child IDs remain stable with committed outcomes")]
+    public async Task RecipeMappingAndChildrenRemainStableAsync()
+    {
+        var firstIdentity = fixture.FirstRecipeIdentity
+            ?? throw new InvalidOperationException("The first Recipe import identity was not captured.");
+        var secondIdentity = await fixture.ReadRecipeIdentityAsync();
+        secondIdentity.Should().BeEquivalentTo(firstIdentity);
+
+        var firstReport = await ReadRecipeReportAsync(fixture.FirstRecipeResult!.ReportPath);
+        firstReport.Status.Should().Be("committed");
+        firstReport.CommittedInserts.Should().Be(1);
+        firstReport.Recipes.Should().ContainSingle()
+            .Which.ExistingRecipeId.Should().Be(firstIdentity.RecipeId);
+
+        var repeatedReport = await ReadRecipeReportAsync(fixture.RecipeResult!.ReportPath);
+        repeatedReport.Status.Should().Be("committed");
+        repeatedReport.CommittedInserts.Should().Be(0);
+        repeatedReport.CommittedUpdates.Should().Be(0);
+        repeatedReport.Unchanged.Should().Be(1);
+        repeatedReport.Recipes.Should().ContainSingle()
+            .Which.ExistingRecipeId.Should().Be(firstIdentity.RecipeId);
+
+        await using var db = fixture.Database();
+        (await db.Recipes.CountAsync()).Should().Be(1);
+        (await db.RecipeSteps.CountAsync()).Should().Be(1);
+        (await db.RecipeStepItems.CountAsync()).Should().Be(1);
+        (await db.RecipeTags.CountAsync()).Should().Be(1);
+    }
+
     [Then("the Recipe preview reports a proposed insert without committing it")]
     public async Task RecipePreviewIsReadOnlyAsync()
     {
@@ -253,9 +314,9 @@ public sealed class MigrationSteps(MigrationFixture fixture)
         }]
         """;
 
-    private async Task<RecipeMigrationReport> ReadRecipeReportAsync()
+    private async Task<RecipeMigrationReport> ReadRecipeReportAsync(string? reportPath = null)
     {
-        await using var stream = File.OpenRead(fixture.RecipeReportFile);
+        await using var stream = File.OpenRead(reportPath ?? fixture.RecipeReportFile);
         return await System.Text.Json.JsonSerializer.DeserializeAsync<RecipeMigrationReport>(stream)
             ?? throw new InvalidOperationException("Recipe preview report could not be read.");
     }
