@@ -142,7 +142,10 @@ following arguments to the tool rather than to .NET:
 - Recipe `--write` commits new Recipes and skips unchanged ones atomically. Each changed
   Recipe prints a whole-record change summary and requires **`yes`** before its replacement
   is applied; any other answer (including EOF) declines that Recipe. Image-bearing imports
-  still block the write rather than being partially applied.
+  still block the write rather than being partially applied. Before commit, the tool
+  rechecks the recipe, decision and image-manifest files, plus target Recipe rows, children,
+  images, provenance and referenced Ingredients under write locks. Stale state aborts the
+  run so it can be previewed again.
 
 Replace the synthetic paths and owner before executing:
 

@@ -10,13 +10,28 @@ public sealed class RecipeImportWriter(AppDbContext db)
         RecipePreviewPlan plan, IReadOnlyList<RecipeSourceRecord> sourceRecipes,
         IReadOnlySet<string> approvedUpdates,
         MigrationOptions options, Guid runId, string sourceFileSha256,
-        string decisionFingerprint, CancellationToken cancellationToken)
+        string decisionFingerprint, string targetFingerprint,
+        RecipeSourceFiles sourceFiles, IReadOnlyList<Guid> sourceIds,
+        CancellationToken cancellationToken)
     {
         var sourceByLegacyId = sourceRecipes.ToDictionary(recipe => recipe.LegacyId, StringComparer.Ordinal);
         var insertedRecipes = new Dictionary<string, Guid>(StringComparer.Ordinal);
         var updatedRecipes = new Dictionary<string, Guid>(StringComparer.Ordinal);
         await using var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
+        await db.Database.ExecuteSqlRawAsync("""
+            SET LOCAL lock_timeout = '10s';
+            LOCK TABLE "Ingredients", "Recipes", "RecipeTags", "RecipeSteps",
+                "RecipeStepItems", "RecipeImages", "RecipeImportProvenance"
+                IN SHARE ROW EXCLUSIVE MODE;
+            """, cancellationToken);
+        using var sourceHandles = sourceFiles.VerifyAndHold();
+        var currentFingerprint = await RecipeTargetFingerprint.ComputeAsync(
+            db, options.Owner, plan.Recipes.Select(recipe => recipe.LegacyId).ToArray(),
+            sourceIds, cancellationToken);
+        if (currentFingerprint != targetFingerprint)
+            throw new InvalidOperationException(
+                "Recipe target state changed after preview; nothing was committed. Run and review again.");
 
         var legacyIds = plan.Recipes
             .Where(recipe => recipe.Outcome == "proposed-insert")

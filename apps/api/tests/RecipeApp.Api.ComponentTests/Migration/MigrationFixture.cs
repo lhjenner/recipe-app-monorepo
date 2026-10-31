@@ -34,6 +34,7 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     public RecipeMigrationRunResult? RecipeResult { get; set; }
     public string? RecipeAttemptReportPath { get; set; }
     public RecipeImportIdentity? FirstRecipeIdentity { get; set; }
+    public string? StaleResource { get; set; }
     public Exception? Failure { get; set; }
     public Ingredient? Before { get; set; }
     public string? DecisionContents { get; set; }
@@ -98,7 +99,8 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
 
     public async Task<RecipeMigrationRunResult> RunRecipeAsync(string recipeJson, bool write,
         string reportPath, string? selectedLegacyOwnerId = null, bool includeImageManifest = false,
-        bool corruptImage = false, string? ownerConfirmation = null, string? updateApproval = "yes")
+        bool corruptImage = false, string? ownerConfirmation = null, string? updateApproval = "yes",
+        Func<Task>? onUpdateApproval = null)
     {
         File.WriteAllText(RecipeFile, recipeJson);
         File.WriteAllText(DecisionFile, "{}");
@@ -137,14 +139,12 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
         }
         var options = MigrationOptions.Parse(args.ToArray());
         await using var db = Database();
-        var responses = updateApproval is null
-            ? Owner.ToString()
-            : $"{Owner}{Environment.NewLine}{updateApproval}";
-        using var confirmation = new StringReader(ownerConfirmation is null
-            ? responses
-            : updateApproval is null
-                ? ownerConfirmation
-                : $"{ownerConfirmation}{Environment.NewLine}{updateApproval}");
+        var ownerResponse = ownerConfirmation ?? Owner.ToString();
+        using TextReader confirmation = onUpdateApproval is null
+            ? new StringReader(updateApproval is null
+                ? ownerResponse
+                : $"{ownerResponse}{Environment.NewLine}{updateApproval}")
+            : new RecipeApprovalReader(ownerResponse, onUpdateApproval, updateApproval);
         return await new RecipeMigrationRunner(db, Output, confirmation).RunAsync(options);
     }
 

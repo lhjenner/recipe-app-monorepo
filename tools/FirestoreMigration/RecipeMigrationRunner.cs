@@ -67,6 +67,8 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
         var imageManifestBytes = imageManifestPath is null
             ? null
             : await File.ReadAllBytesAsync(imageManifestPath, cancellationToken);
+        var sourceFiles = new RecipeSourceFiles(recipePath, recipeBytes,
+            decisionPath, decisionBytes, imageManifestPath, imageManifestBytes);
         var utf8 = new UTF8Encoding(false, true);
         var recipeJson = utf8.GetString(recipeBytes).TrimStart('\uFEFF');
         var decisionJson = utf8.GetString(decisionBytes).TrimStart('\uFEFF');
@@ -94,6 +96,8 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
         RecipePreviewPlan plan;
         IReadOnlyList<RecipeSourceRecord> selectedSourceRecipes = [];
         IReadOnlyList<RecipeTargetRecord> targetRecords = [];
+        IReadOnlyList<Guid> sourceIds = [];
+        string targetFingerprint;
         var sourceValidation = new RecipeSourceValidationResult([], []);
         await using (var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.RepeatableRead, cancellationToken))
@@ -106,6 +110,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
                 .Select(item => item.SourceId)
                 .Distinct()
                 .ToArray();
+            sourceIds = ids;
             var ingredients = ids.Length == 0
                 ? []
                 : await db.Ingredients.AsNoTracking()
@@ -136,10 +141,12 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
                     .Include(recipe => recipe.ImportProvenance)
                     .AsSplitQuery()
                     .ToListAsync(cancellationToken);
-            var targets = existing.Select(ToTarget).ToArray();
+            var targets = existing.Select(RecipeTargetMapper.ToTarget).ToArray();
             targetRecords = targets;
             plan = RecipePreviewPlanner.Create(validation, options.Owner, targets);
             diagnostics.AddRange(plan.BlockingDiagnostics);
+            targetFingerprint = await RecipeTargetFingerprint.ComputeAsync(
+                db, options.Owner, legacyIds, ids, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 
@@ -162,6 +169,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
                     plan, selectedSourceRecipes, approvedUpdates, options, runId,
                     Convert.ToHexString(SHA256.HashData(recipeBytes)),
                     source.DecisionFingerprint,
+                    targetFingerprint, sourceFiles, sourceIds,
                     cancellationToken);
                 committedInserts = commit.Inserted;
                 committedUpdates = commit.Updated;
@@ -219,31 +227,5 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
         output.WriteLine($"Report: {reportPath}");
         return new(report.Diagnostics.Count, status, reportPath);
     }
-
-    private static RecipeTargetRecord ToTarget(Recipe recipe) => new(
-        recipe.Id,
-        recipe.LegacyId!,
-        recipe.OwnerUserId,
-        recipe.Name,
-        recipe.SourceText,
-        recipe.SourceUrl,
-        recipe.ServingsText,
-        recipe.PrepTimeText,
-        recipe.CookTimeText,
-        recipe.DateAddedAtUtc,
-        recipe.IsArchived,
-        recipe.Tags.OrderBy(tag => tag.Position).Select(tag => tag.Text).ToArray(),
-        recipe.Steps.OrderBy(step => step.Position).Select(step => new RecipeTargetStep(
-            step.Position,
-            step.Instructions,
-            step.Items.OrderBy(item => item.Position).Select(item => new RecipeTargetItem(
-                item.Position,
-                item.Kind.ToString(),
-                item.IngredientId,
-                item.Text,
-                item.QuantityText,
-                item.UnitText,
-                item.NotesText)).ToArray())).ToArray(),
-        recipe.ImportProvenance?.SourceDocumentJson);
 
 }

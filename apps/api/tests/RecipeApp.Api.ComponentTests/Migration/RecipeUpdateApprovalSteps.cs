@@ -25,6 +25,49 @@ public sealed class RecipeUpdateApprovalSteps(MigrationFixture fixture)
             true, fixture.NewRecipeReportPath(), updateApproval: response == "EOF" ? null : response);
     }
 
+    [When("the (.*) changes during Recipe update approval")]
+    public async Task ChangeDuringRecipeApprovalAsync(string resource)
+    {
+        fixture.StaleResource = resource;
+        fixture.Failure = await Record.ExceptionAsync(() => fixture.RunRecipeAsync(
+            RecipeTestData.RecipeJson(fixture.IngredientId, title: "Approved update",
+                tag: "Lunch", instruction: "Bake gently."),
+            true, fixture.NewRecipeReportPath(),
+            onUpdateApproval: async () =>
+            {
+                if (resource == "source")
+                {
+                    File.WriteAllText(fixture.RecipeFile,
+                        RecipeTestData.RecipeJson(fixture.IngredientId, title: "Changed source"));
+                    return;
+                }
+
+                await using var db = fixture.Database();
+                switch (resource)
+                {
+                    case "Recipe row":
+                        var recipe = await db.Recipes.SingleAsync();
+                        recipe.Name = "Concurrent target edit";
+                        recipe.UpdatedAtUtc = DateTime.UtcNow;
+                        break;
+                    case "Recipe child":
+                        var step = await db.RecipeSteps.SingleAsync();
+                        step.Instructions = "Concurrent target step";
+                        break;
+                    case "Ingredient":
+                        var ingredient = await db.Ingredients.SingleAsync();
+                        ingredient.Name = "Concurrent ingredient edit";
+                        ingredient.NormalizedName = "concurrent ingredient edit";
+                        ingredient.UpdatedAtUtc = DateTime.UtcNow;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(resource), resource,
+                            "Unknown stale Recipe test resource.");
+                }
+                await db.SaveChangesAsync();
+            }));
+    }
+
     [Then("the Recipe update is (.*) as a whole")]
     public async Task RecipeUpdateOutcomeAsync(string outcome)
     {
@@ -57,6 +100,28 @@ public sealed class RecipeUpdateApprovalSteps(MigrationFixture fixture)
         else
         {
             recipe.ImportProvenance!.LastAppliedRunId.Should().Be(report.RunId);
+        }
+    }
+
+    [Then("the stale Recipe update is rejected without overwriting the change")]
+    public async Task StaleRecipeUpdateIsRejectedAsync()
+    {
+        fixture.Failure.Should().BeOfType<InvalidOperationException>()
+            .Which.Message.Should().Contain("changed after preview");
+        await using var db = fixture.Database();
+        var recipe = await db.Recipes.Include(row => row.Tags)
+            .Include(row => row.Steps).SingleAsync();
+        var expectedName = fixture.StaleResource == "Recipe row"
+            ? "Concurrent target edit"
+            : "Synthetic recipe";
+        recipe.Name.Should().Be(expectedName);
+        recipe.Tags.Single().Text.Should().Be("Dinner");
+        recipe.Steps.Single().Instructions.Should().Be(
+            fixture.StaleResource == "Recipe child" ? "Concurrent target step" : "Mix.");
+        if (fixture.StaleResource == "Ingredient")
+        {
+            var ingredient = await db.Ingredients.SingleAsync();
+            ingredient.Name.Should().Be("Concurrent ingredient edit");
         }
     }
 }

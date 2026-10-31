@@ -120,6 +120,17 @@ Feature: Standalone Firestore migration (PRD03, issue 42)
       | no       | declined |
       | EOF      | declined |
 
+  Scenario Outline: PRD04 AC-61 stale Recipe inputs and targets cannot be committed
+    Given a synthetic Recipe was imported
+    When the <resource> changes during Recipe update approval
+    Then the stale Recipe update is rejected without overwriting the change
+    Examples:
+      | resource   |
+      | source     |
+      | Recipe row |
+      | Recipe child |
+      | Ingredient |
+
   Scenario: Recipe preview requires explicit destination owner confirmation
     When I confirm a Recipe preview with a different destination owner
     Then the preview is rejected before creating a report
