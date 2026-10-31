@@ -7,6 +7,9 @@
     <UserSecretsId>recipe-app-firestore-migration</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="4.154.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.154.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="4.154.0" />
     <ProjectReference Include="..\..\apps\api\src\RecipeApp.Api\RecipeApp.Api.csproj" />
   </ItemGroup>
 </Project>

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RecipeApp.Api.Auth;
 using RecipeApp.Api.ComponentTests.Auth;
 using RecipeApp.Api.Infrastructure.Persistence;
+using RecipeApp.TestFixtures;
 
 namespace RecipeApp.Api.ComponentTests.Migration;
 
@@ -17,6 +18,10 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     public string Password { get; } = Guid.NewGuid().ToString("N");
     public string BackupFile => Path.Combine(_directory, "ingredients.json");
     public string DecisionFile => Path.Combine(_directory, "decisions.json");
+    public string RecipeFile => Path.Combine(_directory, "recipe-preview.json");
+    public string RecipeReportFile => Path.Combine(_directory, "recipe-preview-report.json");
+    public string ImageRoot => Path.Combine(_directory, "images");
+    public string ImageManifestFile => Path.Combine(_directory, "image-manifest.json");
     public StringWriter Output { get; } = new();
     public MigrationResult? Result { get; set; }
     public MigrationResult? FirstResult { get; set; }
@@ -67,6 +72,64 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
                 .RunAsync(new(_directory, Owner, DecisionFile, write), token);
     }
 
+    public async Task<RecipeMigrationRunResult> RunRecipePreviewAsync(string recipeJson,
+        string? selectedLegacyOwnerId = null, bool includeImageManifest = false,
+        bool corruptImage = false)
+    {
+        File.WriteAllText(RecipeFile, recipeJson);
+        File.WriteAllText(DecisionFile, "{}");
+        var args = new List<string>
+        {
+            "--mode", "recipes", "--recipes", RecipeFile, "--owner", Owner.ToString(),
+            "--decisions", DecisionFile, "--report", RecipeReportFile
+        };
+        if (includeImageManifest)
+        {
+            Directory.CreateDirectory(ImageRoot);
+            var imageBytes = corruptImage ? "not an image"u8.ToArray() : SyntheticImage.Png;
+            File.WriteAllBytes(Path.Combine(ImageRoot, "synthetic.png"), imageBytes);
+            var manifest = new[]
+            {
+                new
+                {
+                    recipeId = "synthetic-recipe",
+                    imageReference = "https://example.test/synthetic",
+                    path = "synthetic.png",
+                    byteCount = imageBytes.LongLength,
+                    sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(imageBytes))
+                }
+            };
+            File.WriteAllText(ImageManifestFile, JsonSerializer.Serialize(manifest));
+            args.Add("--image-manifest");
+            args.Add(ImageManifestFile);
+            args.Add("--image-root");
+            args.Add(ImageRoot);
+        }
+        if (selectedLegacyOwnerId is not null)
+        {
+            args.Add("--source-owner");
+            args.Add(selectedLegacyOwnerId);
+        }
+        var options = MigrationOptions.Parse(args.ToArray());
+        await using var db = Database();
+        return await new RecipeMigrationRunner(db, Output).RunAsync(options);
+    }
+
+    public async Task SeedRecipeIngredientAsync()
+    {
+        await using var db = Database();
+        db.Ingredients.Add(new Ingredient
+        {
+            Id = IngredientId,
+            OwnerUserId = Owner,
+            Name = "Synthetic flour",
+            NormalizedName = "synthetic flour",
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+    }
+
     public async Task<Ingredient> ReadAsync()
     {
         await using var db = Database();
@@ -103,8 +166,11 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
 
     public void Dispose()
     {
-        foreach (var name in new[] { "ingredients.json", "meta.json", "decisions.json", "users.json", "recipes.json" })
+        foreach (var name in new[] { "ingredients.json", "meta.json", "decisions.json", "users.json", "recipes.json",
+                     "recipe-preview.json", "recipe-preview-report.json" })
             File.Delete(Path.Combine(_directory, name));
+        File.Delete(ImageManifestFile);
+        if (Directory.Exists(ImageRoot)) Directory.Delete(ImageRoot, recursive: true);
         Directory.Delete(_directory);
         Output.Dispose();
     }

@@ -1,10 +1,15 @@
-# Firestore ingredient migration
+# Firestore migration tool
 
-Temporary standalone .NET 10 tool for [PRD03](../../docs/prd/03-ingredient-maintenance.md),
-[issue #42](https://github.com/lhjenner/recipe-app-monorepo/issues/42), part of
-[epic #39](https://github.com/lhjenner/recipe-app-monorepo/issues/39).
+Temporary standalone .NET 10 tool for Ingredient migration under
+[PRD03](../../docs/prd/03-ingredient-maintenance.md), [issue #42](https://github.com/lhjenner/recipe-app-monorepo/issues/42),
+and the upcoming Recipe migration under [PRD04](../../docs/prd/04-recipe-foundation-and-browsing.md),
+[issue #56](https://github.com/lhjenner/recipe-app-monorepo/issues/56).
 It reuses the API's `AppDbContext` and configurations; the application does not reference
-or register the tool. It imports **ingredients only**, not recipes, grocery lists or users.
+or register the tool. Ingredient mode remains the default and preserves its existing invocation.
+Recipe mode currently performs a read-only preview. It validates source-owner selection,
+destination owner and schema, Ingredient references, and exact LegacyId matches. It does
+not write database changes or upload images. Referenced images are validated only when an
+explicit manifest and backup directory are supplied.
 
 ## Prepare the target
 
@@ -32,8 +37,9 @@ override User Secrets. The tool does not load `.env` or the API's settings autom
 ## Inputs
 
 Keep real backups, classification decisions and reports **outside the repository**.
-Only `ingredients.json`, `meta.json` and the explicitly selected decision file are opened.
-The tool never enumerates or reads other exports, including users and recipes.
+In Ingredient mode, only `ingredients.json`, `meta.json` and the explicitly selected
+decision file are opened. The tool never enumerates or reads other exports, including
+users and recipes.
 
 Both export files are JSON arrays, matching the legacy Firestore document export:
 
@@ -122,6 +128,11 @@ following arguments to the tool rather than to .NET:
 - `--backup`: explicit directory containing the two export files.
 - `--owner`: existing destination user GUID.
 - `--decisions`: explicit retained decision file.
+- Ingredient mode is the default and continues to accept the existing arguments.
+- Recipe mode is selected explicitly with `--mode recipes --recipes <file>` and requires
+  `--report <file>` outside the repository. Repeat `--source-owner <legacy ID>` for each
+  owner in a multi-owner export. For referenced images, pass both `--image-manifest <file>`
+  and `--image-root <directory>`. It cannot be combined with `--backup` or `--write`.
 - No `--write`: **dry-run**, including diagnostics, counts and complete update diffs.
 - `--write`: fresh preview, individual update approvals, then one atomic commit.
 
@@ -131,6 +142,42 @@ Replace the synthetic paths and owner before executing:
 dotnet run --project tools\FirestoreMigration --configuration Release -- --backup "C:\MigrationBackups\latest" --owner "11111111-2222-4333-8444-555555555555" --decisions "C:\MigrationBackups\decisions.json"
 ```
 
+Recipe preview command shape (Recipe mode is read-only):
+
+```powershell
+dotnet run --project tools\FirestoreMigration --configuration Release -- --mode recipes --recipes "C:\MigrationBackups\recipes.json" --owner "11111111-2222-4333-8444-555555555555" --decisions "C:\MigrationBackups\decisions.json" --report "C:\MigrationReports\recipe-preview-001.json"
+```
+
+The image manifest is a JSON array with one entry per Recipe image:
+
+```json
+[
+  {
+    "recipeId": "legacy-recipe-id",
+    "imageReference": "https://example.test/recipe-image",
+    "path": "images/recipe-image.png",
+    "byteCount": 1234,
+    "sha256": "64 hexadecimal characters"
+  }
+]
+```
+
+Only files selected by matched manifest entries are opened. Paths must be relative to
+`--image-root` and remain inside it, including after resolving filesystem links. The
+validator verifies the manifest byte count and SHA-256, identifies image type from decoded
+content, and fully decodes PNG, JPEG or WebP. It rejects GIF, SVG and other formats,
+files larger than 20 MiB, either dimension above 10,000 pixels, or images above 40
+megapixels. Extensions and manifest MIME types are not trusted. Preview never uploads
+images or writes image associations.
+
+The JSON report includes one source disposition per Recipe, including whether it was
+selected, the ordered source Steps/items, and each item's outcome (`ingredient`,
+`heading`, `note`, or `blank-placeholder-omitted`). Field-level paths identify their
+typed destination or retention, selection, and validation disposition. This makes
+source counts and omissions reviewable without copying source values into console output.
+The run summary separately counts planned Heading/Note occurrences and missing or
+cross-owner Ingredient references; repeated uses count as separate occurrences.
+
 Review the printed server, database and destination owner. Fix blocking diagnostics
 and classify every unresolved invalid item. Source names are preserved unchanged;
 normalised names are used only for matching and uniqueness. Business-rule nutrition
@@ -138,7 +185,7 @@ violations warn but retain representable source values. Values not exactly repre
 as `numeric(9,3)`, and timestamps exceeding PostgreSQL microsecond precision, block
 rather than being silently rounded.
 
-To apply, append `--write` to the same command. New ingredients need no individual
+For Ingredient mode, append `--write` to the same command. New ingredients need no individual
 approval. Each changed ingredient prints all differences and requires **`yes`**.
 Any other answer (including EOF) declines that entire ingredient and its children.
 There is no unattended accept-all option. Ctrl+C before commit cancels the run.
