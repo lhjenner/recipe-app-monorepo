@@ -68,10 +68,18 @@ public sealed class MigrationSteps(MigrationFixture fixture)
     {
         var report = await ReadRecipeReportAsync();
         report.Status.Should().Be("preview-valid");
+        report.SchemaVersion.Should().Be(2);
         report.ProposedInserts.Should().Be(1);
         report.CommittedInserts.Should().Be(0);
         report.Recipes.Should().ContainSingle()
             .Which.ExistingRecipeId.Should().BeNull();
+        report.SelectedSourceRecipes.Should().Be(1);
+        var source = report.SourceDispositions.Should().ContainSingle().Which;
+        source.Selected.Should().BeTrue();
+        source.Fields.Should().Contain(field =>
+            field.JsonPath == "recipes[0].title" && field.Disposition == "Recipe.Name");
+        source.Steps.Should().ContainSingle().Which.Items.Should().ContainSingle()
+            .Which.Disposition.Should().Be("ingredient");
         await using var db = fixture.Database();
         (await db.Recipes.CountAsync()).Should().Be(0);
         (await db.Ingredients.CountAsync()).Should().Be(1);

@@ -142,7 +142,7 @@ Replace the synthetic paths and owner before executing:
 dotnet run --project tools\FirestoreMigration --configuration Release -- --backup "C:\MigrationBackups\latest" --owner "11111111-2222-4333-8444-555555555555" --decisions "C:\MigrationBackups\decisions.json"
 ```
 
-Recipe preview command shape:
+Recipe preview command shape (Recipe mode is read-only):
 
 ```powershell
 dotnet run --project tools\FirestoreMigration --configuration Release -- --mode recipes --recipes "C:\MigrationBackups\recipes.json" --owner "11111111-2222-4333-8444-555555555555" --decisions "C:\MigrationBackups\decisions.json" --report "C:\MigrationReports\recipe-preview-001.json"
@@ -170,6 +170,12 @@ files larger than 20 MiB, either dimension above 10,000 pixels, or images above 
 megapixels. Extensions and manifest MIME types are not trusted. Preview never uploads
 images or writes image associations.
 
+The JSON report includes one source disposition per Recipe, including whether it was
+selected, the ordered source Steps/items, and each item's outcome (`ingredient`,
+`heading`, `note`, or `blank-placeholder-omitted`). Field-level paths identify their
+typed destination or retention, selection, and validation disposition. This makes
+source counts and omissions reviewable without copying source values into console output.
+
 Review the printed server, database and destination owner. Fix blocking diagnostics
 and classify every unresolved invalid item. Source names are preserved unchanged;
 normalised names are used only for matching and uniqueness. Business-rule nutrition
@@ -177,7 +183,7 @@ violations warn but retain representable source values. Values not exactly repre
 as `numeric(9,3)`, and timestamps exceeding PostgreSQL microsecond precision, block
 rather than being silently rounded.
 
-To apply, append `--write` to the same command. New ingredients need no individual
+For Ingredient mode, append `--write` to the same command. New ingredients need no individual
 approval. Each changed ingredient prints all differences and requires **`yes`**.
 Any other answer (including EOF) declines that entire ingredient and its children.
 There is no unattended accept-all option. Ctrl+C before commit cancels the run.

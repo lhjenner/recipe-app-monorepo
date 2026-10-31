@@ -4,12 +4,6 @@ namespace FirestoreMigration;
 
 public static class RecipeSourceParser
 {
-    private static readonly string[] RecipeFields =
-    [
-        "id", "title", "source", "link", "servings", "prepTime", "cookTime", "tags", "steps",
-        "archived", "dateAdded", "userId", "imageUrl"
-    ];
-
     public static RecipeMigrationSource Parse(string recipes, string decisions)
     {
         using var recipeDocument = JsonInput.Read(recipes, JsonValueKind.Array, "recipes.json");
@@ -35,9 +29,9 @@ public static class RecipeSourceParser
 
             var name = Text(element, "title", path, required: true);
             var tags = ReadTags(element, path);
-            var steps = ReadSteps(element, path, recipeIndex, classifications, source);
+            var steps = ReadSteps(element, path, legacyId, recipeIndex, classifications, source);
             var archived = ReadArchive(element, path, source);
-            var dateAdded = ReadDate(element, path, source);
+            var dateAdded = ReadDate(element, path, legacyId, source);
             var legacyOwnerId = Text(element, "userId", path);
             if (string.IsNullOrEmpty(legacyOwnerId))
             {
@@ -49,7 +43,7 @@ public static class RecipeSourceParser
                 source.LegacyOwnerIds.Add(legacyOwnerId);
             }
 
-            AddUnknownFields(element, path, source, RecipeFields);
+            RecipeSourceFieldDispositionRecorder.RecordRecipeFields(element, path, legacyId, source);
             source.Recipes.Add(new(
                 legacyId,
                 name,
@@ -112,7 +106,7 @@ public static class RecipeSourceParser
     }
 
     private static IReadOnlyList<RecipeSourceStep> ReadSteps(JsonElement recipe, string recipePath,
-        int recipeIndex, IReadOnlyDictionary<Guid, ClassificationDecision> decisions,
+        string legacyId, int recipeIndex, IReadOnlyDictionary<Guid, ClassificationDecision> decisions,
         RecipeMigrationSource source)
     {
         if (!recipe.TryGetProperty("steps", out var steps))
@@ -128,16 +122,16 @@ public static class RecipeSourceParser
             if (!step.TryGetProperty("ingredients", out var ingredients))
                 throw new FormatException($"{stepPath}.ingredients: required array is missing.");
             JsonInput.Require(ingredients, JsonValueKind.Array, $"{stepPath}.ingredients");
-            var items = ReadItems(ingredients, recipeIndex, stepPosition, decisions, source);
-            AddUnknownFields(step, stepPath, source, "instructions", "ingredients");
+            var items = ReadItems(ingredients, legacyId, recipeIndex, stepPosition, decisions, source);
+            RecipeSourceFieldDispositionRecorder.RecordStepFields(step, stepPath, legacyId, source);
             result.Add(new(stepPosition, instructions, items));
             stepPosition++;
         }
         return result;
     }
 
-    private static IReadOnlyList<RecipeSourceItem> ReadItems(JsonElement ingredients, int recipeIndex,
-        int stepPosition, IReadOnlyDictionary<Guid, ClassificationDecision> decisions,
+    private static IReadOnlyList<RecipeSourceItem> ReadItems(JsonElement ingredients, string legacyId,
+        int recipeIndex, int stepPosition, IReadOnlyDictionary<Guid, ClassificationDecision> decisions,
         RecipeMigrationSource source)
     {
         var result = new List<RecipeSourceItem>();
@@ -146,9 +140,11 @@ public static class RecipeSourceParser
         {
             var path = $"recipes[{recipeIndex}].steps[{stepPosition}].ingredients[{itemPosition}]";
             JsonInput.Require(line, JsonValueKind.Object, path);
-            if (IsBlankPlaceholder(line))
+            var isBlankPlaceholder = IsBlankPlaceholder(line);
+            RecipeSourceItemKind? itemKind = null;
+            if (isBlankPlaceholder)
             {
-                source.BlankPlaceholders.Add(new(path, stepPosition, itemPosition, line.GetRawText()));
+                source.BlankPlaceholders.Add(new(legacyId, path, stepPosition, itemPosition, line.GetRawText()));
             }
             else
             {
@@ -163,6 +159,7 @@ public static class RecipeSourceParser
                         _ => RecipeSourceItemKind.Ingredient
                     }
                     : RecipeSourceItemKind.Ingredient;
+                itemKind = kind;
                 var text = Text(line, "name", path);
                 if (kind is RecipeSourceItemKind.Heading or RecipeSourceItemKind.Note &&
                     string.IsNullOrWhiteSpace(text))
@@ -177,7 +174,8 @@ public static class RecipeSourceParser
                     line.GetRawText(),
                     path));
             }
-            AddUnknownFields(line, path, source, "id", "name", "quantity", "unit", "notes");
+            RecipeSourceFieldDispositionRecorder.RecordItemFields(
+                line, path, legacyId, source, itemKind);
             itemPosition++;
         }
         return result;
@@ -200,7 +198,8 @@ public static class RecipeSourceParser
         return archived.GetBoolean();
     }
 
-    private static DateTime? ReadDate(JsonElement recipe, string path, RecipeMigrationSource source)
+    private static DateTime? ReadDate(JsonElement recipe, string path, string legacyId,
+        RecipeMigrationSource source)
     {
         if (!recipe.TryGetProperty("dateAdded", out var dateAdded) || dateAdded.ValueKind == JsonValueKind.Null)
         {
@@ -208,10 +207,8 @@ public static class RecipeSourceParser
             return null;
         }
         JsonInput.Require(dateAdded, JsonValueKind.Object, $"{path}.dateAdded");
-        var fields = dateAdded.TryGetProperty("_seconds", out _)
-            ? new[] { "_seconds", "_nanoseconds" }
-            : ["type", "seconds", "nanoseconds"];
-        AddUnknownFields(dateAdded, $"{path}.dateAdded", source, fields);
+        RecipeSourceFieldDispositionRecorder.RecordDateFields(
+            dateAdded, $"{path}.dateAdded", legacyId, source);
         return RecipeTimestampParser.Parse(dateAdded, $"{path}.dateAdded");
     }
 
@@ -227,14 +224,6 @@ public static class RecipeSourceParser
         if (required && string.IsNullOrWhiteSpace(text))
             throw new FormatException($"{path}.{key}: value must not be blank.");
         return text;
-    }
-
-    private static void AddUnknownFields(JsonElement element, string path, RecipeMigrationSource source,
-        params string[] knownFields)
-    {
-        foreach (var property in element.EnumerateObject())
-            if (!knownFields.Contains(property.Name, StringComparer.Ordinal))
-                source.UnknownFieldPaths.Add($"{path}.{property.Name}");
     }
 
 }

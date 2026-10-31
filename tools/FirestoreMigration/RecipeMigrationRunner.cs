@@ -19,6 +19,7 @@ public sealed record RecipeMigrationReport(
     string SourceFileSha256,
     string DecisionFileSha256,
     int SourceRecipes,
+    int SelectedSourceRecipes,
     int LegacyOwnerFieldsPresent,
     int LegacyOwnerFieldsMissing,
     int MissingArchiveFields,
@@ -33,6 +34,7 @@ public sealed record RecipeMigrationReport(
     string? ImageManifestSha256,
     int ValidatedImages,
     IReadOnlyList<RecipeImageValidationResult> Images,
+    IReadOnlyList<RecipeMigrationSourceDisposition> SourceDispositions,
     IReadOnlyList<string> Warnings,
     IReadOnlyList<string> Diagnostics,
     IReadOnlyList<RecipePreviewItem> Recipes);
@@ -88,6 +90,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             throw new InvalidOperationException("Destination owner does not exist. Register the account first.");
 
         RecipePreviewPlan plan;
+        IReadOnlyList<RecipeSourceRecord> selectedSourceRecipes = [];
         await using (var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.RepeatableRead, cancellationToken))
         {
@@ -110,6 +113,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
                     .ToListAsync(cancellationToken);
             var validation = RecipeSourceValidator.Validate(source, options.Owner, ingredients,
                 options.SelectedLegacyOwnerIds);
+            selectedSourceRecipes = validation.Recipes;
             diagnostics.AddRange(validation.BlockingDiagnostics);
             var imageValidation = RecipeImageManifestValidator.Validate(
                 selected, imageManifest, options.ImageRoot);
@@ -140,7 +144,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             ? $"Source owners: {string.Join(", ", source.LegacyOwnerIds.Order(StringComparer.Ordinal))} (all; explicit selection not required)"
             : $"Source-owner selection: {string.Join(", ", options.SelectedLegacyOwnerIds.Order(StringComparer.Ordinal))}");
         var report = new RecipeMigrationReport(
-            1,
+            2,
             Guid.CreateVersion7(),
             status,
             started,
@@ -149,6 +153,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             Convert.ToHexString(SHA256.HashData(recipeBytes)),
             Convert.ToHexString(SHA256.HashData(decisionBytes)),
             source.Recipes.Count,
+            selectedSourceRecipes.Count,
             source.OwnerFieldCounts.Present,
             source.OwnerFieldCounts.Missing,
             source.MissingArchiveCount,
@@ -163,6 +168,8 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             imageManifestBytes is null ? null : Convert.ToHexString(SHA256.HashData(imageManifestBytes)),
             imageResults.Count(image => image.Status == "validated"),
             imageResults,
+            RecipeMigrationReportBuilder.BuildSourceDispositions(
+                source, selectedSourceRecipes.Select(recipe => recipe.LegacyId).ToHashSet(StringComparer.Ordinal)),
             source.Warnings.Concat(imageWarnings).Distinct(StringComparer.Ordinal).ToArray(),
             diagnostics.Distinct(StringComparer.Ordinal).ToArray(),
             plan.Recipes);
@@ -172,7 +179,7 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output)
             $"unchanged={report.Unchanged}, committed-inserts=0, committed-updates=0, " +
             $"owner-fields-present={report.LegacyOwnerFieldsPresent}, owner-fields-missing={report.LegacyOwnerFieldsMissing}, " +
             $"blank-placeholders={report.BlankPlaceholdersOmitted}, unknown-fields={report.UnknownFieldOccurrences}, " +
-            $"validated-images={report.ValidatedImages}, " +
+            $"selected-source-recipes={report.SelectedSourceRecipes}, validated-images={report.ValidatedImages}, " +
             $"warnings={report.Warnings.Count}, errors={report.Diagnostics.Count}.");
         output.WriteLine($"Report: {reportPath}");
         return new(report.Diagnostics.Count, status, reportPath);

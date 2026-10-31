@@ -13,8 +13,10 @@ public sealed record RecipeSourceItem(int Position, RecipeSourceItemKind Kind, G
 
 public sealed record RecipeSourceStep(int Position, string Instructions, IReadOnlyList<RecipeSourceItem> Items);
 
-public sealed record RecipeSourceBlankPlaceholder(string JsonPath, int StepPosition, int ItemPosition,
-    string SourceJson);
+public sealed record RecipeSourceBlankPlaceholder(string LegacyId, string JsonPath, int StepPosition,
+    int ItemPosition, string SourceJson);
+
+public sealed record RecipeSourceFieldDisposition(string LegacyId, string JsonPath, string Disposition);
 
 public sealed record RecipeOwnerFieldCounts(int Present, int Missing);
 
@@ -27,6 +29,7 @@ public sealed class RecipeMigrationSource
 {
     public List<RecipeSourceRecord> Recipes { get; } = [];
     public List<RecipeSourceBlankPlaceholder> BlankPlaceholders { get; } = [];
+    public List<RecipeSourceFieldDisposition> FieldDispositions { get; } = [];
     public List<string> UnknownFieldPaths { get; } = [];
     public List<string> BlockingDiagnostics { get; } = [];
     public List<string> Warnings { get; } = [];

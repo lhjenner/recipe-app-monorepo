@@ -82,6 +82,46 @@ public sealed class RecipeSourceParserTests
     }
 
     [Fact]
+    public void Reports_source_field_dispositions_and_ordered_step_item_outcomes()
+    {
+        var source = RecipeSourceParser.Parse(
+            Fixture("recipe-source.json"),
+            Fixture("recipe-decisions.json"));
+
+        var report = RecipeMigrationReportBuilder.BuildSourceDispositions(
+            source, new HashSet<string>(["legacy-recipe-001"], StringComparer.Ordinal));
+
+        report.Should().HaveCount(2);
+        var firstRecipe = report[0];
+        firstRecipe.LegacyId.Should().Be("legacy-recipe-001");
+        firstRecipe.Selected.Should().BeTrue();
+        firstRecipe.Fields.Should().Contain(field =>
+                field.JsonPath == "recipes[0].title" && field.Disposition == "Recipe.Name")
+            .And.Contain(field =>
+                field.JsonPath == "recipes[0].futureMetadata" &&
+                field.Disposition == "retained-in-provenance")
+            .And.Contain(field =>
+                field.JsonPath == "recipes[0].userId" &&
+                field.Disposition == "retained-in-provenance; legacy-owner-selection-only")
+            .And.Contain(field =>
+                field.JsonPath == "recipes[0].dateAdded._seconds" &&
+                field.Disposition == "Recipe.DateAddedAtUtc")
+            .And.Contain(field =>
+                field.JsonPath == "recipes[0].steps[0].ingredients[0].department" &&
+                field.Disposition == "retained-in-provenance");
+        firstRecipe.Steps.Select(step => step.Position).Should().Equal(0, 1);
+        firstRecipe.Steps[0].SourceItemCount.Should().Be(4);
+        firstRecipe.Steps[0].Items.Select(item => item.Position).Should().Equal(0, 1, 2, 3);
+        firstRecipe.Steps[0].Items.Select(item => item.Disposition).Should()
+            .Equal("ingredient", "heading", "note", "blank-placeholder-omitted");
+        firstRecipe.Steps[0].Items[0].IngredientId.Should()
+            .Be(Guid.Parse("117c8374-5db4-4021-b106-5b466e2446ed"));
+        firstRecipe.Steps[0].Items[1].IngredientId.Should().BeNull();
+        firstRecipe.Steps[1].SourceItemCount.Should().Be(0);
+        report[1].Selected.Should().BeFalse();
+    }
+
+    [Fact]
     public void Missing_dates_are_preserved_as_null_and_structural_text_is_a_blocker()
     {
         const string recipe = """
