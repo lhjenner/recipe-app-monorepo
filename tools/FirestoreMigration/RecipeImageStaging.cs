@@ -10,7 +10,8 @@ public static class RecipeImageStaging
         RecipePreviewPlan plan, IReadOnlySet<string> approved,
         IReadOnlyList<RecipeImageValidationResult> images, IReadOnlyList<RecipeTargetRecord> targets,
         string imageRoot, IPrivateObjectMigrationStorage storage, RecipeImageJournal journal,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, RecipeRunProgress? progress = null,
+        Func<CancellationToken, Task>? checkpoint = null)
     {
         var accepted = plan.Recipes.Where(item => item.Outcome == "proposed-insert" ||
             item.Outcome == "proposed-update" && approved.Contains(item.LegacyId))
@@ -32,17 +33,30 @@ public static class RecipeImageStaging
                 continue;
             }
             var entry = journal.Plan(image);
+            progress?.PlannedKeys.Add(entry.ObjectKey);
+            if (progress is not null) progress.JournalImages = journal.Data.Images;
+            if (checkpoint is not null) await checkpoint(cancellationToken);
             await using var stored = await storage.OpenReadAsync(entry.ObjectKey, cancellationToken);
             if (stored is not null)
+            {
                 await VerifyAsync(stored, entry.ByteSize, entry.Sha256, cancellationToken);
+                progress?.ReusedKeys.Add(entry.ObjectKey);
+            }
             else
             {
+                progress?.UploadAttemptedKeys.Add(entry.ObjectKey);
+                if (checkpoint is not null) await checkpoint(cancellationToken);
                 await storage.CreateOnlyAsync(entry.ObjectKey, input, entry.ContentType, cancellationToken);
+                progress?.UploadedKeys.Add(entry.ObjectKey);
+                if (checkpoint is not null) await checkpoint(cancellationToken);
                 await using var uploaded = await storage.OpenReadAsync(entry.ObjectKey, cancellationToken)
                     ?? throw new InvalidDataException("Staged image could not be read back.");
                 await VerifyAsync(uploaded, entry.ByteSize, entry.Sha256, cancellationToken);
             }
+            progress?.VerifiedKeys.Add(entry.ObjectKey);
             journal.SetState(entry.ObjectKey, "verified");
+            if (progress is not null) progress.JournalImages = journal.Data.Images;
+            if (checkpoint is not null) await checkpoint(cancellationToken);
             result.Add(image.RecipeId, new(entry.ObjectKey, entry.ContentType, entry.ByteSize,
                 entry.Sha256, entry.Width, entry.Height));
         }

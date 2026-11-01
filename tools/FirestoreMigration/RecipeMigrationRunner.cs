@@ -1,33 +1,31 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using RecipeApp.Api.Images;
 using RecipeApp.Api.Infrastructure.Persistence;
 
 namespace FirestoreMigration;
 
 public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, TextReader confirmationInput,
-    IPrivateObjectMigrationStorage? storage = null)
+    IPrivateObjectMigrationStorage? storage = null, IRecipeReportPublisher? reportPublisher = null)
 {
     public async Task<RecipeMigrationRunResult> RunAsync(MigrationOptions options,
         CancellationToken cancellationToken = default)
     {
-        if (options.Mode != MigrationMode.Recipes || options.RecipeFile is null ||
-            options.ReportFile is null)
+        if (options.Mode != MigrationMode.Recipes || options.RecipeFile is null || options.ReportFile is null)
             throw new ArgumentException("Recipe mode requires recipe and report paths.", nameof(options));
-
         var recipePath = Path.GetFullPath(options.RecipeFile);
         var decisionPath = Path.GetFullPath(options.Decisions);
         var reportPath = Path.GetFullPath(options.ReportFile);
-        var imageManifestPath = options.ImageManifestFile is null ? null : Path.GetFullPath(options.ImageManifestFile);
-        var inputPaths = new List<string> { recipePath, decisionPath, reportPath };
-        if (imageManifestPath is not null) inputPaths.Add(imageManifestPath);
+        var manifestPath = options.ImageManifestFile is null ? null : Path.GetFullPath(options.ImageManifestFile);
+        var inputPaths = new List<string> { recipePath, decisionPath, reportPath, reportPath + ".lock" };
+        if (manifestPath is not null) inputPaths.Add(manifestPath);
         if (options.ImageJournalFile is not null)
         {
-            inputPaths.Add(Path.GetFullPath(options.ImageJournalFile));
-            RecipeMigrationReportWriter.EnsureOutsideRepository(Path.GetFullPath(options.ImageJournalFile));
+            var journalPath = Path.GetFullPath(options.ImageJournalFile);
+            inputPaths.Add(journalPath);
+            inputPaths.Add(journalPath + ".lock");
+            RecipeMigrationReportWriter.EnsureOutsideRepository(journalPath);
         }
         RecipeMigrationReportWriter.EnsureDistinctInputs(inputPaths);
         RecipeMigrationReportWriter.EnsureOutsideRepository(reportPath);
@@ -39,185 +37,66 @@ public sealed class RecipeMigrationRunner(AppDbContext db, TextWriter output, Te
         var started = DateTime.UtcNow;
         var recipeBytes = await File.ReadAllBytesAsync(recipePath, cancellationToken);
         var decisionBytes = await File.ReadAllBytesAsync(decisionPath, cancellationToken);
-        var imageManifestBytes = imageManifestPath is null
-            ? null
-            : await File.ReadAllBytesAsync(imageManifestPath, cancellationToken);
-        var sourceFiles = new RecipeSourceFiles(recipePath, recipeBytes,
-            decisionPath, decisionBytes, imageManifestPath, imageManifestBytes);
+        var manifestBytes = manifestPath is null ? null : await File.ReadAllBytesAsync(manifestPath, cancellationToken);
+        var files = new RecipeSourceFiles(recipePath, recipeBytes, decisionPath, decisionBytes, manifestPath, manifestBytes);
         var utf8 = new UTF8Encoding(false, true);
-        var recipeJson = utf8.GetString(recipeBytes).TrimStart('\uFEFF');
-        var decisionJson = utf8.GetString(decisionBytes).TrimStart('\uFEFF');
-        var imageManifestJson = imageManifestBytes is null
-            ? null
-            : utf8.GetString(imageManifestBytes).TrimStart('\uFEFF');
-        var source = RecipeSourceParser.Parse(recipeJson, decisionJson);
-        var imageManifest = imageManifestJson is null
-            ? null
-            : RecipeImageManifestParser.Parse(imageManifestJson);
-        await RecipeMigrationInputConfirmation.ConfirmAsync(
-            source, options, recipePath, decisionPath, imageManifestPath,
-            confirmationInput, output,
-            cancellationToken);
-        var diagnostics = new List<string>(source.BlockingDiagnostics);
-        var imageWarnings = new List<string>();
-        var imageResults = new List<RecipeImageValidationResult>();
-
-        if ((await db.Database.GetPendingMigrationsAsync(cancellationToken)).Any() ||
-            db.Database.HasPendingModelChanges())
-            throw new InvalidOperationException("Database schema is not current. Apply the API's EF migrations first.");
-        if (!await db.Users.AnyAsync(user => user.Id == options.Owner, cancellationToken))
-            throw new InvalidOperationException("Destination owner does not exist. Register the account first.");
-
-        RecipePreviewPlan plan;
-        IReadOnlyList<RecipeSourceRecord> selectedSourceRecipes = [];
-        IReadOnlyList<RecipeTargetRecord> targetRecords = [];
-        IReadOnlyList<Guid> sourceIds = [];
-        string targetFingerprint;
-        var sourceValidation = new RecipeSourceValidationResult([], []);
-        await using (var transaction = await db.Database.BeginTransactionAsync(
-            IsolationLevel.RepeatableRead, cancellationToken))
-        {
-            await db.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY", cancellationToken);
-            var selection = RecipeSourceValidator.Select(source, options.SelectedLegacyOwnerIds);
-            var selected = selection.Recipes;
-            var ids = selected.SelectMany(recipe => recipe.Steps)
-                .SelectMany(step => step.Items)
-                .Select(item => item.SourceId)
-                .Distinct()
-                .ToArray();
-            sourceIds = ids;
-            var ingredients = ids.Length == 0
-                ? []
-                : await db.Ingredients.AsNoTracking()
-                    .Where(ingredient => ids.Contains(ingredient.Id))
-                    .Select(ingredient => new RecipeIngredientTarget(
-                        ingredient.Id, ingredient.OwnerUserId, ingredient.ArchivedAtUtc != null,
-                        ingredient.ExcludeFromGroceryList))
-                    .ToListAsync(cancellationToken);
-            var validation = RecipeSourceValidator.Validate(source, options.Owner, ingredients,
-                options.SelectedLegacyOwnerIds);
-            sourceValidation = validation;
-            selectedSourceRecipes = validation.Recipes;
-            diagnostics.AddRange(validation.BlockingDiagnostics);
-            var imageValidation = RecipeImageManifestValidator.Validate(
-                selected, imageManifest, options.ImageRoot);
-            diagnostics.AddRange(imageValidation.BlockingDiagnostics);
-            imageWarnings.AddRange(imageValidation.Warnings);
-            imageResults.AddRange(imageValidation.Images);
-            foreach (var image in imageResults.Where(image => image.Status == "validated"))
-                sourceFiles.IncludeImage(RecipeImageFiles.ResolveSelectedFile(
-                    options.ImageRoot!, image.RelativePath), image.Sha256!);
-
-            var legacyIds = selected.Select(recipe => recipe.LegacyId).Distinct(StringComparer.Ordinal).ToArray();
-            var existing = legacyIds.Length == 0
-                ? []
-                : await db.Recipes.AsNoTracking()
-                    .Where(recipe => recipe.OwnerUserId == options.Owner &&
-                        recipe.LegacyId != null && legacyIds.Contains(recipe.LegacyId))
-                    .Include(recipe => recipe.Tags)
-                    .Include(recipe => recipe.Steps).ThenInclude(step => step.Items)
-                    .Include(recipe => recipe.ImportProvenance)
-                    .Include(recipe => recipe.Image)
-                    .AsSplitQuery()
-                    .ToListAsync(cancellationToken);
-            var targets = existing.Select(RecipeTargetMapper.ToTarget).ToArray();
-            targetRecords = targets;
-            plan = RecipeImagePlanning.IncludeImages(
-                RecipePreviewPlanner.Create(validation, options.Owner, targets), imageResults, targets);
-            diagnostics.AddRange(plan.BlockingDiagnostics);
-            targetFingerprint = await RecipeTargetFingerprint.ComputeAsync(
-                db, options.Owner, legacyIds, ids, cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-
-        var status = diagnostics.Count == 0 ? "preview-valid" : "validation-blocked";
-        var runId = Guid.CreateVersion7();
-        var committedInserts = 0;
-        var committedUpdates = 0;
-        var reportRecipes = plan.Recipes;
-        IReadOnlyList<JournalImage> journalImages = [];
-        if (options.Write)
-        {
-            if (imageResults.Count > 0 && (storage is null || options.ImageJournalFile is null))
-                diagnostics.Add("Image writes require configured private storage and --image-journal; no Recipes were written.");
-
-            if (diagnostics.Count == 0)
-            {
-                var inputFingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-                    Convert.ToHexString(SHA256.HashData(recipeBytes)) +
-                    Convert.ToHexString(SHA256.HashData(decisionBytes)) +
-                    (imageManifestBytes is null ? "" : Convert.ToHexString(SHA256.HashData(imageManifestBytes))) +
-                    JsonSerializer.Serialize(selectedSourceRecipes.Select(recipe => recipe.LegacyId).Order(StringComparer.Ordinal)))));
-                var commit = await RecipeMigrationApply.ApplyAsync(db, options, plan, selectedSourceRecipes,
-                    targetRecords, imageResults, sourceFiles, sourceIds, targetFingerprint,
-                    Convert.ToHexString(SHA256.HashData(recipeBytes)), source.DecisionFingerprint,
-                    inputFingerprint, runId, storage, confirmationInput, output, cancellationToken);
-                runId = commit.RunId;
-                committedInserts = commit.Inserted;
-                committedUpdates = commit.Updated;
-                reportRecipes = commit.Recipes;
-                journalImages = commit.JournalImages;
-                status = "committed";
-            }
-            else
-            {
-                status = "validation-blocked";
-            }
-        }
-
-        var report = new RecipeMigrationReport(
-            3,
-            runId,
-            status,
-            started,
-            DateTime.UtcNow,
-            options.Owner,
-            Convert.ToHexString(SHA256.HashData(recipeBytes)),
-            Convert.ToHexString(SHA256.HashData(decisionBytes)),
-            source.Recipes.Count,
-            selectedSourceRecipes.Count,
-            source.OwnerFieldCounts.Present,
-            source.OwnerFieldCounts.Missing,
-            source.MissingArchiveCount,
-            source.MissingDateCount,
-            source.BlankPlaceholders.Count,
-            source.UnknownFieldPaths.Count,
-            plan.ProposedInserts,
-            plan.ProposedUpdates,
-            plan.Unchanged,
-            committedInserts,
-            committedUpdates,
-            imageManifestBytes is null ? null : Convert.ToHexString(SHA256.HashData(imageManifestBytes)),
-            imageResults.Count(image => image.Status == "validated"),
-            RecipeMigrationReportBuilder.BuildSummary(selectedSourceRecipes, sourceValidation),
-            imageResults,
-            RecipeMigrationReportBuilder.BuildSourceDispositions(
-                source, selectedSourceRecipes.Select(recipe => recipe.LegacyId).ToHashSet(StringComparer.Ordinal)),
-            source.Warnings.Concat(imageWarnings).Distinct(StringComparer.Ordinal).ToArray(),
-            diagnostics.Distinct(StringComparer.Ordinal).ToArray(),
-            reportRecipes, options.ImageJournalFile, journalImages);
+        var source = RecipeSourceParser.Parse(utf8.GetString(recipeBytes).TrimStart('\uFEFF'),
+            utf8.GetString(decisionBytes).TrimStart('\uFEFF'));
+        await RecipeMigrationInputConfirmation.ConfirmAsync(source, options, recipePath, decisionPath, manifestPath,
+            confirmationInput, output, cancellationToken);
+        var sourceHash = Hash(recipeBytes);
+        var decisionHash = Hash(decisionBytes);
+        var manifestHash = manifestBytes is null ? null : Hash(manifestBytes);
+        using var report = new RecipeReportSession(options with { ReportFile = reportPath },
+            source, started, sourceHash, decisionHash, manifestHash,
+            RecipeImageRecovery.DatabaseScope(db), reportPublisher);
         try
         {
-            await RecipeMigrationReportWriter.WriteAsync(reportPath, report, cancellationToken);
+            await report.SaveAsync(cancellationToken);
+            var manifest = manifestBytes is null ? null :
+                RecipeImageManifestParser.Parse(utf8.GetString(manifestBytes).TrimStart('\uFEFF'));
+            var readSet = await RecipeMigrationPreview.ReadAsync(db, options, source, manifest, files, report, cancellationToken);
+            if (options.Write && report.Images.Count > 0 && (storage is null || options.ImageJournalFile is null))
+                report.Diagnostics.Add("Image writes require configured private storage and --image-journal; no Recipes were written.");
+            report.Progress.Status = report.Diagnostics.Count == 0 ? "preview-valid" : "validation-blocked";
+            await report.SaveAsync(cancellationToken);
+            if (options.Write && report.Diagnostics.Count == 0)
+            {
+                var fingerprint = Hash(Encoding.UTF8.GetBytes(sourceHash + decisionHash + manifestHash +
+                    JsonSerializer.Serialize(report.Selected.Select(recipe => recipe.LegacyId).Order(StringComparer.Ordinal))));
+                await RecipeMigrationApply.ApplyAsync(db, options, report.Plan, report.Selected,
+                    report.Targets, report.Images, files, readSet.SourceIds, readSet.Fingerprint,
+                    sourceHash, source.DecisionFingerprint, fingerprint, report.Progress,
+                    storage, confirmationInput, output, report.SaveAsync, cancellationToken);
+            }
         }
-        catch (Exception exception) when (status == "committed" &&
-            exception is IOException or UnauthorizedAccessException or OperationCanceledException)
+        catch (Exception failure)
         {
-            output.WriteLine($"COMMITTED: Recipe run {runId}; report persistence failed. Reconcile database/provenance and image journal; do not assume rollback.");
+            await report.SaveFailureAsync(failure, output);
             throw;
         }
-        output.WriteLine($"Recipe {(options.Write ? "write" : "preview")}: owner={options.Owner}, status={status}, " +
-            $"proposed-inserts={report.ProposedInserts}, proposed-updates={report.ProposedUpdates}, " +
-            $"unchanged={report.Unchanged}, committed-inserts={report.CommittedInserts}, committed-updates={report.CommittedUpdates}, " +
-            $"owner-fields-present={report.LegacyOwnerFieldsPresent}, owner-fields-missing={report.LegacyOwnerFieldsMissing}, " +
-            $"blank-placeholders={report.BlankPlaceholdersOmitted}, unknown-fields={report.UnknownFieldOccurrences}, " +
-            $"selected-source-recipes={report.SelectedSourceRecipes}, validated-images={report.ValidatedImages}, " +
-            $"planned-headings={report.Summary.PlannedHeadingsConverted}, " +
-            $"planned-notes={report.Summary.PlannedNotesConverted}, " +
-            $"missing-ingredient-references={report.Summary.MissingIngredientReferences}, " +
-            $"warnings={report.Warnings.Count}, errors={report.Diagnostics.Count}.");
+        try
+        {
+            await report.SaveAsync(cancellationToken);
+        }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            report.PrintPersistenceFailure(output, failure);
+            await report.SaveFailureAsync(failure, output);
+            throw;
+        }
+        var snapshot = report.Snapshot();
+        output.WriteLine($"Recipe {(options.Write ? "write" : "preview")}: owner={options.Owner}, status={snapshot.Status}, " +
+            $"proposed-inserts={snapshot.ProposedInserts}, proposed-updates={snapshot.ProposedUpdates}, " +
+            $"unchanged={snapshot.Unchanged}, committed-inserts={snapshot.CommittedInserts}, committed-updates={snapshot.CommittedUpdates}, " +
+            $"selected-source-recipes={snapshot.SelectedSourceRecipes}, validated-images={snapshot.ValidatedImages}, " +
+            $"planned-headings={snapshot.Summary.PlannedHeadingsConverted}, planned-notes={snapshot.Summary.PlannedNotesConverted}, " +
+            $"committed-headings={snapshot.Summary.CommittedHeadingsConverted}, committed-notes={snapshot.Summary.CommittedNotesConverted}, " +
+            $"missing-ingredient-references={snapshot.Summary.MissingIngredientReferences}, " +
+            $"warnings={snapshot.Warnings.Count}, errors={snapshot.Diagnostics.Count}.");
         output.WriteLine($"Report: {reportPath}");
-        return new(report.Diagnostics.Count, status, reportPath);
+        return new(snapshot.Diagnostics.Count, snapshot.Status, reportPath);
     }
 
+    private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 }

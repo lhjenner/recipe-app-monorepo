@@ -236,13 +236,65 @@ response is **uncertain**, not proof of rollback: reconcile the journal before r
 cleanup. A report failure after commit explicitly prints the committed run ID; recover
 against database provenance and the image journal rather than treating it as a rollback.
 
-The JSON report includes one source disposition per Recipe, including whether it was
+### Durable Recipe reports (schema 4)
+
+After the source/decisions parse and destination-owner confirmation succeeds, the tool
+reserves the new report path with an exclusive `.lock` sidecar and publishes an initial
+checkpoint **before** database preview, approvals, uploads or writes. Invalid/unreadable
+source inputs, rejected owner confirmation and unwritable/reserved report destinations
+fail before this reporting boundary; no database or image mutations have begun.
+Keep the report and its lock sidecar in restricted durable storage outside Git. Never
+remove a lock sidecar while a run is active, and use a new report path for each attempt.
+Checkpoints use a unique temporary file, disk flush and atomic replacement; failed
+publication preserves the last complete JSON document rather than a truncated report.
+
+Reports include `preview-valid`, `validation-blocked`, `cancelled`, `rolled-back`,
+`operational-failure` and `committed` terminal states. `previewing` is an initial,
+nonterminal checkpoint. The tool publishes `commit-uncertain` immediately before asking
+PostgreSQL to commit; interruption or a lost commit response cannot imply rollback.
+Committed counts and newly assigned GUIDs are published only after commit returns
+successfully. If reporting or journal finalization then fails, the command exits nonzero,
+prints **COMMITTED** and the run ID, and preserves any known committed outcomes.
+Reconcile that ID against Recipe import provenance and the image journal; never retry
+blindly from an uncertain checkpoint.
+
+Cancellation/failure finalization uses an independent ten-second timeout rather than the
+cancelled migration token. It records the original failure type without provider
+diagnostics or credentials. If that report cannot be persisted either, the console
+explicitly identifies the known/uncertain commit state and recoverable run ID; the
+original operation still fails.
+
+`Recipes` contains every parsed source Recipe, its source JSON path, available target
+GUID, planned outcome and actual outcome. Intentionally excluded Recipes are
+`not-selected`; invalid Recipes are `validation-blocked`, while valid selected Recipes
+prevented by another blocker are `not-applied`. Declines and unchanged records remain
+distinct from cancelled/rolled-back revisions. `OutcomeCounts` reconciles to the source
+Recipe total, and `ApprovalDecisions` retains completed decisions even if later input fails.
+`Unchanged` is a preview count; `CommittedUnchanged` counts unchanged outcomes only for a
+confirmed successful write run. The report records Recipe mode, whether writes were
+requested, and the same hashed database target identity used by image recovery, never
+a connection string. Input, journal, report and both lock-sidecar paths must be distinct.
+
+The JSON report also includes one source disposition per Recipe, including whether it was
 selected, the ordered source Steps/items, and each item's outcome (`ingredient`,
 `heading`, `note`, or `blank-placeholder-omitted`). Field-level paths identify their
 typed destination or retention, selection, and validation disposition. This makes
 source counts and omissions reviewable without copying source values into console output.
-The run summary separately counts planned Heading/Note occurrences and missing or
-cross-owner Ingredient references; repeated uses count as separate occurrences.
+The run summary separately counts planned and committed Heading/Note occurrences and
+missing or cross-owner Ingredient references. Repeated uses count as separate occurrences;
+declined, unchanged and rolled-back Recipes contribute zero committed conversions.
+
+`ImageOutcomes` separates planned add/replace/remove/retain work from actual association,
+removal, retained association, uncertain upload/commit and leftover staging outcomes.
+It includes reference SHA-256, planned checksum, current/staged key and checksum, and
+previous object key for replacement/removal. The latter bytes are retained, not deleted.
+Image access references are hashed in reports, never copied with their access tokens.
+`ImageWork` distinguishes planned uploads/removals, acknowledged uploads, verified staged
+objects, reused staging, retained associations, committed associations/removals and
+uncertain/unreferenced staged work. These are **per-attempt** counters, not sums of older
+journal entries. `JournalImages` preserves the recovery inventory and its last durable
+state; a verified upload is not itself a committed association. Unverified bytes and
+uncertain commits require reconciliation before any cleanup.
 
 Review the printed server, database and destination owner. Fix blocking diagnostics
 and classify every unresolved invalid item. Source names are preserved unchanged;

@@ -14,7 +14,8 @@ public sealed record RecipeSourceValidationResult(
 
 public sealed record RecipeSourceSelectionResult(
     IReadOnlyList<RecipeSourceRecord> Recipes,
-    IReadOnlyList<string> BlockingDiagnostics);
+    IReadOnlyList<string> BlockingDiagnostics,
+    IReadOnlySet<string> AmbiguousLegacyIds);
 
 public static class RecipeSourceValidator
 {
@@ -24,10 +25,12 @@ public static class RecipeSourceValidator
         ArgumentNullException.ThrowIfNull(source);
         var diagnostics = new List<string>(source.BlockingDiagnostics);
         var availableOwners = source.LegacyOwnerIds;
+        var ambiguous = source.Recipes.Where(recipe => availableOwners.Count > 1 && recipe.LegacyOwnerId is null)
+            .Select(recipe => recipe.LegacyId).ToHashSet(StringComparer.Ordinal);
         if (availableOwners.Count > 1 && selectedLegacyOwnerIds is null)
         {
             diagnostics.Add("Multiple legacy owner IDs occur in the export; explicit source-owner selection is required.");
-            return new([], diagnostics);
+            return new([], diagnostics, ambiguous);
         }
 
         IReadOnlyList<RecipeSourceRecord> selectedRecipes;
@@ -42,8 +45,7 @@ public static class RecipeSourceValidator
                 diagnostics.Add($"Selected legacy owner '{ownerId}' is not present in the export.");
             if (selectedLegacyOwnerIds.Count == 0)
                 diagnostics.Add("At least one legacy owner must be selected.");
-            if (availableOwners.Count > 1 &&
-                source.Recipes.Any(recipe => recipe.LegacyOwnerId is null))
+            if (ambiguous.Count > 0)
                 diagnostics.Add("Recipes with missing legacy owner IDs cannot be assigned from a multi-owner export.");
             selectedRecipes = source.Recipes
                 .Where(recipe => recipe.LegacyOwnerId is null
@@ -54,7 +56,7 @@ public static class RecipeSourceValidator
                 diagnostics.Add("The selected source-owner set contains no Recipes.");
         }
 
-        return new(selectedRecipes, diagnostics);
+        return new(selectedRecipes, diagnostics, ambiguous);
     }
 
     public static RecipeSourceValidationResult Validate(RecipeMigrationSource source, Guid destinationOwnerId,

@@ -13,7 +13,9 @@ public sealed class RecipeImportWriter(AppDbContext db)
         string decisionFingerprint, string targetFingerprint,
         RecipeSourceFiles sourceFiles, IReadOnlyList<Guid> sourceIds,
         CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, RecipeTargetImage>? stagedImages = null)
+        IReadOnlyDictionary<string, RecipeTargetImage>? stagedImages = null,
+        RecipeRunProgress? progress = null,
+        Func<CancellationToken, Task>? beforeCommit = null)
     {
         var sourceByLegacyId = sourceRecipes.ToDictionary(recipe => recipe.LegacyId, StringComparer.Ordinal);
         var insertedRecipes = new Dictionary<string, Guid>(StringComparer.Ordinal);
@@ -95,9 +97,6 @@ public sealed class RecipeImportWriter(AppDbContext db)
             updatedRecipes.Add(legacyId, target.Id);
         }
 
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
         var results = plan.Recipes.Select(item =>
         {
             if (insertedRecipes.TryGetValue(item.LegacyId, out var insertedId))
@@ -108,6 +107,13 @@ public sealed class RecipeImportWriter(AppDbContext db)
                 return item with { Outcome = "declined" };
             return item;
         }).ToArray();
+        await db.SaveChangesAsync(cancellationToken);
+        if (beforeCommit is not null)
+            await beforeCommit(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        progress?.PreparingCommit();
+        await transaction.CommitAsync(cancellationToken);
+        progress?.ConfirmCommit(insertedRecipes.Count, updatedRecipes.Count, results);
         return (insertedRecipes.Count, updatedRecipes.Count, results);
     }
 

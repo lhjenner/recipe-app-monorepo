@@ -14,7 +14,8 @@ public sealed record RecipeTargetRecord(Guid Id, string LegacyId, Guid OwnerUser
     IReadOnlyList<RecipeTargetStep> Steps, string? SourceDocumentJson, RecipeTargetImage? Image = null);
 
 public sealed record RecipePreviewItem(string LegacyId, Guid? ExistingRecipeId, string Outcome,
-    IReadOnlyList<string> Differences);
+    IReadOnlyList<string> Differences, string? PlannedOutcome = null,
+    string? SourceJsonPath = null, IReadOnlyList<string>? Diagnostics = null);
 
 public sealed record RecipePreviewPlan(IReadOnlyList<RecipePreviewItem> Recipes,
     IReadOnlyList<string> BlockingDiagnostics)

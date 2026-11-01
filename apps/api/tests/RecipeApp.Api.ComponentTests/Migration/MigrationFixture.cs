@@ -1,4 +1,3 @@
-using System.Text.Json;
 using FirestoreMigration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -15,7 +14,7 @@ public sealed record RecipeImportIdentity(Guid RecipeId, string? LegacyId, Guid 
     IReadOnlyList<Guid> ChildIds, IReadOnlyList<Guid?> IngredientIds, string SourceDocumentJson,
     string DocumentSha256, string SourceFileSha256, Guid LastAppliedRunId);
 
-public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
+public sealed partial class MigrationFixture(ApiAuthContext api) : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"recipe-migration-test-{Guid.NewGuid():N}");
     private readonly List<string> _recipeReportFiles = [];
@@ -44,6 +43,7 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     public string? ImageJournalPath { get; set; }
     public byte[]? ImageBytes { get; set; }
     public IInterceptor? RecipeInterceptor { get; set; }
+    public IRecipeReportPublisher? ReportPublisher { get; set; }
 
     public async Task InitializeAsync()
     {
@@ -100,62 +100,6 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
         var path = Path.Combine(_directory, $"recipe-import-report-{Guid.NewGuid():N}.json");
         _recipeReportFiles.Add(path);
         return path;
-    }
-
-    public async Task<RecipeMigrationRunResult> RunRecipeAsync(string recipeJson, bool write,
-        string reportPath, string? selectedLegacyOwnerId = null, bool includeImageManifest = false,
-        bool corruptImage = false, string? ownerConfirmation = null, string? updateApproval = "yes",
-        Func<Task>? onUpdateApproval = null)
-    {
-        File.WriteAllText(RecipeFile, recipeJson);
-        File.WriteAllText(DecisionFile, "{}");
-        var args = new List<string>
-        {
-            "--mode", "recipes", "--recipes", RecipeFile, "--owner", Owner.ToString(),
-            "--decisions", DecisionFile, "--report", reportPath
-        };
-        if (write) args.Add("--write");
-        if (ImageJournalPath is not null)
-        {
-            args.Add("--image-journal");
-            args.Add(ImageJournalPath);
-        }
-        if (includeImageManifest)
-        {
-            Directory.CreateDirectory(ImageRoot);
-            var imageBytes = corruptImage ? "not an image"u8.ToArray() : ImageBytes ?? SyntheticImage.Png;
-            File.WriteAllBytes(Path.Combine(ImageRoot, "synthetic.png"), imageBytes);
-            var manifest = new[]
-            {
-                new
-                {
-                    recipeId = "synthetic-recipe",
-                    imageReference = "https://example.test/synthetic",
-                    path = "synthetic.png",
-                    byteCount = imageBytes.LongLength,
-                    sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(imageBytes))
-                }
-            };
-            File.WriteAllText(ImageManifestFile, JsonSerializer.Serialize(manifest));
-            args.Add("--image-manifest");
-            args.Add(ImageManifestFile);
-            args.Add("--image-root");
-            args.Add(ImageRoot);
-        }
-        if (selectedLegacyOwnerId is not null)
-        {
-            args.Add("--source-owner");
-            args.Add(selectedLegacyOwnerId);
-        }
-        var options = MigrationOptions.Parse(args.ToArray());
-        await using var db = Database(RecipeInterceptor);
-        var ownerResponse = ownerConfirmation ?? Owner.ToString();
-        using TextReader confirmation = onUpdateApproval is null
-            ? new StringReader(updateApproval is null
-                ? ownerResponse
-                : $"{ownerResponse}{Environment.NewLine}{updateApproval}")
-            : new RecipeApprovalReader(ownerResponse, onUpdateApproval, updateApproval);
-        return await new RecipeMigrationRunner(db, Output, confirmation, ImageStorage).RunAsync(options);
     }
 
     public async Task SeedRecipeIngredientAsync()
@@ -234,7 +178,10 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     {
         foreach (var name in new[] { "ingredients.json", "meta.json", "decisions.json", "users.json", "recipes.json",
                      "recipe-preview.json", "recipe-preview-report.json" })
+        {
             File.Delete(Path.Combine(_directory, name));
+            File.Delete(Path.Combine(_directory, name + ".lock"));
+        }
         foreach (var reportFile in _recipeReportFiles)
         {
             File.Delete(reportFile);

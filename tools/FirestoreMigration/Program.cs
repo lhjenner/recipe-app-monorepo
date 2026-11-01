@@ -1,10 +1,7 @@
-using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Npgsql;
 using RecipeApp.Api.Infrastructure.Persistence;
 using RecipeApp.Api.Infrastructure.Storage;
-using Amazon.Runtime;
 
 namespace FirestoreMigration;
 
@@ -23,7 +20,7 @@ internal static class Program
             eventArgs.Cancel = true;
             cancellation.Cancel();
         };
-        try
+        return await MigrationCommand.ExecuteAsync(async () =>
         {
             var recovery = args.Length > 0 && args[0] == "--recover-image-journal";
             var options = recovery ? null : MigrationOptions.Parse(args);
@@ -49,30 +46,6 @@ internal static class Program
             }
             var result = await new MigrationRunner(database, Console.In, Console.Out).RunAsync(options, cancellation.Token);
             return result.Errors == 0 ? 0 : 1;
-        }
-        catch (OperationCanceledException)
-        {
-            Console.Error.WriteLine("CANCELLED: no success claimed. Reconcile any reported Recipe run/journal before cleanup.");
-            return 2;
-        }
-        catch (Exception exception) when (exception is DbException or DbUpdateException ||
-            exception.InnerException is DbException or DbUpdateException)
-        {
-            var postgres = exception.GetBaseException() as PostgresException;
-            Console.Error.WriteLine($"ERROR: database operation failed ({exception.GetType().Name}, SQLSTATE {postgres?.SqlState ?? "unavailable"}). " +
-                "No success claimed. Verify connectivity, schema and conflicts; reconcile any Recipe run/journal before cleanup.");
-            return 1;
-        }
-        catch (AmazonServiceException exception)
-        {
-            Console.Error.WriteLine($"ERROR: private storage operation failed ({exception.GetType().Name}). " +
-                "Reconcile the image journal; no automatic object cleanup or success claimed.");
-            return 1;
-        }
-        catch (Exception exception) when (exception is FormatException or IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or System.Text.Json.JsonException)
-        {
-            Console.Error.WriteLine($"ERROR: {exception.Message}");
-            return 1;
-        }
+        }, Console.Error);
     }
 }

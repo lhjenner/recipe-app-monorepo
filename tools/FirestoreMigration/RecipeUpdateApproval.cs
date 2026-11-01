@@ -10,7 +10,8 @@ public static class RecipeUpdateApproval
         IReadOnlyList<RecipeTargetRecord> targets,
         TextReader input,
         TextWriter output,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        RecipeRunProgress? progress = null)
     {
         var sourceByLegacyId = sourceRecipes.ToDictionary(recipe => recipe.LegacyId, StringComparer.Ordinal);
         var targetByLegacyId = targets.ToDictionary(recipe => recipe.LegacyId, StringComparer.Ordinal);
@@ -29,7 +30,9 @@ public static class RecipeUpdateApproval
             await output.FlushAsync(cancellationToken);
             var response = await input.ReadLineAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (response?.Trim().Equals("yes", StringComparison.OrdinalIgnoreCase) == true)
+            var accepted = response?.Trim().Equals("yes", StringComparison.OrdinalIgnoreCase) == true;
+            if (progress is not null) progress.Decisions[update.LegacyId] = accepted;
+            if (accepted)
                 approved.Add(update.LegacyId);
             else
                 output.WriteLine($"Declined Recipe update: LegacyId={update.LegacyId}");

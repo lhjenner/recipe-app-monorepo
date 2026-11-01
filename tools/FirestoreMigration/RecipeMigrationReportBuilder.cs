@@ -5,7 +5,8 @@ public sealed record RecipeMigrationSourceDisposition(string LegacyId, string? L
     IReadOnlyList<RecipeMigrationStepDisposition> Steps);
 
 public sealed record RecipeMigrationRunSummary(int PlannedHeadingsConverted,
-    int PlannedNotesConverted, int MissingIngredientReferences, int CrossOwnerIngredientReferences);
+    int PlannedNotesConverted, int MissingIngredientReferences, int CrossOwnerIngredientReferences,
+    int CommittedHeadingsConverted = 0, int CommittedNotesConverted = 0);
 
 public sealed record RecipeMigrationFieldDisposition(string JsonPath, string Disposition);
 
@@ -18,17 +19,25 @@ public sealed record RecipeMigrationItemDisposition(int Position, string JsonPat
 public static class RecipeMigrationReportBuilder
 {
     public static RecipeMigrationRunSummary BuildSummary(
-        IReadOnlyList<RecipeSourceRecord> selectedRecipes, RecipeSourceValidationResult validation)
+        IReadOnlyList<RecipeSourceRecord> selectedRecipes, RecipeSourceValidationResult validation,
+        IReadOnlyList<RecipePreviewItem>? outcomes = null)
     {
         ArgumentNullException.ThrowIfNull(selectedRecipes);
         ArgumentNullException.ThrowIfNull(validation);
         var items = selectedRecipes.SelectMany(recipe => recipe.Steps)
-            .SelectMany(step => step.Items);
+            .SelectMany(step => step.Items).ToArray();
+        var committedIds = (outcomes ?? []).Where(item =>
+                item.Outcome is "committed-insert" or "committed-update")
+            .Select(item => item.LegacyId).ToHashSet(StringComparer.Ordinal);
+        var committedItems = selectedRecipes.Where(recipe => committedIds.Contains(recipe.LegacyId))
+            .SelectMany(recipe => recipe.Steps).SelectMany(step => step.Items).ToArray();
         return new(
             items.Count(item => item.Kind == RecipeSourceItemKind.Heading),
             items.Count(item => item.Kind == RecipeSourceItemKind.Note),
             validation.MissingIngredientReferences,
-            validation.CrossOwnerIngredientReferences);
+            validation.CrossOwnerIngredientReferences,
+            committedItems.Count(item => item.Kind == RecipeSourceItemKind.Heading),
+            committedItems.Count(item => item.Kind == RecipeSourceItemKind.Note));
     }
 
     public static IReadOnlyList<RecipeMigrationSourceDisposition> BuildSourceDispositions(

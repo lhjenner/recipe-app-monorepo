@@ -132,7 +132,7 @@ public sealed class RecipeImportSteps(MigrationFixture fixture)
     {
         var report = await RecipeTestData.ReadReportAsync(fixture.RecipeReportFile);
         report.Status.Should().Be("preview-valid");
-        report.SchemaVersion.Should().Be(3);
+        report.SchemaVersion.Should().Be(4);
         report.ProposedInserts.Should().Be(1);
         report.CommittedInserts.Should().Be(0);
         report.Recipes.Should().ContainSingle().Which.ExistingRecipeId.Should().BeNull();
