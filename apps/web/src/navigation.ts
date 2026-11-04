@@ -19,6 +19,7 @@ export const navigationItems: readonly NavigationItem[] = [
 
 export function getActiveNavigationItem(pathname: string): NavigationItem | undefined {
   return navigationItems
+    .filter((item) => item.route !== '/recipes' || pathname === item.route)
     .filter((item) => pathname === item.route || pathname.startsWith(`${item.route}/`))
     .sort((first, second) => second.route.length - first.route.length)[0];
 }

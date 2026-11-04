@@ -53,7 +53,7 @@ Each criterion is a Given/When/Then scenario. The **Test Type** column declares 
 | ID | Given | When | Then | Test Type |
 |---|---|---|---|---|
 | AC-06 | The user is on a menu destination | The menu is displayed | That item is styled distinctly (colour from `colors.css`), has `aria-current="page"`, and all other items do not | Unit + E2E |
-| AC-07 | The user is on a page whose route starts with an item's route (e.g. a future `/recipes/123` or `/recipes/edit`; recipe editing is expected to be inline, so a dedicated edit route may never exist) | The menu is displayed | The item with the **longest matching route prefix** is active (so `/recipes/new` highlights Add Recipe, not Recipe List) | Unit |
+| AC-07 | The user is on a page whose route starts with an item's route | The menu is displayed | The item with the **longest matching route prefix** is active (so `/recipes/new` highlights Add Recipe, not Recipe List), except Recipe List is active only on `/recipes`: Recipe View has no active menu item and its Recipe List link remains navigable | Unit + E2E |
 | AC-08 | The active item is displayed | It is clicked (or activated by keyboard) | Nothing happens: no reload, no navigation, no new history entry; the item remains focusable | E2E |
 | AC-09 | A route that matches no menu item (e.g. the 404 page) | The menu is displayed | No item is active | Unit + E2E |
 

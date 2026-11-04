@@ -1,13 +1,14 @@
-.recipe-detail-page {
-  max-width: 860px;
-}
-
 .recipe-back-link {
   display: inline-block;
   margin-bottom: 20px;
 }
 
 .recipe-detail-page h1 {
+  overflow-wrap: anywhere;
+}
+
+.recipe-source {
+  margin: 0 0 24px;
   overflow-wrap: anywhere;
 }
 
@@ -86,12 +87,12 @@
   display: grid;
   gap: 24px;
   margin: 0;
-  padding-left: 28px;
+  padding: 0;
+  list-style: none;
 }
 
 .recipe-step {
   min-width: 0;
-  padding-left: 4px;
 }
 
 .recipe-step-number {

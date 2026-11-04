@@ -21,6 +21,12 @@ test('renders ordered recipe metadata, tags, typed items, instructions, and its 
   await expect(page.getByText('about 15 minutes')).toBeVisible();
   await expect(page.getByText('quick')).toBeVisible();
   await expect(page.getByText('weeknight')).toBeVisible();
+  await expect(page.locator('.recipe-steps')).toHaveCSS('list-style-type', 'none');
+  await expect(page.getByRole('heading', { name: 'Step 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Step 2', exact: true })).toBeVisible();
+  await expect(page.locator('#recipe-detail-heading + .recipe-source')
+    .getByRole('link', { name: recipeDetail.sourceUrl! })).toBeVisible();
+  await expect(page.locator('.recipe-metadata')).not.toContainText('Source URL');
 
   const step = page.getByRole('listitem').filter({ hasText: 'For the sauce' }).first();
   await expect(step.getByRole('heading', { name: 'For the sauce', level: 3 })).toBeVisible();
@@ -34,6 +40,36 @@ test('renders ordered recipe metadata, tags, typed items, instructions, and its 
   await expect(page.getByRole('img', { name: 'Tofu Bowl recipe' })).toBeVisible();
   expect(api.imageRequests.every((path) => path === `/api/recipes/${recipeId}/image`)).toBe(true);
 });
+
+for (const width of [375, 1280]) {
+  test(`returns to Recipe List from the header after scrolling at ${width}px`, async ({ page }) => {
+    await mockRecipeApi(page, {
+      details: {
+        [recipeId]: {
+          ...recipeDetail,
+          steps: Array.from({ length: 20 }, (_, position) => ({
+            ...recipeDetail.steps[0]!,
+            position,
+          })),
+        },
+      },
+    });
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(`/recipes/${recipeId}`);
+    await page.getByRole('heading', { name: 'Step 20', exact: true }).scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    if (width <= 700) {
+      await page.getByTestId('mobile-menu-button').click();
+    }
+    const listLink = page.getByRole('link', { name: 'Recipe List', exact: true });
+    await expect(listLink).not.toHaveAttribute('aria-current');
+    await expect(listLink).not.toHaveClass(/app-navigation-link-active|flyout-link-active/);
+    await listLink.click();
+    await expect(page).toHaveURL(/\/recipes$/);
+    await expect(page.getByRole('heading', { name: 'Recipe List', exact: true })).toBeVisible();
+    await expect(page.getByRole('searchbox', { name: 'Search recipes' })).toBeVisible();
+  });
+}
 
 test('title-cases recipe and current Ingredient names while preserving other recipe text', async ({ page }) => {
   await mockRecipeApi(page);

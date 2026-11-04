@@ -4,25 +4,7 @@ import { useRecipe, useRecipeImage } from './hooks/useRecipeData';
 import { readListSearch } from './ingredientListLocation';
 import { isRecipeId, type RecipeDetail } from './services/recipesApi';
 import { toTitleCase } from './titleCase';
-
-function safeSourceUrl(value: string): string | null {
-  if (value !== value.trim()) {
-    return null;
-  }
-
-  try {
-    const url = new URL(value);
-    if ((url.protocol !== 'http:' && url.protocol !== 'https:')
-      || !url.hostname
-      || url.username
-      || url.password) {
-      return null;
-    }
-    return url.href;
-  } catch {
-    return null;
-  }
-}
+import { RecipeMetadata, RecipeSource } from './components/RecipeMetadata';
 
 function RecipeStepItem({
   kind,
@@ -100,53 +82,6 @@ function RecipeStep({
       )}
       {instructions.trim() && <p className="recipe-step-instructions">{instructions}</p>}
     </li>
-  );
-}
-
-function metadataEntries(recipe: RecipeDetail): Array<[string, string | null]> {
-  const addedDate = recipe.dateAddedAtUtc
-    ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' })
-      .format(new Date(recipe.dateAddedAtUtc))
-    : null;
-  return [
-    ['Source', recipe.sourceText],
-    ['Source URL', recipe.sourceUrl],
-    ['Servings', recipe.servingsText],
-    ['Prep time', recipe.prepTimeText],
-    ['Cook time', recipe.cookTimeText],
-    ['Date added', addedDate],
-  ];
-}
-
-function RecipeMetadata({ recipe }: { recipe: RecipeDetail }) {
-  const sourceUrl = recipe.sourceUrl ? safeSourceUrl(recipe.sourceUrl) : null;
-  const entries = metadataEntries(recipe)
-    .filter((entry): entry is [string, string] => entry[1] !== null && entry[1] !== '');
-
-  return (
-    <dl className="recipe-metadata">
-      {entries.map(([label, value]) => (
-        <div key={label}>
-          <dt>{label}</dt>
-          <dd>
-            {label !== 'Source URL'
-              ? value
-              : sourceUrl
-                ? (
-                  <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
-                    {value}
-                  </a>
-                )
-                : (
-                  <>
-                    <span>{value}</span>
-                    <span className="recipe-source-unavailable"> (Link unavailable)</span>
-                  </>
-                )}
-          </dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 
@@ -235,6 +170,7 @@ function RecipeDetailPage() {
             <>
               <Link className="recipe-back-link" to={backToRecipes}>Back to recipes</Link>
               <h1 id="recipe-detail-heading">{toTitleCase(details.name)}</h1>
+              <RecipeSource value={details.sourceUrl} />
 
               {details.tags.length > 0 && (
                 <ul className="recipe-tags" aria-label="Recipe tags">
@@ -253,7 +189,7 @@ function RecipeDetailPage() {
                 />
               )}
 
-              <ol className="recipe-steps" aria-label="Recipe steps">
+              <ol className="recipe-steps" aria-label="Recipe steps" role="list">
                 {[...details.steps]
                   .sort((first, second) => first.position - second.position)
                   .map((step) => <RecipeStep key={step.position} {...step} />)}
