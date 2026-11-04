@@ -3,6 +3,10 @@ import { apiFetch } from './apiClient';
 
 const recipeIdSchema = z.uuid();
 
+export function isRecipeId(value: string): boolean {
+  return recipeIdSchema.safeParse(value).success;
+}
+
 const recipeListSchema = z.object({
   items: z.array(z.object({
     id: recipeIdSchema,
@@ -139,7 +143,7 @@ export function getRecipeList(
 }
 
 export function getRecipe(id: string, signal?: AbortSignal): Promise<RecipeDetail> {
-  if (!recipeIdSchema.safeParse(id).success) {
+  if (!isRecipeId(id)) {
     return Promise.reject(new RecipeApiError('Recipe ID must be a UUID.', 0));
   }
   return getJson(`/api/recipes/${encodeURIComponent(id)}`, recipeDetailSchema, signal);

@@ -15,6 +15,7 @@ import { SESSION_EXPIRED_EVENT } from './services/apiClient';
 import IngredientMaintenancePage from './IngredientMaintenancePage';
 import IngredientEditorPage from './IngredientEditorPage';
 import RecipeListPage from './RecipeListPage';
+import RecipeDetailPage from './RecipeDetailPage';
 
 function App() {
   return <RouterProvider router={router} />;
@@ -123,6 +124,7 @@ function ApplicationRoutes() {
         <Route path="/ingredient-maintenance/new" element={<IngredientEditorPage />} />
         <Route path="/ingredient-maintenance/:id" element={<IngredientEditorPage />} />
         <Route path="/recipes" element={<RecipeListPage />} />
+        <Route path="/recipes/:id" element={<RecipeDetailPage />} />
         {stubItems.filter((item) => item.route !== '/ingredient-maintenance' && item.route !== '/recipes').map((item) => (
           <Route key={item.route} path={item.route} element={<StubPage pageTitle={item.pageTitle} />} />
         ))}

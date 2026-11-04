@@ -80,7 +80,12 @@ export const recipeDetail: RecipeDetail = {
     },
     { position: 1, items: [], instructions: 'Serve warm.' },
   ],
-  image: { url: `/api/recipes/${recipeId}/image`, width: 1, height: 1, sha256: 'abc123' },
+  image: {
+    url: `/api/recipes/${recipeId}/image`,
+    width: 1,
+    height: 1,
+    sha256: 'a'.repeat(64),
+  },
 };
 
 export interface RecipeApiMockOptions {

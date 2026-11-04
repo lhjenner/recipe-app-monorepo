@@ -11,6 +11,27 @@ test.beforeEach(async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
 });
 
+test('renders ordered recipe metadata, tags, typed items, and instructions without loading an image', async ({ page }) => {
+  const api = await mockRecipeApi(page);
+  await page.goto(`/recipes/${recipeId}`);
+
+  await expect(page.getByRole('heading', { name: 'tofu bowl', level: 1 })).toBeVisible();
+  await expect(page.getByText('Family recipe')).toBeVisible();
+  await expect(page.getByText('2-3')).toBeVisible();
+  await expect(page.getByText('about 15 minutes')).toBeVisible();
+  await expect(page.getByText('quick')).toBeVisible();
+  await expect(page.getByText('weeknight')).toBeVisible();
+
+  const step = page.getByRole('listitem').filter({ hasText: 'For the sauce' }).first();
+  const stepContent = await step.innerText();
+  expect(stepContent.indexOf('For the sauce')).toBeLessThan(stepContent.indexOf('1/2 block firm tofu'));
+  expect(stepContent.indexOf('1/2 block firm tofu')).toBeLessThan(stepContent.indexOf('<script>not executable</script>'));
+  expect(stepContent.indexOf('<script>not executable</script>')).toBeLessThan(stepContent.indexOf('Mix gently.'));
+  await expect(page.getByText('Mix gently.\nDo not overwork.')).toBeVisible();
+  await expect(page.getByText('Serve warm.')).toBeVisible();
+  expect(api.imageRequests).toEqual([]);
+});
+
 test('renders GUID detail content in order as inert text and exposes no write controls', async ({ page }) => {
   await mockRecipeApi(page);
   await page.goto(`/recipes/${recipeId}`);

@@ -1,0 +1,124 @@
+.recipe-detail-page {
+  max-width: 860px;
+}
+
+.recipe-back-link {
+  display: inline-block;
+  margin-bottom: 20px;
+}
+
+.recipe-detail-page h1 {
+  overflow-wrap: anywhere;
+}
+
+.recipe-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-tags li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-muted-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+.recipe-metadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 14px 24px;
+  margin: 0 0 28px;
+}
+
+.recipe-metadata dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.recipe-metadata dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.recipe-steps {
+  display: grid;
+  gap: 24px;
+  margin: 0;
+  padding-left: 28px;
+}
+
+.recipe-step {
+  min-width: 0;
+  padding-left: 4px;
+}
+
+.recipe-step-number {
+  margin: 0 0 10px;
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+}
+
+.recipe-step-items {
+  display: grid;
+  gap: 8px;
+}
+
+.recipe-step-item,
+.recipe-step-heading h3,
+.recipe-step-instructions {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.recipe-step-heading h3 {
+  font-size: var(--font-size-lg);
+}
+
+.recipe-step-ingredient {
+  padding-left: 12px;
+  border-left: 2px solid var(--color-border-subtle);
+}
+
+.recipe-step-notes,
+.recipe-step-item-extra {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.recipe-step-item-extra {
+  margin: 2px 0 0;
+}
+
+.recipe-step-note {
+  padding: 8px 12px;
+  border-left: 3px solid var(--color-input-border);
+  background: var(--color-muted-surface);
+}
+
+.recipe-step-instructions {
+  margin-top: 12px;
+  white-space: pre-wrap;
+}
+
+.recipe-detail-status,
+.recipe-detail-error {
+  color: var(--color-text-muted);
+}
+
+.recipe-detail-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.recipe-detail-error[role='alert'] {
+  color: var(--color-danger);
+}
