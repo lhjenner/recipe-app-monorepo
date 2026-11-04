@@ -29,4 +29,17 @@ public sealed class RecipesController(IRecipeReadService recipes) : ControllerBa
             "Page must not exceed the last page of results.");
         return ValidationProblem(ModelState);
     }
+
+    [HttpGet("{id:guid}")]
+    [EndpointSummary("Get recipe details")]
+    [EndpointDescription("Returns ordered details only when the recipe is active and belongs to the authenticated user.")]
+    [ProducesResponseType<RecipeDetailResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RecipeDetailResponse>> GetById(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var response = await recipes.GetByIdAsync(id, cancellationToken);
+        return response is null ? NotFound() : Ok(response);
+    }
 }
