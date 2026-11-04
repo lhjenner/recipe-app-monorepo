@@ -42,6 +42,17 @@ public sealed class MigrationTests
     }
 
     [Fact]
+    public void Recipe_mode_accepts_explicit_write_action()
+    {
+        var options = MigrationOptions.Parse([
+            "--mode", "recipes", "--recipes", "recipes.json", "--owner", Id,
+            "--decisions", "decisions.json", "--report", "report.json", "--write"
+        ]);
+
+        options.Write.Should().BeTrue();
+    }
+
+    [Fact]
     public void Recipe_mode_requires_image_manifest_and_root_together()
     {
         var manifestOnly = () => MigrationOptions.Parse([
@@ -78,7 +89,6 @@ public sealed class MigrationTests
     [InlineData("--mode", "ingredients", "--recipes", "recipes.json", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json")]
     [InlineData("--mode", "unknown", "--backup", "backup", "--owner", Id, "--decisions", "decisions.json")]
     [InlineData("--mode", "recipes", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json")]
-    [InlineData("--mode", "recipes", "--recipes", "recipes.json", "--owner", Id, "--decisions", "decisions.json", "--report", "report.json", "--write")]
     public void Rejects_ambiguous_or_unsupported_mode_arguments(params string[] args)
     {
         var act = () => MigrationOptions.Parse(args);

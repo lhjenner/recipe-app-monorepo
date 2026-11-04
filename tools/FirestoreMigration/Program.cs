@@ -1,8 +1,7 @@
-using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Npgsql;
 using RecipeApp.Api.Infrastructure.Persistence;
+using RecipeApp.Api.Infrastructure.Storage;
 
 namespace FirestoreMigration;
 
@@ -21,9 +20,10 @@ internal static class Program
             eventArgs.Cancel = true;
             cancellation.Cancel();
         };
-        try
+        return await MigrationCommand.ExecuteAsync(async () =>
         {
-            var options = MigrationOptions.Parse(args);
+            var recovery = args.Length > 0 && args[0] == "--recover-image-journal";
+            var options = recovery ? null : MigrationOptions.Parse(args);
             var configuration = new ConfigurationBuilder()
                 .AddUserSecrets<MigrationOptions>(optional: true)
                 .AddEnvironmentVariables()
@@ -33,32 +33,19 @@ internal static class Program
                 throw new InvalidOperationException("Configure ConnectionStrings:DefaultConnection with tool User Secrets or environment variables.");
             await using var database = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
                 .UseNpgsql(connectionString).Options);
-            if (options.Mode == MigrationMode.Recipes)
+            if (recovery)
+                return await RecipeImageCli.RecoverAsync(args, database, configuration, Console.Out, cancellation.Token);
+            if (options!.Mode == MigrationMode.Recipes)
             {
-                var recipeResult = await new RecipeMigrationRunner(database, Console.Out)
+                using var storageClient = options.Write && options.ImageManifestFile is not null
+                    ? ObjectStorageRegistration.CreateClient(configuration) : null;
+                var storage = storageClient is null ? null : RecipeImageCli.Storage(configuration, storageClient);
+                var recipeResult = await new RecipeMigrationRunner(database, Console.Out, Console.In, storage)
                     .RunAsync(options, cancellation.Token);
                 return recipeResult.Errors == 0 ? 0 : 1;
             }
             var result = await new MigrationRunner(database, Console.In, Console.Out).RunAsync(options, cancellation.Token);
             return result.Errors == 0 ? 0 : 1;
-        }
-        catch (OperationCanceledException)
-        {
-            Console.Error.WriteLine("CANCELLED: no migration transaction was committed.");
-            return 2;
-        }
-        catch (Exception exception) when (exception is DbException or DbUpdateException ||
-            exception.InnerException is DbException or DbUpdateException)
-        {
-            var postgres = exception.GetBaseException() as PostgresException;
-            Console.Error.WriteLine($"ERROR: database operation failed ({exception.GetType().Name}, SQLSTATE {postgres?.SqlState ?? "unavailable"}). " +
-                "The transaction was not committed. Verify connectivity, schema and conflicts, then review again.");
-            return 1;
-        }
-        catch (Exception exception) when (exception is FormatException or IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
-        {
-            Console.Error.WriteLine($"ERROR: {exception.Message}");
-            return 1;
-        }
+        }, Console.Error);
     }
 }

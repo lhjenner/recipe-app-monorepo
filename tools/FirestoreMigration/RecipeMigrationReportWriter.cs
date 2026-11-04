@@ -7,7 +7,7 @@ public static class RecipeMigrationReportWriter
     public static void EnsureDistinctInputs(IReadOnlyCollection<string> paths)
     {
         if (paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != paths.Count)
-            throw new FormatException("Recipe, decision, image manifest and report paths must be separate files.");
+            throw new FormatException("Recipe, decision, image manifest, report, journal and lock paths must be separate files.");
     }
 
     public static void EnsureOutsideRepository(string reportPath)
@@ -23,14 +23,28 @@ public static class RecipeMigrationReportWriter
     }
 
     public static async Task WriteAsync(string reportPath, RecipeMigrationReport report,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool replace = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(report, new JsonSerializerOptions
         {
             WriteIndented = true
         });
-        await using var stream = new FileStream(reportPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await stream.WriteAsync(json, cancellationToken);
-        await stream.FlushAsync(cancellationToken);
+        var temporary = reportPath + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            await using (var stream = new FileStream(temporary, FileMode.CreateNew,
+                FileAccess.Write, FileShare.None))
+            {
+                await stream.WriteAsync(json, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(temporary, reportPath, overwrite: replace);
+        }
+        finally
+        {
+            File.Delete(temporary);
+        }
     }
 }

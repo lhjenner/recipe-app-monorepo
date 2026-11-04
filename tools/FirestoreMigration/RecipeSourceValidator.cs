@@ -12,23 +12,25 @@ public sealed record RecipeSourceValidationResult(
     public bool CanContinue => BlockingDiagnostics.Count == 0;
 }
 
+public sealed record RecipeSourceSelectionResult(
+    IReadOnlyList<RecipeSourceRecord> Recipes,
+    IReadOnlyList<string> BlockingDiagnostics,
+    IReadOnlySet<string> AmbiguousLegacyIds);
+
 public static class RecipeSourceValidator
 {
-    public static RecipeSourceValidationResult Validate(RecipeMigrationSource source, Guid destinationOwnerId,
-        IEnumerable<RecipeIngredientTarget> targetIngredients,
+    public static RecipeSourceSelectionResult Select(RecipeMigrationSource source,
         IReadOnlySet<string>? selectedLegacyOwnerIds = null)
     {
         ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(targetIngredients);
         var diagnostics = new List<string>(source.BlockingDiagnostics);
-        if (destinationOwnerId == Guid.Empty)
-            diagnostics.Add("Destination owner must be a non-empty GUID.");
-
         var availableOwners = source.LegacyOwnerIds;
+        var ambiguous = source.Recipes.Where(recipe => availableOwners.Count > 1 && recipe.LegacyOwnerId is null)
+            .Select(recipe => recipe.LegacyId).ToHashSet(StringComparer.Ordinal);
         if (availableOwners.Count > 1 && selectedLegacyOwnerIds is null)
         {
             diagnostics.Add("Multiple legacy owner IDs occur in the export; explicit source-owner selection is required.");
-            return new([], diagnostics);
+            return new([], diagnostics, ambiguous);
         }
 
         IReadOnlyList<RecipeSourceRecord> selectedRecipes;
@@ -43,8 +45,7 @@ public static class RecipeSourceValidator
                 diagnostics.Add($"Selected legacy owner '{ownerId}' is not present in the export.");
             if (selectedLegacyOwnerIds.Count == 0)
                 diagnostics.Add("At least one legacy owner must be selected.");
-            if (availableOwners.Count > 1 &&
-                source.Recipes.Any(recipe => recipe.LegacyOwnerId is null))
+            if (ambiguous.Count > 0)
                 diagnostics.Add("Recipes with missing legacy owner IDs cannot be assigned from a multi-owner export.");
             selectedRecipes = source.Recipes
                 .Where(recipe => recipe.LegacyOwnerId is null
@@ -55,6 +56,20 @@ public static class RecipeSourceValidator
                 diagnostics.Add("The selected source-owner set contains no Recipes.");
         }
 
+        return new(selectedRecipes, diagnostics, ambiguous);
+    }
+
+    public static RecipeSourceValidationResult Validate(RecipeMigrationSource source, Guid destinationOwnerId,
+        IEnumerable<RecipeIngredientTarget> targetIngredients,
+        IReadOnlySet<string>? selectedLegacyOwnerIds = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(targetIngredients);
+        var selection = Select(source, selectedLegacyOwnerIds);
+        var diagnostics = new List<string>(selection.BlockingDiagnostics);
+        if (destinationOwnerId == Guid.Empty)
+            diagnostics.Add("Destination owner must be a non-empty GUID.");
+
         var ingredientRows = targetIngredients
             .GroupBy(ingredient => ingredient.IngredientId)
             .ToDictionary(group => group.Key, group => group.ToArray());
@@ -63,7 +78,7 @@ public static class RecipeSourceValidator
         foreach (var duplicate in ingredientRows.Where(entry => entry.Value.Length > 1))
             diagnostics.Add($"Target Ingredient snapshot contains duplicate ID {duplicate.Key}.");
 
-        foreach (var recipe in selectedRecipes)
+        foreach (var recipe in selection.Recipes)
         foreach (var item in recipe.Steps.SelectMany(step => step.Items))
         {
             if (item.Kind is RecipeSourceItemKind.Heading or RecipeSourceItemKind.Note)
@@ -94,7 +109,7 @@ public static class RecipeSourceValidator
             }
         }
 
-        return new(selectedRecipes, diagnostics, missingIngredientReferences,
+        return new(selection.Recipes, diagnostics, missingIngredientReferences,
             crossOwnerIngredientReferences);
     }
 }

@@ -105,3 +105,36 @@ Feature: Standalone Firestore migration (PRD03, issue 42)
   Scenario: PRD04 Recipe preview blocks corrupt selected image bytes
     When I preview a synthetic Recipe with a corrupt selected image
     Then the Recipe preview reports a blocking image diagnostic
+
+  Scenario: PRD04 AC-15 importing the same Recipe twice preserves its mapping and child IDs
+    When I write and repeat a synthetic Recipe import
+    Then the Recipe mapping and child IDs remain stable with committed outcomes
+
+  Scenario Outline: PRD04 AC-14 changed Recipes require whole-Recipe approval
+    Given a synthetic Recipe was imported
+    When I review a complete Recipe update and respond <response>
+    Then the Recipe update is <outcome> as a whole
+    Examples:
+      | response | outcome  |
+      | yes      | applied  |
+      | no       | declined |
+      | EOF      | declined |
+
+  Scenario Outline: PRD04 AC-61 stale Recipe inputs and targets cannot be committed
+    Given a synthetic Recipe was imported
+    When the <resource> changes during Recipe update approval
+    Then the stale Recipe update is rejected without overwriting the change
+    Examples:
+      | resource   |
+      | source     |
+      | Recipe row |
+      | Recipe child |
+      | Ingredient |
+
+  Scenario: Recipe preview requires explicit destination owner confirmation
+    When I confirm a Recipe preview with a different destination owner
+    Then the preview is rejected before creating a report
+
+  Scenario: PRD04 AC-05 a missing Ingredient blocks the entire Recipe write
+    When I attempt a Recipe write with a missing Ingredient
+    Then the Recipe write is blocked without committing any Recipes

@@ -1,18 +1,23 @@
-using System.Text.Json;
 using FirestoreMigration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using RecipeApp.Api.Auth;
+using RecipeApp.Api.Images;
 using RecipeApp.Api.ComponentTests.Auth;
 using RecipeApp.Api.Infrastructure.Persistence;
 using RecipeApp.TestFixtures;
 
 namespace RecipeApp.Api.ComponentTests.Migration;
 
-public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
+public sealed record RecipeImportIdentity(Guid RecipeId, string? LegacyId, Guid OwnerUserId,
+    IReadOnlyList<Guid> ChildIds, IReadOnlyList<Guid?> IngredientIds, string SourceDocumentJson,
+    string DocumentSha256, string SourceFileSha256, Guid LastAppliedRunId);
+
+public sealed partial class MigrationFixture(ApiAuthContext api) : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"recipe-migration-test-{Guid.NewGuid():N}");
+    private readonly List<string> _recipeReportFiles = [];
     public Guid Owner { get; } = Guid.NewGuid();
     public Guid IngredientId { get; } = Guid.NewGuid();
     public string Password { get; } = Guid.NewGuid().ToString("N");
@@ -25,10 +30,20 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     public StringWriter Output { get; } = new();
     public MigrationResult? Result { get; set; }
     public MigrationResult? FirstResult { get; set; }
+    public RecipeMigrationRunResult? FirstRecipeResult { get; set; }
+    public RecipeMigrationRunResult? RecipeResult { get; set; }
+    public string? RecipeAttemptReportPath { get; set; }
+    public RecipeImportIdentity? FirstRecipeIdentity { get; set; }
+    public string? StaleResource { get; set; }
     public Exception? Failure { get; set; }
     public Ingredient? Before { get; set; }
     public string? DecisionContents { get; set; }
     public string ConnectionString { get; private set; } = "";
+    public IPrivateObjectMigrationStorage? ImageStorage { get; set; }
+    public string? ImageJournalPath { get; set; }
+    public byte[]? ImageBytes { get; set; }
+    public IInterceptor? RecipeInterceptor { get; set; }
+    public IRecipeReportPublisher? ReportPublisher { get; set; }
 
     public async Task InitializeAsync()
     {
@@ -66,7 +81,7 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     {
         await using var db = Database(interceptor);
         TextReader input = onApproval is null ? new StringReader(answer is null ? "" : answer + "\n")
-            : new ApprovalReader(onApproval, answer);
+            : new MigrationApprovalReader(onApproval, answer);
         using (input)
             return await new MigrationRunner(db, input, Output)
                 .RunAsync(new(_directory, Owner, DecisionFile, write), token);
@@ -76,43 +91,15 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
         string? selectedLegacyOwnerId = null, bool includeImageManifest = false,
         bool corruptImage = false)
     {
-        File.WriteAllText(RecipeFile, recipeJson);
-        File.WriteAllText(DecisionFile, "{}");
-        var args = new List<string>
-        {
-            "--mode", "recipes", "--recipes", RecipeFile, "--owner", Owner.ToString(),
-            "--decisions", DecisionFile, "--report", RecipeReportFile
-        };
-        if (includeImageManifest)
-        {
-            Directory.CreateDirectory(ImageRoot);
-            var imageBytes = corruptImage ? "not an image"u8.ToArray() : SyntheticImage.Png;
-            File.WriteAllBytes(Path.Combine(ImageRoot, "synthetic.png"), imageBytes);
-            var manifest = new[]
-            {
-                new
-                {
-                    recipeId = "synthetic-recipe",
-                    imageReference = "https://example.test/synthetic",
-                    path = "synthetic.png",
-                    byteCount = imageBytes.LongLength,
-                    sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(imageBytes))
-                }
-            };
-            File.WriteAllText(ImageManifestFile, JsonSerializer.Serialize(manifest));
-            args.Add("--image-manifest");
-            args.Add(ImageManifestFile);
-            args.Add("--image-root");
-            args.Add(ImageRoot);
-        }
-        if (selectedLegacyOwnerId is not null)
-        {
-            args.Add("--source-owner");
-            args.Add(selectedLegacyOwnerId);
-        }
-        var options = MigrationOptions.Parse(args.ToArray());
-        await using var db = Database();
-        return await new RecipeMigrationRunner(db, Output).RunAsync(options);
+        return await RunRecipeAsync(recipeJson, false, RecipeReportFile, selectedLegacyOwnerId,
+            includeImageManifest, corruptImage);
+    }
+
+    public string NewRecipeReportPath()
+    {
+        var path = Path.Combine(_directory, $"recipe-import-report-{Guid.NewGuid():N}.json");
+        _recipeReportFiles.Add(path);
+        return path;
     }
 
     public async Task SeedRecipeIngredientAsync()
@@ -128,6 +115,29 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
             UpdatedAtUtc = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
+    }
+
+    public async Task<RecipeImportIdentity> ReadRecipeIdentityAsync()
+    {
+        await using var db = Database();
+        var recipe = await db.Recipes.AsNoTracking()
+            .Include(row => row.Tags)
+            .Include(row => row.Steps).ThenInclude(step => step.Items)
+            .Include(row => row.ImportProvenance)
+            .SingleAsync();
+        var childIds = recipe.Tags.OrderBy(tag => tag.Position).Select(tag => tag.Id)
+            .Concat(recipe.Steps.OrderBy(step => step.Position).SelectMany(step =>
+                new[] { step.Id }.Concat(step.Items.OrderBy(item => item.Position).Select(item => item.Id))))
+            .ToArray();
+        var provenance = recipe.ImportProvenance
+            ?? throw new InvalidOperationException("The imported Recipe has no provenance.");
+        var ingredientIds = recipe.Steps.OrderBy(step => step.Position)
+            .SelectMany(step => step.Items.OrderBy(item => item.Position))
+            .Select(item => item.IngredientId)
+            .ToArray();
+        return new(recipe.Id, recipe.LegacyId, recipe.OwnerUserId, childIds, ingredientIds,
+            provenance.SourceDocumentJson, provenance.DocumentSha256,
+            provenance.SourceFileSha256, provenance.LastAppliedRunId);
     }
 
     public async Task<Ingredient> ReadAsync()
@@ -168,19 +178,19 @@ public sealed class MigrationFixture(ApiAuthContext api) : IDisposable
     {
         foreach (var name in new[] { "ingredients.json", "meta.json", "decisions.json", "users.json", "recipes.json",
                      "recipe-preview.json", "recipe-preview-report.json" })
+        {
             File.Delete(Path.Combine(_directory, name));
+            File.Delete(Path.Combine(_directory, name + ".lock"));
+        }
+        foreach (var reportFile in _recipeReportFiles)
+        {
+            File.Delete(reportFile);
+            File.Delete(reportFile + ".lock");
+        }
         File.Delete(ImageManifestFile);
         if (Directory.Exists(ImageRoot)) Directory.Delete(ImageRoot, recursive: true);
         Directory.Delete(_directory);
         Output.Dispose();
     }
 
-    private sealed class ApprovalReader(Func<Task> callback, string? answer) : TextReader
-    {
-        public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
-        {
-            await callback();
-            return answer;
-        }
-    }
 }

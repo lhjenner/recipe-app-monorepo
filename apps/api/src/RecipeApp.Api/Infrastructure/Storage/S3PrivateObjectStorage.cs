@@ -7,8 +7,10 @@ namespace RecipeApp.Api.Infrastructure.Storage;
 
 public sealed class S3PrivateObjectStorage(
     IAmazonS3 client,
-    IOptions<ObjectStorageOptions> options) : IPrivateObjectStorage
+    IOptions<ObjectStorageOptions> options) : IPrivateObjectMigrationStorage
 {
+    public string Scope => $"{client.Config.ServiceURL}|{options.Value.BucketName}";
+
     public async Task<Stream?> OpenReadAsync(string objectKey, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(objectKey);
@@ -40,6 +42,35 @@ public sealed class S3PrivateObjectStorage(
             AutoCloseStream = false,
             AutoResetStreamPosition = false,
             UseChunkEncoding = false
+        }, cancellationToken);
+    }
+
+    public async Task CreateOnlyAsync(string objectKey, Stream content, string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(objectKey);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+        await client.PutObjectAsync(new PutObjectRequest
+        {
+            BucketName = options.Value.BucketName,
+            Key = objectKey,
+            InputStream = content,
+            ContentType = contentType,
+            IfNoneMatch = "*",
+            AutoCloseStream = false,
+            AutoResetStreamPosition = false,
+            UseChunkEncoding = false
+        }, cancellationToken);
+    }
+
+    public async Task DeleteAsync(string objectKey, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(objectKey);
+        await client.DeleteObjectAsync(new DeleteObjectRequest
+        {
+            BucketName = options.Value.BucketName,
+            Key = objectKey
         }, cancellationToken);
     }
 }
