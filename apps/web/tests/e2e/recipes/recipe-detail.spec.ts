@@ -15,7 +15,7 @@ test('renders ordered recipe metadata, tags, typed items, and instructions witho
   const api = await mockRecipeApi(page);
   await page.goto(`/recipes/${recipeId}`);
 
-  await expect(page.getByRole('heading', { name: 'tofu bowl', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tofu Bowl', level: 1 })).toBeVisible();
   await expect(page.getByText('Family recipe')).toBeVisible();
   await expect(page.getByText('2-3')).toBeVisible();
   await expect(page.getByText('about 15 minutes')).toBeVisible();
@@ -24,28 +24,97 @@ test('renders ordered recipe metadata, tags, typed items, and instructions witho
 
   const step = page.getByRole('listitem').filter({ hasText: 'For the sauce' }).first();
   const stepContent = await step.innerText();
-  expect(stepContent.indexOf('For the sauce')).toBeLessThan(stepContent.indexOf('1/2 block firm tofu'));
-  expect(stepContent.indexOf('1/2 block firm tofu')).toBeLessThan(stepContent.indexOf('<script>not executable</script>'));
+  expect(stepContent.indexOf('For the sauce')).toBeLessThan(stepContent.indexOf('1/2 block Firm Tofu'));
+  expect(stepContent.indexOf('1/2 block Firm Tofu')).toBeLessThan(stepContent.indexOf('<script>not executable</script>'));
   expect(stepContent.indexOf('<script>not executable</script>')).toBeLessThan(stepContent.indexOf('Mix gently.'));
   await expect(page.getByText('Mix gently.\nDo not overwork.')).toBeVisible();
   await expect(page.getByText('Serve warm.')).toBeVisible();
   expect(api.imageRequests).toEqual([]);
 });
 
-test('renders GUID detail content in order as inert text and exposes no write controls', async ({ page }) => {
+test('title-cases recipe and current Ingredient names while preserving other recipe text', async ({ page }) => {
   await mockRecipeApi(page);
   await page.goto(`/recipes/${recipeId}`);
 
   await expect(page.getByRole('heading', { name: 'Tofu Bowl' })).toBeVisible();
   await expect(page).toHaveTitle('Tofu Bowl – Recipe App');
+  await expect(page.getByText('Firm Tofu', { exact: true })).toBeVisible();
   await expect(page.getByText('2-3')).toBeVisible();
   await expect(page.getByText('1/2')).toBeVisible();
   await expect(page.getByText('Mix gently.\nDo not overwork.')).toBeVisible();
   await expect(page.getByText('Serve warm.')).toBeVisible();
   await expect(page.getByText('<script>not executable</script>')).toBeVisible();
-  await expect(page.locator('script')).toHaveCount(0);
+  await expect(page.locator('.recipe-detail-page script')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /edit|delete|archive|scale|duplicate/i })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /source/i })).toHaveAttribute('href', recipeDetail.sourceUrl!);
+  await expect(page.getByRole('link', { name: recipeDetail.sourceUrl! }))
+    .toHaveAttribute('href', recipeDetail.sourceUrl!);
+  await expect(page.getByRole('link', { name: recipeDetail.sourceUrl! }))
+    .toHaveAttribute('rel', 'noopener noreferrer');
+});
+
+test('renders only valid absolute HTTP and HTTPS source URLs as external links', async ({ page }) => {
+  const details = { [recipeId]: { ...recipeDetail, sourceUrl: 'javascript:alert(document.domain)' } };
+  await mockRecipeApi(page, { details });
+  await page.goto(`/recipes/${recipeId}`);
+
+  await expect(page.getByText('javascript:alert(document.domain)', { exact: true })).toBeVisible();
+  await expect(page.getByText('Link unavailable')).toBeVisible();
+  await expect(page.getByRole('link', { name: /javascript:/i })).toHaveCount(0);
+
+  for (const safeUrl of ['http://example.test/source', 'https://example.test/secure-source']) {
+    details[recipeId] = { ...recipeDetail, sourceUrl: safeUrl };
+    await page.goto(`/recipes/${recipeId}`);
+    await expect(page.getByRole('link', { name: safeUrl }))
+      .toHaveAttribute('href', safeUrl);
+    await expect(page.getByRole('link', { name: safeUrl }))
+      .toHaveAttribute('rel', 'noopener noreferrer');
+  }
+
+  for (const unsafeUrl of [
+    'https://[invalid',
+    'data:text/html,unsafe',
+    'https://user:password@example.test/private',
+    ' https://example.test/space ',
+  ]) {
+    details[recipeId] = { ...recipeDetail, sourceUrl: unsafeUrl };
+    await page.goto(`/recipes/${recipeId}`);
+    await expect(page.getByText(unsafeUrl, { exact: true })).toBeVisible();
+    await expect(page.getByText('Link unavailable')).toBeVisible();
+    await expect(page.getByRole('link', { name: unsafeUrl })).toHaveCount(0);
+  }
+});
+
+test('shows loading, retryable failures, and a distinct not-found state', async ({ page }) => {
+  let releaseDetail: (() => void) | undefined;
+  let shouldFail = true;
+  await mockRecipeApi(page, {
+    detailResponse: async (url) => {
+      if (!url.pathname.endsWith(`/${recipeId}`)) {
+        return { status: 404, body: { status: 404, title: 'Not Found' } };
+      }
+      if (shouldFail) {
+        return await new Promise((resolve) => {
+          releaseDetail = () => resolve({
+            status: 503,
+            body: { status: 503, title: 'Recipe service unavailable' },
+          });
+        });
+      }
+      return { status: 200, body: recipeDetail };
+    },
+  });
+  await page.goto(`/recipes/${recipeId}`);
+
+  await expect(page.getByRole('status')).toHaveText('Loading recipe…');
+  releaseDetail?.();
+  await expect(page.getByRole('alert')).toContainText('Recipe service unavailable');
+  shouldFail = false;
+  await page.getByRole('button', { name: 'Retry recipe' }).click();
+  await expect(page.getByRole('heading', { name: 'Tofu Bowl' })).toBeVisible();
+
+  await page.goto('/recipes/019a0000-0000-7000-8000-000000000003');
+  await expect(page.getByRole('heading', { name: 'Recipe not found' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to recipes' })).toHaveAttribute('href', '/recipes');
 });
 
 test('uses the authenticated image endpoint and shows readable recipe text when image delivery fails', async ({ page }) => {

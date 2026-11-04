@@ -91,6 +91,8 @@ export const recipeDetail: RecipeDetail = {
 export interface RecipeApiMockOptions {
   summaries?: RecipeSummary[];
   details?: Record<string, RecipeDetail>;
+  detailResponse?: (url: URL) => Promise<{ status: number; body: unknown }> |
+    { status: number; body: unknown };
   listResponse?: (url: URL) => Promise<{ status: number; body: unknown }> |
     { status: number; body: unknown };
   imageResponse?: (route: Route, url: URL) => Promise<void>;
@@ -128,6 +130,15 @@ export async function mockRecipeApi(
 
     if (url.pathname !== '/api/recipes') {
       const id = url.pathname.split('/').at(-1) ?? '';
+      if (options.detailResponse) {
+        const response = await options.detailResponse(url);
+        await route.fulfill({
+          status: response.status,
+          contentType: response.status === 200 ? 'application/json' : 'application/problem+json',
+          json: response.body,
+        });
+        return;
+      }
       const detail = details[id];
       await route.fulfill(detail
         ? { status: 200, contentType: 'application/json', json: detail }

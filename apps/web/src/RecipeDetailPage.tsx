@@ -3,6 +3,26 @@ import PageTitle from './PageTitle';
 import { useRecipe } from './hooks/useRecipeData';
 import { readListSearch } from './ingredientListLocation';
 import { isRecipeId, type RecipeDetail } from './services/recipesApi';
+import { toTitleCase } from './titleCase';
+
+function safeSourceUrl(value: string): string | null {
+  if (value !== value.trim()) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:')
+      || !url.hostname
+      || url.username
+      || url.password) {
+      return null;
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
+}
 
 function RecipeStepItem({
   kind,
@@ -12,7 +32,7 @@ function RecipeStepItem({
   unitText,
   notesText,
 }: RecipeDetail['steps'][number]['items'][number]) {
-  const displayName = kind === 'Ingredient' ? ingredientName ?? text : text;
+  const displayName = kind === 'Ingredient' ? toTitleCase(ingredientName ?? text) : text;
   const quantityAndUnit = [quantityText, unitText].filter(Boolean).join(' ');
 
   if (kind === 'Heading') {
@@ -51,7 +71,9 @@ function RecipeStepItem({
 }
 
 function hasRenderableContent(item: RecipeDetail['steps'][number]['items'][number]): boolean {
-  const name = item.kind === 'Ingredient' ? item.ingredientName ?? item.text : item.text;
+  const name = item.kind === 'Ingredient'
+    ? item.ingredientName ?? item.text
+    : item.text;
   return Boolean(
     name.trim()
     || item.quantityText?.trim()
@@ -96,6 +118,38 @@ function metadataEntries(recipe: RecipeDetail): Array<[string, string | null]> {
   ];
 }
 
+function RecipeMetadata({ recipe }: { recipe: RecipeDetail }) {
+  const sourceUrl = recipe.sourceUrl ? safeSourceUrl(recipe.sourceUrl) : null;
+  const entries = metadataEntries(recipe)
+    .filter((entry): entry is [string, string] => entry[1] !== null && entry[1] !== '');
+
+  return (
+    <dl className="recipe-metadata">
+      {entries.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>
+            {label !== 'Source URL'
+              ? value
+              : sourceUrl
+                ? (
+                  <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
+                    {value}
+                  </a>
+                )
+                : (
+                  <>
+                    <span>{value}</span>
+                    <span className="recipe-source-unavailable"> (Link unavailable)</span>
+                  </>
+                )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function RecipeDetailPage() {
   const { id } = useParams();
   const location = useLocation();
@@ -103,10 +157,15 @@ function RecipeDetailPage() {
   const details = recipe.data;
   const backToRecipes = `/recipes${readListSearch(location.state)}`;
   const isNotFound = !id || !isRecipeId(id) || recipe.status === 404;
+  const pageTitle = details
+    ? toTitleCase(details.name)
+    : isNotFound
+      ? 'Recipe Not Found'
+      : 'Recipe';
 
   return (
     <>
-      <PageTitle title={details?.name ?? 'Recipe'} />
+      <PageTitle title={pageTitle} />
       <main className="app-main">
         <section className="app-page recipe-detail-page" aria-labelledby="recipe-detail-heading">
           {recipe.isLoading && (
@@ -132,7 +191,7 @@ function RecipeDetailPage() {
           {details && (
             <>
               <Link className="recipe-back-link" to={backToRecipes}>Back to recipes</Link>
-              <h1 id="recipe-detail-heading">{details.name}</h1>
+              <h1 id="recipe-detail-heading">{toTitleCase(details.name)}</h1>
 
               {details.tags.length > 0 && (
                 <ul className="recipe-tags" aria-label="Recipe tags">
@@ -142,16 +201,7 @@ function RecipeDetailPage() {
                 </ul>
               )}
 
-              <dl className="recipe-metadata">
-                {metadataEntries(details)
-                  .filter((entry): entry is [string, string] => entry[1] !== null && entry[1] !== '')
-                  .map(([label, value]) => (
-                    <div key={label}>
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-              </dl>
+              <RecipeMetadata recipe={details} />
 
               <ol className="recipe-steps" aria-label="Recipe steps">
                 {[...details.steps]
