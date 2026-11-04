@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mockAuthApi } from '../support/mockAuthApi.ts';
+import { mockIngredientApi } from '../support/mockIngredientListApi.ts';
+import { mockRecipeApi } from '../support/mockRecipeApi.ts';
 
 const navigationItems = [
   { label: 'Home', route: '/home', pageTitle: 'Home' },
@@ -15,6 +17,8 @@ const navigationItems = [
 test.describe('Navigation menu and stub pages', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
+    await mockRecipeApi(page);
+    await mockIngredientApi(page, []);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/home');
   });

@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { mockAuthApi } from '../support/mockAuthApi.ts';
+import { mockRecipeApi } from '../support/mockRecipeApi.ts';
 
 test.describe('Sticky app header', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
+    await mockRecipeApi(page);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/home');
   });
