@@ -1,6 +1,6 @@
 import { Link, useLocation, useParams } from 'react-router-dom';
 import PageTitle from './PageTitle';
-import { useRecipe } from './hooks/useRecipeData';
+import { useRecipe, useRecipeImage } from './hooks/useRecipeData';
 import { readListSearch } from './ingredientListLocation';
 import { isRecipeId, type RecipeDetail } from './services/recipesApi';
 import { toTitleCase } from './titleCase';
@@ -150,6 +150,49 @@ function RecipeMetadata({ recipe }: { recipe: RecipeDetail }) {
   );
 }
 
+function RecipeImage({
+  recipeName,
+  image,
+}: {
+  recipeName: string;
+  image: NonNullable<RecipeDetail['image']>;
+}) {
+  const imageState = useRecipeImage(image.url);
+
+  return (
+    <div
+      className="recipe-image-frame"
+      style={{ aspectRatio: `${image.width} / ${image.height}` }}
+      aria-busy={imageState.isLoading}
+    >
+      {imageState.isLoading && (
+        <p className="recipe-image-status" role="status">Loading recipe image…</p>
+      )}
+      {imageState.error && (
+        <div className="recipe-image-error" role="alert">
+          <p>Recipe image unavailable. {imageState.error}</p>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={imageState.reload}
+          >
+            Retry image
+          </button>
+        </div>
+      )}
+      {imageState.url && (
+        <img
+          className="recipe-image"
+          src={imageState.url}
+          alt={`${recipeName} recipe`}
+          width={image.width}
+          height={image.height}
+        />
+      )}
+    </div>
+  );
+}
+
 function RecipeDetailPage() {
   const { id } = useParams();
   const location = useLocation();
@@ -202,6 +245,13 @@ function RecipeDetailPage() {
               )}
 
               <RecipeMetadata recipe={details} />
+
+              {details.image && (
+                <RecipeImage
+                  recipeName={toTitleCase(details.name)}
+                  image={details.image}
+                />
+              )}
 
               <ol className="recipe-steps" aria-label="Recipe steps">
                 {[...details.steps]

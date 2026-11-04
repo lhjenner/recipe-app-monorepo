@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
 });
 
-test('renders ordered recipe metadata, tags, typed items, and instructions without loading an image', async ({ page }) => {
+test('renders ordered recipe metadata, tags, typed items, instructions, and its private image', async ({ page }) => {
   const api = await mockRecipeApi(page);
   await page.goto(`/recipes/${recipeId}`);
 
@@ -29,7 +29,8 @@ test('renders ordered recipe metadata, tags, typed items, and instructions witho
   expect(stepContent.indexOf('<script>not executable</script>')).toBeLessThan(stepContent.indexOf('Mix gently.'));
   await expect(page.getByText('Mix gently.\nDo not overwork.')).toBeVisible();
   await expect(page.getByText('Serve warm.')).toBeVisible();
-  expect(api.imageRequests).toEqual([]);
+  await expect(page.getByRole('img', { name: 'Tofu Bowl recipe' })).toBeVisible();
+  expect(api.imageRequests.every((path) => path === `/api/recipes/${recipeId}/image`)).toBe(true);
 });
 
 test('title-cases recipe and current Ingredient names while preserving other recipe text', async ({ page }) => {
@@ -131,12 +132,33 @@ test('uses the authenticated image endpoint and shows readable recipe text when 
   await expect(page.getByRole('heading', { name: 'Tofu Bowl' })).toBeVisible();
   await expect(page.getByText(/image.*(unavailable|could not load)/i)).toBeVisible();
   await expect(page.getByText('Mix gently.\nDo not overwork.')).toBeVisible();
-  expect(api.imageRequests).toEqual([`/api/recipes/${recipeId}/image`]);
+  const initialImageRequestCount = api.imageRequests.length;
+  expect(initialImageRequestCount).toBeGreaterThan(0);
+  expect(api.imageRequests.every((path) => path === `/api/recipes/${recipeId}/image`)).toBe(true);
 
   failImage = false;
   await page.getByRole('button', { name: /retry image/i }).click();
-  await expect(page.getByRole('img', { name: /tofu bowl/i })).toBeVisible();
-  expect(api.imageRequests).toHaveLength(2);
+  const image = page.getByRole('img', { name: 'Tofu Bowl recipe' });
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute('width', '1');
+  await expect(image).toHaveAttribute('height', '1');
+  await expect(image).toHaveAttribute('src', /^blob:/);
+  expect(api.imageRequests).toHaveLength(initialImageRequestCount + 1);
+});
+
+test('loads images only from the private app endpoint and fits responsive viewports', async ({ page }) => {
+  const api = await mockRecipeApi(page);
+
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(`/recipes/${recipeId}`);
+
+    const image = page.getByRole('img', { name: 'Tofu Bowl recipe' });
+    await expect(image).toBeVisible();
+    expect(api.imageRequests.at(-1)).toBe(`/api/recipes/${recipeId}/image`);
+    expect(await page.evaluate(() =>
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  }
 });
 
 test('treats a missing image as normal and preserves no-image detail content', async ({ page }) => {
