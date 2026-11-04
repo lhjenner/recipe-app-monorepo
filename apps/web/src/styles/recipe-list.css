@@ -1,0 +1,67 @@
+.recipe-list-page h1 {
+  margin-bottom: 24px;
+}
+
+.recipe-search {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.recipe-search input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-input-border);
+  border-radius: 5px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.recipe-search-help {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+}
+
+.recipe-list-status,
+.recipe-list-result-count {
+  margin-top: 20px;
+  color: var(--color-text-muted);
+}
+
+.recipe-list-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  color: var(--color-danger);
+}
+
+.recipe-list-items {
+  display: grid;
+  gap: 2px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-list-items li {
+  min-width: 0;
+}
+
+.recipe-list-items a {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.recipe-list-items a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

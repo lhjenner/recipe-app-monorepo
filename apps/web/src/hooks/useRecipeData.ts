@@ -38,6 +38,26 @@ function errorStatus(error: unknown): number | null {
   return error instanceof RecipeApiError && error.status > 0 ? error.status : null;
 }
 
+function isPageOutOfRange(error: unknown): error is RecipeApiError {
+  return error instanceof RecipeApiError
+    && error.status === 400
+    && Object.keys(error.fieldErrors).some((field) => field.toLowerCase() === 'page');
+}
+
+async function loadRecipeList(
+  query: RecipeListParameters,
+  signal: AbortSignal,
+): Promise<RecipeList> {
+  try {
+    return await getRecipeList(query, signal);
+  } catch (error) {
+    if (query.page > 1 && isPageOutOfRange(error)) {
+      return getRecipeList({ ...query, page: 1 }, signal);
+    }
+    throw error;
+  }
+}
+
 export function useRecipeList(parameters: RecipeListParameters): AsyncData<RecipeList> {
   const { search, page, pageSize } = parameters;
   const [result, setResult] = useState<RequestResult<RecipeList> | null>(null);
@@ -47,7 +67,7 @@ export function useRecipeList(parameters: RecipeListParameters): AsyncData<Recip
   useEffect(() => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
-      void getRecipeList({ search, page, pageSize }, controller.signal)
+      void loadRecipeList({ search, page, pageSize }, controller.signal)
         .then((data) => {
           if (!controller.signal.aborted) {
             setResult({ key: requestKey, data, error: null, status: null });

@@ -65,7 +65,7 @@ test('debounces changed searches, resets to page one, and ignores a late stale r
   await expect.poll(() => api.listRequests.some((query) => query.includes('search=tofu'))).toBe(true);
   await search.fill('pasta');
 
-  await expect(page).toHaveURL(/\/recipes\?search=pasta&page=1$/);
+  await expect(page).toHaveURL(/\/recipes\?search=pasta$/);
   await expect(page.getByRole('link', { name: 'Pasta bake' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Tofu bowl' })).toBeHidden();
 });

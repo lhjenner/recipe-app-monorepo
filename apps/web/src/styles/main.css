@@ -8,6 +8,7 @@
 @import './dropdowns.css';
 @import './dialogs.css';
 @import './pagination.css';
+@import './recipe-list.css';
 
 *,
 *::before,

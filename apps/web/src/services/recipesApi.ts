@@ -61,6 +61,7 @@ const problemDetailsSchema = z.object({
   title: z.string().optional(),
   detail: z.string().optional(),
   status: z.number().optional(),
+  errors: z.record(z.string(), z.array(z.string())).optional(),
 });
 
 export type RecipeList = z.infer<typeof recipeListSchema>;
@@ -71,11 +72,13 @@ export type RecipeImageMetadata = NonNullable<RecipeDetail['image']>;
 
 export class RecipeApiError extends Error {
   readonly status: number;
+  readonly fieldErrors: Record<string, string[]>;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, fieldErrors: Record<string, string[]> = {}) {
     super(message);
     this.name = 'RecipeApiError';
     this.status = status;
+    this.fieldErrors = fieldErrors;
   }
 }
 
@@ -109,6 +112,7 @@ async function getJson<T>(
     throw new RecipeApiError(
       problem?.detail ?? problem?.title ?? 'The recipe request failed. Please try again.',
       response.status,
+      problem?.errors,
     );
   }
 

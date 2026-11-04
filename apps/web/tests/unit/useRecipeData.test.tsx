@@ -67,6 +67,26 @@ test('debounces nonempty list searches and aborts superseded requests', async ()
   expect(getRecipeListMock).toHaveBeenCalledTimes(2);
 });
 
+test('retries an out-of-range page at page one so the UI can find the last page', async () => {
+  getRecipeListMock
+    .mockRejectedValueOnce(new RecipeApiError(
+      'Page is out of range',
+      400,
+      { Page: ['Page must not exceed the last page of results.'] },
+    ))
+    .mockResolvedValueOnce({ items: [], totalCount: 26, page: 1, pageSize: 25 });
+  const { result } = renderHook(() => useRecipeList({
+    search: '',
+    page: 9,
+    pageSize: 25,
+  }));
+
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+
+  expect(result.current.data?.totalCount).toBe(26);
+  expect(getRecipeListMock.mock.calls.map(([query]) => query.page)).toEqual([9, 1]);
+});
+
 test('does not expose late list results after the query changes', async () => {
   let resolveFirst: ((value: Awaited<ReturnType<typeof getRecipeList>>) => void) | undefined;
   getRecipeListMock

@@ -129,6 +129,20 @@ test('surfaces Problem Details and propagates an aborted request', async () => {
     .rejects.toMatchObject({ name: 'AbortError' });
 });
 
+test('preserves paging validation errors from Problem Details', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    status: 400,
+    title: 'Invalid recipe query',
+    errors: { Page: ['Page must not exceed the last page of results.'] },
+  }), { status: 400, headers: { 'Content-Type': 'application/problem+json' } })));
+
+  await expect(getRecipeList({ search: '', page: 99, pageSize: 25 }))
+    .rejects.toMatchObject({
+      status: 400,
+      fieldErrors: { Page: ['Page must not exceed the last page of results.'] },
+    });
+});
+
 test('loads only a same-origin private image endpoint and returns its binary response', async () => {
   const image = new Uint8Array([137, 80, 78, 71]);
   const fetchMock = vi.fn().mockResolvedValue(new Response(image, {
