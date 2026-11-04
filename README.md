@@ -123,6 +123,23 @@ above remains available. No database or image import happens automatically.
 In hosted environments inject secrets as environment variables or through a
 secret manager; the API does not parse environment files itself.
 
+#### Local database with private image storage
+
+If your account and imported recipes are in Docker PostgreSQL, use
+`npm run dev:api:local` instead of `npm run dev:api`. It loads the storage
+credentials from the ignored root `.env` and selects `recipe-images-dev`,
+but removes `DATABASE_URL` and `DATABASE_URL_UNPOOLED` from the API's
+environment. The API then uses `ConnectionStrings:DefaultConnection` from
+User Secrets or injected configuration. Ensure that connection points to
+your local database and that the bucket and endpoint match the image import.
+This command does not migrate or copy any data. The ordinary `dev:api`
+command continues to select the Neon database; accounts are not shared
+between the two databases.
+
+Both launch commands use the HTTPS profile. Pair either with
+`npm run dev:web` from the repository root, not the web app's default
+development command, to avoid an HTTP-to-HTTPS API redirect escaping the proxy.
+
 In another terminal, `npm run dev:web` starts Vite in `neon` mode and proxies
 `/api` to local HTTPS port 7209. This development-only proxy accepts the local
 ASP.NET certificate; it does not change Neon TLS verification. The original
