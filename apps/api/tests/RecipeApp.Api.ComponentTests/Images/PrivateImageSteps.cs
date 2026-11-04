@@ -15,6 +15,7 @@ public sealed class PrivateImageSteps(ApiAuthContext context)
 {
     private Guid _recipeId;
     private string? _etag;
+    private int _readsBeforeAnonymousConditional;
 
     [Given("a signed-in synthetic image owner with an active recipe image")]
     public async Task SeedAsync()
@@ -113,6 +114,7 @@ public sealed class PrivateImageSteps(ApiAuthContext context)
     [When("the same conditional image request is made anonymously")]
     public async Task AnonymousConditionalAsync()
     {
+        _readsBeforeAnonymousConditional = context.Storage.Reads;
         using var logout = await context.Client.PostAsync("/api/auth/logout", null);
         logout.StatusCode.Should().Be(HttpStatusCode.NoContent);
         await ConditionalAsync();
@@ -132,6 +134,22 @@ public sealed class PrivateImageSteps(ApiAuthContext context)
 
     [Then("the image response is {int}")]
     public void AssertStatus(int status) => ((int)context.Response!.StatusCode).Should().Be(status);
+
+    [Then("the image response is 304 with private image headers")]
+    public void AssertConditionalImageHeaders()
+    {
+        AssertStatus(304);
+        context.Response!.Headers.CacheControl!.Private.Should().BeTrue();
+        context.Response.Headers.CacheControl.NoCache.Should().BeTrue();
+        context.Response.Headers.GetValues("X-Content-Type-Options").Should().ContainSingle("nosniff");
+    }
+
+    [Then("the anonymous conditional image request is unauthorized without storage access")]
+    public void AssertAnonymousConditionalDoesNotAccessStorage()
+    {
+        AssertStatus(401);
+        context.Storage.Reads.Should().Be(_readsBeforeAnonymousConditional);
+    }
 
     [Then("the image response is {int} and storage has not been read")]
     public void AssertNoStorageRead(int status)

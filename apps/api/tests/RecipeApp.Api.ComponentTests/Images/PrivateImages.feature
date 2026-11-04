@@ -22,9 +22,9 @@ Feature: Private recipe image delivery
   Scenario: Conditional image requests still require authorization
     Given a signed-in synthetic image owner with an active recipe image
     When the recipe image is requested with its current ETag
-    Then the image response is 304
+    Then the image response is 304 with private image headers
     When the same conditional image request is made anonymously
-    Then the image response is 401
+    Then the anonymous conditional image request is unauthorized without storage access
 
   Scenario Outline: Storage failures are explicit
     Given a signed-in synthetic image owner with an active recipe image
