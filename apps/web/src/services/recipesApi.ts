@@ -17,7 +17,7 @@ const recipeListSchema = z.object({
   pageSize: z.number().int().positive(),
 });
 
-const recipeStepItemKindSchema = z.enum(['Ingredient', 'Heading', 'Note']);
+const recipeStepItemKindSchema = z.enum(['ingredient', 'heading', 'note']);
 
 const recipeDetailSchema = z.object({
   id: recipeIdSchema,

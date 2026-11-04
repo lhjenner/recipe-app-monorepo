@@ -22,7 +22,7 @@ export interface RecipeDetail {
     position: number;
     items: {
       position: number;
-      kind: 'Ingredient' | 'Heading' | 'Note';
+      kind: 'ingredient' | 'heading' | 'note';
       text: string;
       ingredientName: string | null;
       quantityText: string | null;
@@ -50,7 +50,7 @@ export const recipeDetail: RecipeDetail = {
       items: [
         {
           position: 0,
-          kind: 'Heading',
+          kind: 'heading',
           text: 'For the sauce',
           ingredientName: null,
           quantityText: null,
@@ -59,7 +59,7 @@ export const recipeDetail: RecipeDetail = {
         },
         {
           position: 1,
-          kind: 'Ingredient',
+          kind: 'ingredient',
           text: 'firm tofu',
           ingredientName: 'firm tofu',
           quantityText: '1/2',
@@ -68,7 +68,7 @@ export const recipeDetail: RecipeDetail = {
         },
         {
           position: 2,
-          kind: 'Note',
+          kind: 'note',
           text: '<script>not executable</script>',
           ingredientName: null,
           quantityText: null,

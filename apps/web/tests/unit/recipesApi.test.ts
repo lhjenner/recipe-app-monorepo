@@ -25,7 +25,7 @@ const validDetail = {
     position: 0,
     items: [{
       position: 0,
-      kind: 'Ingredient',
+      kind: 'ingredient',
       text: 'tofu snapshot',
       ingredientName: 'Firm tofu',
       quantityText: '1/2',
@@ -87,11 +87,25 @@ test('validates ordered detail data and rejects non-GUID lookup keys before fetc
     `/api/recipes/${recipeId}`,
     expect.objectContaining({ credentials: 'same-origin' }),
   );
-  expect(detail.steps[0]?.items[0]?.kind).toBe('Ingredient');
+  expect(detail.steps[0]?.items[0]?.kind).toBe('ingredient');
   expect(detail.image?.url).toBe(`/api/recipes/${recipeId}/image`);
 
   await expect(getRecipe('legacy-recipe-id')).rejects.toBeInstanceOf(RecipeApiError);
   expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test.each(['ingredient', 'heading', 'note'])('accepts the API camelCase item kind %s', async (kind) => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    ...validDetail,
+    steps: [{
+      ...validDetail.steps[0],
+      items: [{ ...validDetail.steps[0]!.items[0], kind }],
+    }],
+  }), { status: 200 })));
+
+  const detail = await getRecipe(recipeId);
+
+  expect(detail.steps[0]?.items[0]?.kind).toBe(kind);
 });
 
 test('rejects invalid detail discriminators and non-application image URLs', async () => {

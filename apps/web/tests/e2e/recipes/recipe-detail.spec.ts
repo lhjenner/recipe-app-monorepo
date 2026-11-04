@@ -23,6 +23,8 @@ test('renders ordered recipe metadata, tags, typed items, instructions, and its 
   await expect(page.getByText('weeknight')).toBeVisible();
 
   const step = page.getByRole('listitem').filter({ hasText: 'For the sauce' }).first();
+  await expect(step.getByRole('heading', { name: 'For the sauce', level: 3 })).toBeVisible();
+  await expect(step.locator('.recipe-step-note')).toHaveText('<script>not executable</script>');
   const stepContent = await step.innerText();
   expect(stepContent.indexOf('For the sauce')).toBeLessThan(stepContent.indexOf('1/2 block Firm Tofu'));
   expect(stepContent.indexOf('1/2 block Firm Tofu')).toBeLessThan(stepContent.indexOf('<script>not executable</script>'));

@@ -32,10 +32,10 @@ function RecipeStepItem({
   unitText,
   notesText,
 }: RecipeDetail['steps'][number]['items'][number]) {
-  const displayName = kind === 'Ingredient' ? toTitleCase(ingredientName ?? text) : text;
+  const displayName = kind === 'ingredient' ? toTitleCase(ingredientName ?? text) : text;
   const quantityAndUnit = [quantityText, unitText].filter(Boolean).join(' ');
 
-  if (kind === 'Heading') {
+  if (kind === 'heading') {
     return (
       <div className="recipe-step-item recipe-step-heading">
         <h3>{text}</h3>
@@ -48,7 +48,7 @@ function RecipeStepItem({
     );
   }
 
-  if (kind === 'Note') {
+  if (kind === 'note') {
     return (
       <div className="recipe-step-item recipe-step-note">
         <p>{text}</p>
@@ -71,7 +71,7 @@ function RecipeStepItem({
 }
 
 function hasRenderableContent(item: RecipeDetail['steps'][number]['items'][number]): boolean {
-  const name = item.kind === 'Ingredient'
+  const name = item.kind === 'ingredient'
     ? item.ingredientName ?? item.text
     : item.text;
   return Boolean(
