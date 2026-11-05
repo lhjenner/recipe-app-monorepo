@@ -1,0 +1,73 @@
+.recipe-steps {
+  display: grid;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-step {
+  display: grid;
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.recipe-step-paired {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  touch-action: manipulation;
+}
+
+.recipe-step-number {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+}
+
+.recipe-step-items {
+  display: grid;
+  gap: 8px;
+}
+
+.recipe-step-item,
+.recipe-step-heading h3,
+.recipe-step-instructions {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.recipe-step-heading h3 {
+  font-size: var(--font-size-lg);
+}
+
+.recipe-step-ingredient {
+  padding-left: 12px;
+  border-left: 2px solid var(--color-border-subtle);
+}
+
+.recipe-step-notes,
+.recipe-step-item-extra {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.recipe-step-item-extra {
+  margin: 2px 0 0;
+}
+
+.recipe-step-note {
+  padding: 8px 12px;
+  border-left: 3px solid var(--color-input-border);
+  background: var(--color-muted-surface);
+}
+
+.recipe-step-instructions {
+  white-space: pre-wrap;
+}
+
+.recipe-step.recipe-step-done,
+.recipe-step.recipe-step-done * {
+  color: var(--color-text-completed);
+  font-style: italic;
+}

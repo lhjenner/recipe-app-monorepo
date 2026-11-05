@@ -5,85 +5,8 @@ import { readListSearch } from './ingredientListLocation';
 import { isRecipeId, type RecipeDetail } from './services/recipesApi';
 import { toTitleCase } from './titleCase';
 import { RecipeMetadata, RecipeSource } from './components/RecipeMetadata';
-
-function RecipeStepItem({
-  kind,
-  text,
-  ingredientName,
-  quantityText,
-  unitText,
-  notesText,
-}: RecipeDetail['steps'][number]['items'][number]) {
-  const displayName = kind === 'ingredient' ? toTitleCase(ingredientName ?? text) : text;
-  const quantityAndUnit = [quantityText, unitText].filter(Boolean).join(' ');
-
-  if (kind === 'heading') {
-    return (
-      <div className="recipe-step-item recipe-step-heading">
-        <h3>{text}</h3>
-        {(quantityAndUnit || notesText) && (
-          <p className="recipe-step-item-extra">
-            {[quantityAndUnit, notesText].filter(Boolean).join(' · ')}
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  if (kind === 'note') {
-    return (
-      <div className="recipe-step-item recipe-step-note">
-        <p>{text}</p>
-        {(quantityAndUnit || notesText) && (
-          <p className="recipe-step-item-extra">
-            {[quantityAndUnit, notesText].filter(Boolean).join(' · ')}
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <p className="recipe-step-item recipe-step-ingredient">
-      {quantityAndUnit && <span className="recipe-step-quantity">{quantityAndUnit} </span>}
-      <span>{displayName}</span>
-      {notesText && <span className="recipe-step-notes"> ({notesText})</span>}
-    </p>
-  );
-}
-
-function hasRenderableContent(item: RecipeDetail['steps'][number]['items'][number]): boolean {
-  const name = item.kind === 'ingredient'
-    ? item.ingredientName ?? item.text
-    : item.text;
-  return Boolean(
-    name.trim()
-    || item.quantityText?.trim()
-    || item.unitText?.trim()
-    || item.notesText?.trim(),
-  );
-}
-
-function RecipeStep({
-  position,
-  items,
-  instructions,
-}: RecipeDetail['steps'][number]) {
-  const visibleItems = items.filter(hasRenderableContent);
-  return (
-    <li className="recipe-step">
-      <h2 className="recipe-step-number">Step {position + 1}</h2>
-      {visibleItems.length > 0 && (
-        <div className="recipe-step-items">
-          {visibleItems.map((item) => (
-            <RecipeStepItem key={item.position} {...item} />
-          ))}
-        </div>
-      )}
-      {instructions.trim() && <p className="recipe-step-instructions">{instructions}</p>}
-    </li>
-  );
-}
+import RecipeStep from './components/RecipeStep';
+import { useRecipeStepCompletion } from './hooks/useRecipeStepCompletion';
 
 function RecipeImage({
   recipeName,
@@ -132,6 +55,7 @@ function RecipeDetailPage() {
   const { id } = useParams();
   const location = useLocation();
   const recipe = useRecipe(id && isRecipeId(id) ? id : null);
+  const { completedSteps, toggleStep } = useRecipeStepCompletion(id);
   const details = recipe.data;
   const backToRecipes = `/recipes${readListSearch(location.state)}`;
   const isNotFound = !id || !isRecipeId(id) || recipe.status === 404;
@@ -204,10 +128,21 @@ function RecipeDetailPage() {
                 )}
               </div>
 
+              <p id="recipe-step-completion-help" hidden>
+                Double-click or double-tap a step, or press Enter or Space when focused, to toggle done.
+                Completion resets when you leave this recipe.
+              </p>
               <ol className="recipe-steps" aria-label="Recipe steps" role="list">
                 {[...details.steps]
                   .sort((first, second) => first.position - second.position)
-                  .map((step) => <RecipeStep key={step.position} {...step} />)}
+                  .map((step) => (
+                    <RecipeStep
+                      key={`${details.id}:${step.position}`}
+                      {...step}
+                      done={completedSteps.has(step.position)}
+                      onToggle={() => toggleStep(step.position)}
+                    />
+                  ))}
               </ol>
             </>
           )}

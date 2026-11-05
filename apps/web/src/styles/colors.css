@@ -12,6 +12,7 @@
     --color-muted-surface: #eef1ed;
     --color-text: #1e1e1e;
     --color-text-muted: #434343;
+    --color-text-completed: #9e9a9a;
     --color-focus: #d5f523;
 
     /* Brand and contrast */
@@ -58,6 +59,7 @@
     --color-muted-surface: #363d38;
     --color-text: #e4e9e3;
     --color-text-muted: #c6c7c6;
+    --color-text-completed: #aeb7af;
     --color-link: #b4e1c1;
     --color-link-hover: #d6f0dd;
     --color-input-border: #647568;
