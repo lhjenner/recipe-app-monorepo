@@ -284,15 +284,37 @@ test('keeps desktop images compact beside the heading and preserves the mobile i
   }
 });
 
-test('treats a missing image as normal and preserves no-image detail content', async ({ page }) => {
-  await mockRecipeApi(page, {
+test('shows a neutral placeholder without image requests when a recipe has no image', async ({ page }) => {
+  const api = await mockRecipeApi(page, {
     details: { [recipeId]: { ...recipeDetail, image: null } },
   });
-  await page.goto(`/recipes/${recipeId}`);
-
-  await expect(page.getByRole('heading', { name: 'Tofu Bowl' })).toBeVisible();
-  await expect(page.getByRole('img')).toHaveCount(0);
-  await expect(page.getByText('Serve warm.')).toBeVisible();
+  for (const width of [375, 700, 701, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/recipes/${recipeId}`);
+    await expect(page.getByRole('heading', { name: 'Tofu Bowl' })).toBeVisible();
+    await expect(page.getByRole('img', { name: 'No recipe image', exact: true })).toBeVisible();
+    await expect(page.locator('.recipe-detail-page img')).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /retry image|upload|replace/i })).toHaveCount(0);
+    await expect(page.getByText('Serve warm.')).toBeVisible();
+    const bounds = await page.locator('.recipe-overview').evaluate((element) => {
+      const image = element.querySelector('.recipe-image-frame')!.getBoundingClientRect();
+      const metadata = element.querySelector('.recipe-metadata')!.getBoundingClientRect();
+      return {
+        image: { x: image.x, y: image.y, width: image.width, height: image.height },
+        metadata: { y: metadata.y, width: metadata.width, height: metadata.height },
+      };
+    });
+    if (width > 700) {
+      expect(bounds.image.width).toBeLessThanOrEqual(200);
+      expect(bounds.image.height).toBeLessThanOrEqual(160);
+      expect(bounds.metadata.y).toBeGreaterThanOrEqual(bounds.image.y + bounds.image.height);
+    } else {
+      expect(bounds.image.width).toBeCloseTo(bounds.metadata.width, 0);
+      expect(bounds.image.y).toBeGreaterThanOrEqual(bounds.metadata.y + bounds.metadata.height);
+    }
+  }
+  expect(api.imageRequests).toHaveLength(0);
 });
 
 test('rejects legacy identifiers and malformed detail URLs without capturing reserved recipe routes', async ({ page }) => {

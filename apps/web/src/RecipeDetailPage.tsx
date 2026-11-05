@@ -168,7 +168,7 @@ function RecipeDetailPage() {
 
           {details && (
             <>
-              <div className={`recipe-overview${details.image ? ' recipe-overview-with-image' : ''}`}>
+              <div className="recipe-overview">
                 <div className="recipe-heading">
                   <Link className="recipe-back-link" to={backToRecipes}>Back to recipes</Link>
                   <h1 id="recipe-detail-heading">{toTitleCase(details.name)}</h1>
@@ -185,11 +185,22 @@ function RecipeDetailPage() {
 
                 <RecipeMetadata recipe={details} />
 
-                {details.image && (
+                {details.image ? (
                   <RecipeImage
                     recipeName={toTitleCase(details.name)}
                     image={details.image}
                   />
+                ) : (
+                  <div className="recipe-image-frame" style={{ aspectRatio: '5 / 4' }}>
+                    <div className="recipe-image-placeholder" role="img" aria-label="No recipe image">
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8" cy="8" r="1.5" />
+                        <path d="m3 17 6-6 4 4 3-3 5 5" />
+                      </svg>
+                      <span>No recipe image</span>
+                    </div>
+                  </div>
                 )}
               </div>
 
