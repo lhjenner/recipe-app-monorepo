@@ -31,7 +31,7 @@ test('toggles paired steps from any content and supports keyboard without write 
   await expect(step).toHaveAccessibleName('Step 1, done');
   for (const text of [step.locator('h2'), step.locator('h3'), instructions, step.locator('.recipe-step-notes')]) {
     await expect(text).toHaveCSS('font-style', 'italic');
-    await expect(text).toHaveCSS('color', 'rgb(107, 107, 107)');
+    await expect(text).toHaveCSS('color', 'rgb(158, 154, 154)');
   }
   await step.getByRole('heading', { name: 'Step 1', exact: true }).dblclick();
   await expect(step).not.toHaveClass(/recipe-step-done/);

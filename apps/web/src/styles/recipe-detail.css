@@ -1,6 +1,6 @@
 @import './recipe-steps.css';
 
-\.recipe-back-link {
+.recipe-back-link {
   display: none;
   margin-bottom: 20px;
 }
