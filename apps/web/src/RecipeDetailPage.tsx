@@ -168,26 +168,30 @@ function RecipeDetailPage() {
 
           {details && (
             <>
-              <Link className="recipe-back-link" to={backToRecipes}>Back to recipes</Link>
-              <h1 id="recipe-detail-heading">{toTitleCase(details.name)}</h1>
-              <RecipeSource value={details.sourceUrl} />
+              <div className={`recipe-overview${details.image ? ' recipe-overview-with-image' : ''}`}>
+                <div className="recipe-heading">
+                  <Link className="recipe-back-link" to={backToRecipes}>Back to recipes</Link>
+                  <h1 id="recipe-detail-heading">{toTitleCase(details.name)}</h1>
+                  <RecipeSource value={details.sourceUrl} />
 
-              {details.tags.length > 0 && (
-                <ul className="recipe-tags" aria-label="Recipe tags">
-                  {[...details.tags]
-                    .sort((first, second) => first.position - second.position)
-                    .map((tag) => <li key={tag.position}>{tag.text}</li>)}
-                </ul>
-              )}
+                  {details.tags.length > 0 && (
+                    <ul className="recipe-tags" aria-label="Recipe tags">
+                      {[...details.tags]
+                        .sort((first, second) => first.position - second.position)
+                        .map((tag) => <li key={tag.position}>{tag.text}</li>)}
+                    </ul>
+                  )}
+                </div>
 
-              <RecipeMetadata recipe={details} />
+                <RecipeMetadata recipe={details} />
 
-              {details.image && (
-                <RecipeImage
-                  recipeName={toTitleCase(details.name)}
-                  image={details.image}
-                />
-              )}
+                {details.image && (
+                  <RecipeImage
+                    recipeName={toTitleCase(details.name)}
+                    image={details.image}
+                  />
+                )}
+              </div>
 
               <ol className="recipe-steps" aria-label="Recipe steps" role="list">
                 {[...details.steps]

@@ -224,6 +224,52 @@ test('loads images only from the private app endpoint and fits responsive viewpo
   }
 });
 
+test('keeps desktop images compact beside the heading and preserves the mobile image order', async ({ page }) => {
+  let releaseImage: (() => void) | undefined;
+  await mockRecipeApi(page, {
+    imageResponse: async (route) => {
+      await new Promise<void>((resolve) => { releaseImage = resolve; });
+      await route.fulfill({ status: 200, contentType: 'image/png', body: syntheticPngBytes });
+    },
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/recipes/${recipeId}`);
+  const frame = page.locator('.recipe-image-frame');
+  await expect(page.getByText('Loading recipe image…')).toBeVisible();
+  const loadingBounds = await frame.boundingBox();
+  expect(loadingBounds).not.toBeNull();
+  expect(loadingBounds!.width).toBeLessThanOrEqual(200);
+  expect(loadingBounds!.height).toBeLessThanOrEqual(160);
+  releaseImage?.();
+  await expect(page.getByRole('img', { name: 'Tofu Bowl recipe' })).toBeVisible();
+  await expect(frame).toHaveAttribute('aria-busy', 'false');
+  expect(await frame.boundingBox()).toEqual(loadingBounds);
+
+  for (const width of [701, 1280, 1920, 375, 700]) {
+    await page.setViewportSize({ width, height: 900 });
+    const imageBounds = await frame.boundingBox();
+    const headingBounds = await page.getByRole('heading', { name: 'Tofu Bowl', exact: true }).boundingBox();
+    const metadataBounds = await page.locator('.recipe-metadata').boundingBox();
+    const stepsBounds = await page.getByRole('list', { name: 'Recipe steps' }).boundingBox();
+    expect(imageBounds).not.toBeNull();
+    expect(headingBounds).not.toBeNull();
+    expect(metadataBounds).not.toBeNull();
+    expect(stepsBounds).not.toBeNull();
+    if (width > 700) {
+      expect(imageBounds!.width).toBeLessThanOrEqual(200);
+      expect(imageBounds!.height).toBeLessThanOrEqual(160);
+      expect(imageBounds!.x).toBeGreaterThanOrEqual(headingBounds!.x + headingBounds!.width);
+      expect(metadataBounds!.y).toBeGreaterThanOrEqual(imageBounds!.y + imageBounds!.height);
+      expect(imageBounds!.y).toBeLessThan(metadataBounds!.y);
+    } else {
+      expect(imageBounds!.y).toBeGreaterThanOrEqual(metadataBounds!.y + metadataBounds!.height);
+      expect(imageBounds!.width).toBeCloseTo(metadataBounds!.width, 0);
+    }
+    expect(stepsBounds!.y).toBeGreaterThanOrEqual(imageBounds!.y + imageBounds!.height);
+    await expect(page.locator('.recipe-image')).toHaveCSS('object-fit', 'contain');
+  }
+});
+
 test('treats a missing image as normal and preserves no-image detail content', async ({ page }) => {
   await mockRecipeApi(page, {
     details: { [recipeId]: { ...recipeDetail, image: null } },
