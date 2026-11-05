@@ -49,3 +49,46 @@ test('a child failure propagates its exit code', () => {
 
   assert.equal(result.status, 7, result.stderr);
 });
+
+test('local database mode passes storage settings without cloud database URLs', () => {
+  const env = {
+    ...cleanEnv,
+    ...Object.fromEntries(keys.map((key) => [key, 'synthetic-test'])),
+    ConnectionStrings__DefaultConnection: 'synthetic-local-connection',
+    ObjectStorage__BucketName: 'synthetic-bucket',
+  };
+  const result = spawnSync(process.execPath, [
+    launcher, '--local-database', process.execPath, '-e',
+    `const assert = require('node:assert/strict');
+    for (const key of ['DATABASE_URL', 'DATABASE_URL_UNPOOLED']) {
+      assert.equal(process.env[key], undefined);
+    }
+    for (const key of ${JSON.stringify(keys.filter((key) => key.startsWith('AWS_')))}) {
+      assert.equal(process.env[key], 'synthetic-test');
+    }
+    assert.equal(process.env.ConnectionStrings__DefaultConnection, 'synthetic-local-connection');
+    assert.equal(process.env.ObjectStorage__BucketName, 'synthetic-bucket');`,
+  ], { env, encoding: 'utf8' });
+
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('local database mode requires storage but not cloud database settings', () => {
+  const storageEnv = Object.fromEntries(keys
+    .filter((key) => key.startsWith('AWS_'))
+    .map((key) => [key, 'synthetic-test']));
+  const result = spawnSync(process.execPath, [
+    launcher, '--local-database', process.execPath, '-e', 'process.exit(0)',
+  ], { env: { ...cleanEnv, ...storageEnv }, encoding: 'utf8' });
+
+  assert.equal(result.status, 0, result.stderr);
+
+  delete storageEnv.AWS_SECRET_ACCESS_KEY;
+  const missing = spawnSync(process.execPath, [
+    launcher, '--local-database', process.execPath, '-e', 'console.log("CHILD_STARTED")',
+  ], { env: { ...cleanEnv, ...storageEnv }, encoding: 'utf8' });
+
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /AWS_SECRET_ACCESS_KEY/);
+  assert.doesNotMatch(missing.stdout, /CHILD_STARTED/);
+});

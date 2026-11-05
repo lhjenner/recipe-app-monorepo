@@ -1,16 +1,23 @@
 import { expect, test } from '@playwright/test';
 import { mockAuthApi } from '../support/mockAuthApi.ts';
+import { mockRecipeApi, recipeId } from '../support/mockRecipeApi.ts';
 
 const pages = [
   { route: '/home', heading: 'Home' },
   { route: '/grocery-list', heading: 'Grocery List' },
   { route: '/food-diary', heading: 'Food Diary' },
   { route: '/ingredient-maintenance', heading: 'Ingredient Maintenance' },
+  { route: '/recipes', heading: 'Recipe List' },
+  { route: `/recipes/${recipeId}`, heading: 'Tofu Bowl' },
+  { route: '/recipes/new', heading: 'Add Recipe' },
+  { route: '/meal-planner', heading: 'Meal Planner' },
+  { route: '/recipes/archived', heading: 'Archived Recipes' },
 ];
 
 test.describe('Shared page layout', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
+    await mockRecipeApi(page);
     await page.route('**/api/supermarkets', (route) =>
       route.fulfill({ json: [] }));
     await page.route('**/api/ingredients**', (route) =>

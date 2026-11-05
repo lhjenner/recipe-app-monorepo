@@ -17,7 +17,8 @@ test('lists menu destinations in their required order', () => {
 test.each([
   ['/home', 'Home'],
   ['/recipes', 'Recipe List'],
-  ['/recipes/123', 'Recipe List'],
+  ['/recipes/123', undefined],
+  ['/recipes/019a0000-0000-7000-8000-000000000001', undefined],
   ['/recipes/new', 'Add Recipe'],
   ['/recipes/new/step-2', 'Add Recipe'],
   ['/recipes/archived', 'Archived Recipes'],
