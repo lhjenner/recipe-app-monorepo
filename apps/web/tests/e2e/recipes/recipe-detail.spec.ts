@@ -25,7 +25,7 @@ test('renders ordered recipe metadata, tags, typed items, instructions, and its 
   await expect(page.getByRole('heading', { name: 'Step 1', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Step 2', exact: true })).toBeVisible();
   await expect(page.locator('#recipe-detail-heading + .recipe-source')
-    .getByRole('link', { name: recipeDetail.sourceUrl! })).toBeVisible();
+    .getByRole('link', { name: 'View original recipe source' })).toBeVisible();
   await expect(page.locator('.recipe-metadata')).not.toContainText('Source URL');
 
   const step = page.getByRole('listitem').filter({ hasText: 'For the sauce' }).first();
@@ -39,6 +39,26 @@ test('renders ordered recipe metadata, tags, typed items, instructions, and its 
   await expect(page.getByText('Serve warm.')).toBeVisible();
   await expect(page.getByRole('img', { name: 'Tofu Bowl recipe' })).toBeVisible();
   expect(api.imageRequests.every((path) => path === `/api/recipes/${recipeId}/image`)).toBe(true);
+});
+
+test('shows the back link only on mobile and gives tags a primary-colour border', async ({ page }) => {
+  await mockRecipeApi(page);
+  await page.goto(`/recipes/${recipeId}`);
+  const backLink = page.locator('.recipe-back-link');
+  for (const width of [375, 700, 701, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    if (width <= 700) {
+      await expect(backLink).toBeVisible();
+    } else {
+      await expect(backLink).toBeHidden();
+    }
+  }
+  const badge = page.getByRole('list', { name: 'Recipe tags' }).getByRole('listitem').first();
+  await expect(badge).toHaveCSS('border-top-width', '1px');
+  await expect(badge).toHaveCSS('border-top-style', 'solid');
+  await expect(badge).toHaveCSS('border-top-color', 'rgb(74, 124, 89)');
+  await expect(badge).toHaveCSS('color', 'rgb(30, 30, 30)');
+  await expect(badge).toHaveCSS('background-color', 'rgb(238, 241, 237)');
 });
 
 for (const width of [375, 1280]) {
@@ -85,9 +105,9 @@ test('title-cases recipe and current Ingredient names while preserving other rec
   await expect(page.getByText('<script>not executable</script>')).toBeVisible();
   await expect(page.locator('.recipe-detail-page script')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /edit|delete|archive|scale|duplicate/i })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: recipeDetail.sourceUrl! }))
+  await expect(page.getByRole('link', { name: 'View original recipe source' }))
     .toHaveAttribute('href', recipeDetail.sourceUrl!);
-  await expect(page.getByRole('link', { name: recipeDetail.sourceUrl! }))
+  await expect(page.getByRole('link', { name: 'View original recipe source' }))
     .toHaveAttribute('rel', 'noopener noreferrer');
 });
 
@@ -100,13 +120,17 @@ test('renders only valid absolute HTTP and HTTPS source URLs as external links',
   await expect(page.getByText('Link unavailable')).toBeVisible();
   await expect(page.getByRole('link', { name: /javascript:/i })).toHaveCount(0);
 
-  for (const safeUrl of ['http://example.test/source', 'https://example.test/secure-source']) {
+  for (const safeUrl of [
+    'http://example.test/source',
+    `https://example.test/${'long-recipe-path-'.repeat(20)}?source=original`,
+  ]) {
     details[recipeId] = { ...recipeDetail, sourceUrl: safeUrl };
     await page.goto(`/recipes/${recipeId}`);
-    await expect(page.getByRole('link', { name: safeUrl }))
+    await expect(page.getByRole('link', { name: 'View original recipe source' }))
       .toHaveAttribute('href', safeUrl);
-    await expect(page.getByRole('link', { name: safeUrl }))
+    await expect(page.getByRole('link', { name: 'View original recipe source' }))
       .toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(page.getByText(safeUrl, { exact: true })).toHaveCount(0);
   }
 
   for (const unsafeUrl of [
@@ -152,6 +176,7 @@ test('shows loading, retryable failures, and a distinct not-found state', async 
   await expect(page.getByRole('heading', { name: 'Tofu Bowl' })).toBeVisible();
 
   await page.goto('/recipes/019a0000-0000-7000-8000-000000000003');
+  await page.setViewportSize({ width: 375, height: 800 });
   await expect(page.getByRole('heading', { name: 'Recipe not found' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to recipes' })).toHaveAttribute('href', '/recipes');
 });

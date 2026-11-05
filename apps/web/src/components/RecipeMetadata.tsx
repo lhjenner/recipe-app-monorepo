@@ -30,7 +30,7 @@ export function RecipeSource({ value }: { value: string | null }) {
       {sourceUrl
         ? (
           <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
-            {value}
+            View original recipe source
           </a>
         )
         : (

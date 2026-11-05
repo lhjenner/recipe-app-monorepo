@@ -362,7 +362,7 @@ Use ordinary EF/PostgreSQL queries first. Do not introduce a search service, den
 
 - Route `/recipes/:id`, using the Recipe GUID rather than `LegacyId`, without displacing `/recipes/new` or `/recipes/archived`.
 - Recipe name as the page heading and document title; Recipe List is not active on Recipe View and remains navigable from the sticky header or mobile menu.
-- Display the safe source URL directly beneath the recipe heading without a label, outside the metadata grid. Display source, servings, prep time, cook time, tags and original date-added when present. Optional missing values may be omitted; do not invent zero times or servings.
+- Display the safe source link directly beneath the recipe heading as "View original recipe source", outside the metadata grid; retain its full destination without displaying the raw URL. Display source, servings, prep time, cook time, tags and original date-added when present. Tag badges retain their text and muted background with a subtle primary-colour border. Optional missing values may be omitted; do not invent zero times or servings.
 - Legacy user identity, migration audit fields, original Firebase image URLs and raw provenance are not recipe metadata shown to the user.
 - Display the migrated image, when present, above the Steps with responsive width, preserved aspect ratio and concise recipe-based alternative text. Do not crop or transform the original, let the image dominate mobile reading, or request Firebase images.
 - Reserve layout space using dimensions. No image is a normal state with no broken element. A failed image request shows an accessible unavailable/retry state while all recipe text remains readable; session expiry uses the existing authentication flow.
@@ -372,7 +372,7 @@ Use ordinary EF/PostgreSQL queries first. Do not introduce a search service, den
 - Preserve multiline instructions as text. Do not interpret source text as executable HTML or introduce rich-text/Markdown parsing.
 - Retain instruction-only Steps and item-only Steps; do not display fabricated instructions or "missing ingredient" errors for them. Entirely blank placeholders are not shown.
 - Source links are clickable only for validated absolute HTTP/HTTPS URLs. Unsafe/malformed source URLs are presented as non-clickable text with an unavailable-link indication; never fetch URLs server-side.
-- Provide loading, error/retry and not-found states. Include a Back to recipes link that retains originating list query state; direct visits fall back to `/recipes`.
+- Provide loading, error/retry and not-found states. On mobile (up to 700 px), include a Back to recipes link that retains originating list query state; direct visits fall back to `/recipes`. Hide this link on desktop, where Recipe List remains available in the header.
 - Read-only everywhere: no create, edit, duplicate, delete, archive, restore, favorite or scaling controls. Do not change Ingredient archive state.
 - Use shared layout, typography, title casing and modular styles. Recipe View inherits the shared page width and outer gutters without a narrower page-specific maximum width. Validate typed responses with Zod and use dedicated data hooks and the shared API client.
 

@@ -153,7 +153,7 @@ function RecipeDetailPage() {
           {isNotFound && (
             <>
               <h1 id="recipe-detail-heading">Recipe not found</h1>
-              <Link to={backToRecipes}>Back to recipes</Link>
+              <Link className="recipe-back-link" to={backToRecipes}>Back to recipes</Link>
             </>
           )}
 

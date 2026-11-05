@@ -12,6 +12,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('restores search and page from the URL and returns from a GUID detail route', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
   await mockRecipeApi(page, {
     summaries: [{ id: recipeId, name: 'Tofu bowl' }],
     details: { [recipeId]: recipeDetail },
