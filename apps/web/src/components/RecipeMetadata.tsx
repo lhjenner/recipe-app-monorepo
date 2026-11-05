@@ -48,20 +48,20 @@ export function RecipeMetadata({ recipe }: { recipe: RecipeDetail }) {
     ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' })
       .format(new Date(recipe.dateAddedAtUtc))
     : null;
-  const entries: Array<[string, string | null]> = [
-    ['Source', recipe.sourceText],
-    ['Servings', recipe.servingsText],
-    ['Prep time', recipe.prepTimeText],
-    ['Cook time', recipe.cookTimeText],
-    ['Date added', addedDate],
+  const entries: Array<[string, string, string | null]> = [
+    ['source', 'Source', recipe.sourceText],
+    ['servings', 'Servings', recipe.servingsText],
+    ['prep', 'Prep time', recipe.prepTimeText],
+    ['cook', 'Cook time', recipe.cookTimeText],
+    ['date', 'Date added', addedDate],
   ];
 
   return (
     <dl className="recipe-metadata">
       {entries
-        .filter((entry): entry is [string, string] => entry[1] !== null && entry[1] !== '')
-        .map(([label, value]) => (
-          <div key={label}>
+        .filter((entry): entry is [string, string, string] => entry[2] !== null && entry[2] !== '')
+        .map(([key, label, value]) => (
+          <div key={key} className={`recipe-metadata-${key}`}>
             <dt>{label}</dt>
             <dd>{value}</dd>
           </div>

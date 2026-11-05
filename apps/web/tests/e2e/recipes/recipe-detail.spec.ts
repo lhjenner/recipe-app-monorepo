@@ -247,10 +247,23 @@ test('keeps desktop images compact beside the heading and preserves the mobile i
 
   for (const width of [701, 1280, 1920, 375, 700]) {
     await page.setViewportSize({ width, height: 900 });
-    const imageBounds = await frame.boundingBox();
-    const headingBounds = await page.getByRole('heading', { name: 'Tofu Bowl', exact: true }).boundingBox();
-    const metadataBounds = await page.locator('.recipe-metadata').boundingBox();
-    const stepsBounds = await page.getByRole('list', { name: 'Recipe steps' }).boundingBox();
+    const { imageBounds, headingBounds, metadataBounds, stepsBounds } = await page
+      .locator('.recipe-detail-page').evaluate((element) => {
+        function bounds(selector: string) {
+          const target = element.querySelector(selector);
+          if (!target) {
+            throw new Error(`Missing recipe layout element: ${selector}`);
+          }
+          const { x, y, width, height } = target.getBoundingClientRect();
+          return { x, y, width, height };
+        }
+        return {
+          imageBounds: bounds('.recipe-image-frame'),
+          headingBounds: bounds('#recipe-detail-heading'),
+          metadataBounds: bounds('.recipe-metadata'),
+          stepsBounds: bounds('.recipe-steps'),
+        };
+      });
     expect(imageBounds).not.toBeNull();
     expect(headingBounds).not.toBeNull();
     expect(metadataBounds).not.toBeNull();
@@ -265,7 +278,8 @@ test('keeps desktop images compact beside the heading and preserves the mobile i
       expect(imageBounds!.y).toBeGreaterThanOrEqual(metadataBounds!.y + metadataBounds!.height);
       expect(imageBounds!.width).toBeCloseTo(metadataBounds!.width, 0);
     }
-    expect(stepsBounds!.y).toBeGreaterThanOrEqual(imageBounds!.y + imageBounds!.height);
+    expect(stepsBounds!.y, JSON.stringify({ width, imageBounds, metadataBounds, stepsBounds }))
+      .toBeGreaterThanOrEqual(imageBounds!.y + imageBounds!.height);
     await expect(page.locator('.recipe-image')).toHaveCSS('object-fit', 'contain');
   }
 });

@@ -3,12 +3,6 @@
   margin-bottom: 20px;
 }
 
-@media (max-width: 700px) {
-  .recipe-back-link {
-    display: inline-block;
-  }
-}
-
 .recipe-detail-page h1 {
   overflow-wrap: anywhere;
 }
@@ -53,6 +47,40 @@
   margin: 2px 0 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+@media (max-width: 700px) {
+  .recipe-back-link {
+    display: inline-block;
+  }
+
+  .recipe-metadata {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "source source"
+      "servings date"
+      "prep cook";
+  }
+
+  .recipe-metadata-source {
+    grid-area: source;
+  }
+
+  .recipe-metadata-servings {
+    grid-area: servings;
+  }
+
+  .recipe-metadata-date {
+    grid-area: date;
+  }
+
+  .recipe-metadata-prep {
+    grid-area: prep;
+  }
+
+  .recipe-metadata-cook {
+    grid-area: cook;
+  }
 }
 
 .recipe-image-frame {
