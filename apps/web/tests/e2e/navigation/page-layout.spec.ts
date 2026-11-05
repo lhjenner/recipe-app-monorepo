@@ -41,6 +41,9 @@ test.describe('Shared page layout', () => {
         expect(bounds.x).toBeCloseTo(gutter, 0);
         expect(bounds.width).toBeCloseTo(width - (2 * gutter), 0);
         expect(width - bounds.x - bounds.width).toBeCloseTo(gutter, 0);
+        const padding = width <= 700 ? 16 : Math.min(64, Math.max(32, width / 20));
+        await expect(panel).toHaveCSS('padding-left', `${padding}px`);
+        await expect(panel).toHaveCSS('padding-right', `${padding}px`);
         expect(await page.evaluate(() =>
           document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
       });

@@ -132,6 +132,10 @@
 
 /* 700px matches MOBILE_BREAKPOINT in navigation.ts. */
 @media (max-width: 700px) {
+  .app-page {
+    padding-inline: 16px;
+  }
+
   .app-main {
     width: 100%;
     padding: 28px 16px;

@@ -70,8 +70,9 @@ function RecipeStep({
   instructions,
 }: RecipeDetail['steps'][number]) {
   const visibleItems = items.filter(hasRenderableContent);
+  const hasInstructions = Boolean(instructions.trim());
   return (
-    <li className="recipe-step">
+    <li className={`recipe-step${visibleItems.length > 0 && hasInstructions ? ' recipe-step-paired' : ''}`}>
       <h2 className="recipe-step-number">Step {position + 1}</h2>
       {visibleItems.length > 0 && (
         <div className="recipe-step-items">
@@ -80,7 +81,7 @@ function RecipeStep({
           ))}
         </div>
       )}
-      {instructions.trim() && <p className="recipe-step-instructions">{instructions}</p>}
+      {hasInstructions && <p className="recipe-step-instructions">{instructions}</p>}
     </li>
   );
 }
