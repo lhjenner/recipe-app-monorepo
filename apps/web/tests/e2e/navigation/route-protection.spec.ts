@@ -41,8 +41,8 @@ test.describe('Route protection (PRD 02)', () => {
     await page.route('**/api/ingredients', (route) => route.fulfill({ status: 401 }));
 
     const status = await page.evaluate(async () => {
-      const modulePath = '/src/services/apiClient.ts';
-      const { apiFetch }: typeof import('../../../src/services/apiClient.js') = await import(modulePath);
+      const modulePath = '/src/shared/services/apiClient.ts';
+      const { apiFetch }: typeof import('../../../src/shared/services/apiClient.js') = await import(modulePath);
       return (await apiFetch('/api/ingredients')).status;
     });
 
