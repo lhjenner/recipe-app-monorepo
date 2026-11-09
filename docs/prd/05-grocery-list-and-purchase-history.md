@@ -28,6 +28,7 @@ This is not Recipe authoring, nutritional calculation, a supermarket checkout sy
 - Confirm intentional repeat addition while that Recipe still contributes outstanding items.
 - Add and edit manual items, with or without a linked Ingredient.
 - Optional save-as-Ingredient per manual item, consistently for single and batch entry.
+- Prompted master-Ingredient updates when editing catalogue fields of a Grocery Item linked by Ingredient ID.
 - Consolidate compatible requirements using NZ measures: teaspoon 5 ml, tablespoon 15 ml, cup 250 ml.
 - Separate recipe requirements from an explicit purchase quantity and purchase unit.
 - Store-based department grouping, including unmapped and not-stocked states.
@@ -76,7 +77,7 @@ The legacy repository at `C:\projects\recipe-catalog` was inspected read-only du
 | Legacy source path | Confirmed behavior |
 |---|---|
 | `src/pages/grocery-list/hooks/useGroceryData.ts` | One `users/{uid}/meta/groceryList` document contains an items array; realtime subscription; several edits/removals overwrite the full array. |
-| `src/pages/grocery-list/hooks/useModalManagement.ts` and `src/components/ingredient-edit-modal/hooks/utils/ingredientFormUtils.ts` | Main manual-entry flow defaults catalogue saving off; single entry can create an Ingredient. Editing a linked item can update its master Ingredient, an incidental coupling not carried forward here. |
+| `src/pages/grocery-list/hooks/useModalManagement.ts` and `src/components/ingredient-edit-modal/hooks/utils/ingredientFormUtils.ts` | Main manual-entry flow defaults catalogue saving off; single entry can create an Ingredient. Editing a linked item deliberately updates its master Ingredient. PRD05 preserves this capability with an explicit prompt when catalogue fields change. |
 | `src/components/ingredient-edit-modal/hooks/useMultiIngredientSubmission.ts` | Batch entry disables catalogue saving; inconsistent with single entry. |
 | `src/pages/recipe/utils/groceryListHelpers.ts` and `src/pages/grocery-list/utils/groceryMerging.ts` | Recipe requirements are parsed, filtered and merged; matching includes the exact unit. Name patterns and legacy `invalid` flags exclude items. Countable/continuous heuristics influence purchase quantity. |
 | `src/pages/grocery-list/types/grocery.ts` | Item `id` is an optional Ingredient ID, not a reliable unique grocery-line ID. Sources reference legacy Recipe IDs. |
@@ -100,6 +101,7 @@ PRD05 preserves agreed workflows, not legacy implementation shortcuts. Legacy cu
 | D7 | Core Grocery List and optional Ingredient saving are in scope; Common Items, Pending Items and the extension are deferred. | Keep delivery focused while defining stable contracts for later work. |
 | D8 | In the future extension, confirmed cart addition counts as purchased in app behavior, with its event origin recorded as OnlineCart. | Preserve the user's chosen behavior without presenting cart success as evidence of payment or delivery. PRD05 creates only manual-purchase events. |
 | D9 | Future Pending selection promotes items before cart attempts; failures remain outstanding, not Pending. | Selection expresses a decision to buy soon independently of availability. No Pending implementation in PRD05. |
+| D10 | When a Grocery Item has an Ingredient ID and its catalogue fields change, prompt before updating that same master Ingredient. Shopping-only edits do not prompt or update the catalogue. | Preserve the deliberate legacy maintenance workflow while making the scope of shared-data changes explicit. |
 
 ### Draft recommendations requiring review before implementation
 
@@ -120,6 +122,7 @@ PRD05 preserves agreed workflows, not legacy implementation shortcuts. Legacy cu
 - As a user, I want recipe requirements and purchase quantities shown separately so that I can decide how many packs or how much produce to buy.
 - As a user, I want to add ad-hoc items without creating Ingredients so that occasional purchases do not clutter my catalogue.
 - As a user, I want to save selected single or batch items as Ingredients so that I can reuse them later.
+- As a user, I want to update a linked Ingredient's catalogue fields from the Grocery List with confirmation so that corrections made while shopping are available elsewhere in the app.
 - As a user, I want store-based grouping so that I can find items efficiently while shopping.
 - As a user, I want bought items to disappear from the outstanding view so that I can concentrate on what remains.
 - As a user, I want to record a partial purchase so that unavailable quantities stay visible.
@@ -228,7 +231,10 @@ Provide a "Remove this recipe's outstanding requirements" action for contributin
 - A concurrent active-name collision returns `409` with an explicit select-existing action; an archived collision exposes the existing restore workflow. No automatic restore, overwrite or field merge.
 - Batch rows with the same normalized new Ingredient name may explicitly share one creation if their catalogue fields agree; contradictory fields are validation errors. Never arbitrarily choose one row.
 - All selected Ingredient creations and Grocery additions commit together. Do not call the current standalone Ingredient endpoint and then attempt the Grocery write.
-- Editing a linked Grocery Item changes its shopping note/target, not the master Ingredient. Store metadata changes use explicit Ingredient Maintenance; an ad-hoc item may have an item-local department.
+- Editing a Grocery Item linked by Ingredient ID exposes catalogue fields such as Ingredient name, category and store department separately from shopping-only fields such as note, purchase quantity and purchase unit. An ad-hoc item may still have an item-local department.
+- If catalogue fields change, show a before/after prompt explaining that updating the master Ingredient affects its display elsewhere, including Recipes and other linked Grocery Items. Offer "Update master Ingredient", "Discard catalogue changes and save shopping changes", and Cancel. Do not silently discard catalogue edits or imply that declined catalogue changes were saved locally.
+- Approval updates the same linked Ingredient by ID, never by name or by creating a replacement. Reuse Ingredient Maintenance validation, uniqueness, ownership and optimistic concurrency. Include the loaded Ingredient version as well as the list version; a conflict preserves the draft and requires renewed review.
+- Commit approved catalogue updates and shopping edits in one transaction. Update only the confirmed catalogue fields, preserving nutrition, product links and all other unedited Ingredient fields. Shopping-only edits bypass the prompt and leave the master Ingredient unchanged. History snapshots and original Recipe contribution text remain unchanged in every branch.
 - Preview duplicate consolidation and purchase-target changes. Keep entered data on validation/concurrency/network errors and require explicit review for identity changes.
 
 ### Shopping, removal and undo
@@ -248,7 +254,7 @@ All routes require authentication, DTOs, cancellation propagation and centralize
 |---|---|---|
 | `GET` | `/api/grocery-list?includeCompleted=false&from=&to=` | Owner's list/version, outstanding items, requirement/source details and selected completed scope; `200` with empty state if never used. Date filters affect completed visibility, not outstanding items. Read does not create rows. |
 | `POST` | `/api/grocery-list/items` | Atomic single/batch addition and optional Ingredient creation; `201` with `Location` and result/list version. |
-| `PUT` | `/api/grocery-list/items/{id}` | Replace editable shopping fields using reviewed version; `200` with updated result/version. |
+| `PUT` | `/api/grocery-list/items/{id}` | Save shopping edits and explicitly approved linked-Ingredient catalogue edits atomically using reviewed list/Ingredient versions; `200` with updated result/versions. |
 | `DELETE` | `/api/grocery-list/items/{id}` | Cancel outstanding demand without deleting historical records; `204`. |
 | `DELETE` | `/api/grocery-list/items` | Explicitly confirmed cancellation of all outstanding items, requiring list version; `204`. |
 | `POST` | `/api/grocery-list/recipe-preview` | Read-only eligible Recipe/target preview with source/list versions; `200`; no rows or side effects. |
@@ -261,6 +267,7 @@ All routes require authentication, DTOs, cancellation propagation and centralize
 - Use GUID-constrained identifiers. Unknown/other-owner IDs return indistinguishable `404`; anonymous returns `401`.
 - Invalid quantities, units, dates, limits and conflicting batch fields return `400` with field errors. Stale versions, changed Recipe preview, repeat intent missing and catalogue-name collisions return `409` with specific recoverable details.
 - Every mutation carries a command UUID; updates/purchases/removals carry the reviewed list version. For DELETE use explicit request headers rather than relying on a request body.
+- Linked-Ingredient updates require an explicit catalogue-update choice, the linked Ingredient ID/version and only the approved editable catalogue fields. Omitted catalogue updates leave the Ingredient unchanged. Stale Ingredient versions or catalogue-name conflicts return `409` and roll back the entire combined edit; invalid fields return `400`. Preserve unrelated master fields rather than sending a stale full Ingredient replacement.
 - Check a committed identical command receipt before rejecting its originally supplied stale version. Replay returns its recorded result and does not repeat mutations; UI reloads the current list. Different content with the same UUID returns `409`.
 - Client retries an uncertain request with the same UUID and identical payload; genuinely new user intent uses a new UUID. Explicitly surface an uncertain outcome rather than reporting a false failure/success.
 - Require an explicit numeric purchase amount even for Buy all, so a changed remainder cannot silently change the submitted purchase.
@@ -348,7 +355,8 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | AC-17 | Single and batch rows explicitly opt into catalogue saving | Valid command commits | Selected rows create/link minimal valid Ingredients atomically with Grocery items; unchecked rows stay ad-hoc | BDD + E2E |
 | AC-18 | Batch rows share a normalized catalogue name | Fields agree or conflict | Agreed explicit creation uses one Ingredient; contradictory values return row errors and zero command writes | Unit + BDD |
 | AC-19 | Concurrent active/archived catalogue-name collision or stale linkage | Save is attempted | 409/validation explains select-existing/restore/reload as appropriate; no silent update, restore or partial batch | BDD + E2E |
-| AC-20 | A linked Grocery Item is edited | Shopping fields save | Shopping note/target change; master Ingredient name, nutrition and mappings do not change incidentally | BDD + E2E |
+| AC-20 | A Grocery Item linked by Ingredient ID has catalogue-field edits | User saves and approves, declines or cancels the prompt | Approval updates the same Ingredient and shopping edits atomically; decline explicitly discards catalogue edits and saves shopping edits only; Cancel writes nothing and retains the draft; unchanged catalogue fields cause no prompt; history/source snapshots and unedited master fields remain intact | Unit + BDD + E2E |
+| AC-40 | A linked-Ingredient edit was reviewed at list and Ingredient versions, or its new name collides | Ingredient/list changes elsewhere, validation fails or persistence fails before save completes | Stale versions/name collisions return 409 and invalid fields return 400; persistence failures use standard errors; the combined transaction writes nothing, preserves unrelated master fields and retains the draft for fresh review; identical command replay cannot apply the update twice | BDD + E2E |
 
 ### Purchases, cancellation and history
 
@@ -387,7 +395,7 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 |---|---|---|---|
 | S1 | Grocery aggregate, quantity contracts and persistence foundation | Review P1-P6; failing numeric/identity/history-invariant tests; precise DTO/decimal contracts; EF migrations, ownership keys, version/receipt rules; AC-01/02/03-09/25/26/30/39 foundation | PRD03, PRD04 |
 | S2 | Owner-scoped reads, store grouping and responsive outstanding view | Empty/loading/error states, shared controls, current metadata and cancellable refresh; AC-02/24/28/29/32-35 read coverage | S1 |
-| S3 | Atomic manual single/batch additions and optional Ingredient saving | Transaction-bound reuse of existing validation/persistence; duplicate and rollback handling; AC-07/08/09/16-20/30/31 | S1 |
+| S3 | Atomic manual single/batch additions, optional Ingredient creation and prompted linked-Ingredient editing | Transaction-bound reuse of existing validation/persistence; explicit catalogue-update prompt, dual-version checks, duplicate and rollback handling; AC-07/08/09/16-20/30/31/40 | S1 |
 | S4 | Recipe preview, confirmed additions and source cancellation | Typed eligibility, source snapshots, unit consolidation and reviewed purchase targets; AC-03-15/30/31 | S1, S3 purchase-target contracts |
 | S5 | Purchases, partial completion, cancellation, history and Undo | Immutable events/reversals, date scopes, completed view, safe retries; AC-21-31/35 | S1, S3 |
 | S6 | Integrated UI journeys, regressions and transition inventory | Wire S3-S5 to S2; synthetic real-API E2E, accessibility, persistence reload, written legacy/cutover decision; AC-34-39 plus cross-slice coverage | S2, S3, S4, S5 |
@@ -410,7 +418,7 @@ S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress 
 - Implementation issues and PRs link this PRD and applicable AC IDs; proposed issue placeholders are replaced accurately.
 - New persistence is deployed through EF migrations; existing data and legacy source text remain intact.
 - Same-owner integrity, exact compatible totals, explicit unresolved quantities and separate shopping targets are verified.
-- Single/batch catalogue saving is consistent and atomic; incidental master-Ingredient edits and partial-success batches are absent.
+- Single/batch catalogue saving is consistent and atomic; linked catalogue-field edits prompt for explicit approval and commit with shopping edits using list/Ingredient concurrency checks. Unapproved master changes and partial-success batches are absent.
 - Purchases, partial purchases, cancellation, immutable history, date views and Undo persist across reloads; retries/concurrency cannot duplicate effective changes.
 - Docs explain local database authority, start-empty/migration decision, retry/undo semantics and future OnlineCart meaning. No unreviewed production writes or scope creep.
 - Components/classes remain within the project's 200-250-line guidance; shared helpers are reused and affected regressions pass.
