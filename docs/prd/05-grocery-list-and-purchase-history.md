@@ -35,7 +35,8 @@ This is not Recipe authoring, nutritional calculation, a supermarket checkout sy
 - Full and partial purchases, automatic hiding, completed-item visibility, date-filtered history and undo.
 - Explicit removal/cancellation without falsely recording a purchase.
 - Ownership, optimistic concurrency, atomic writes, safe command retries, and accessible responsive UI.
-- Read-only legacy-list inventory and an explicit migration/cutover decision.
+- Automatic polling while the Grocery List is visible, with change notices and explicit stale/offline states.
+- An initially empty, persistent list without importing legacy Grocery List data; explicit database-authority/cutover guidance.
 
 ### Goals
 
@@ -57,7 +58,7 @@ This is not Recipe authoring, nutritional calculation, a supermarket checkout sy
 - Automatic pack-size selection, grams-to-pack calculation, recipe scaling or serving adjustment.
 - Meal Planner integration, offline writes, live push synchronization or a new realtime provider.
 - Automatic reconciliation of simultaneous legacy and new-app edits, or treating Firestore as a PostgreSQL restore source.
-- A write-capable Grocery List importer in this PRD; the inventory and cutover decision are prerequisites to any later migration scope.
+- Legacy Grocery List import, including legacy completed-item state and purchase history.
 - Production database/application provisioning or changes to selected storage providers.
 
 ## 3. Current Implementation & Legacy Evidence
@@ -103,16 +104,18 @@ PRD05 preserves agreed workflows, not legacy implementation shortcuts. Legacy cu
 | D9 | Future Pending selection promotes items before cart attempts; failures remain outstanding, not Pending. | Selection expresses a decision to buy soon independently of availability. No Pending implementation in PRD05. |
 | D10 | When a Grocery Item has an Ingredient ID and its catalogue fields change, prompt before updating that same master Ingredient. Shopping-only edits do not prompt or update the catalogue. | Preserve the deliberate legacy maintenance workflow while making the scope of shared-data changes explicit. |
 
-### Draft recommendations requiring review before implementation
+### Reviewed recommendations
 
 | ID | Recommendation | Boundary |
 |---|---|---|
 | P1 | Consolidate by linked Ingredient identity plus compatible dimension; unlinked items use normalized name plus dimension. Keep count/container labels distinct. | Do not silently link ad-hoc names to Ingredients or equate a tin with a piece. |
 | P2 | Measured requirements suggest one pack/item to buy, explicitly labelled as a suggestion requiring confirmation; count requirements suggest their rounded-up count. | No guessed pack contents or automatic weight purchase. Persist the confirmed purchase unit separately from requirements. |
-| P3 | In batch entry, up to 10 items; names follow the existing 200-character rule, notes up to 2,000 characters, editable numeric purchase quantities greater than zero and at most 9,999. | Proposed finite limits; validate in API and UI and review against legacy inventory. |
-| P4 | History defaults to the user's browser-local date for today; completed items default to today with an explicit all-dates option. | Persist UTC instants; send explicit timezone-qualified date boundaries. Dates affect visibility, never retention or undo eligibility. |
-| P5 | Initial delivery starts an empty list; read-only inventory determines whether a current-list migration is actually needed before cutover. | No unapproved import or destructive replacement of new-app data. |
-| P6 | Explicit refresh plus refresh on page focus restores current data; mutation responses refresh affected views. | No polling requirement or claim of Firestore-style live synchronization. |
+| P3 | In batch entry, up to 10 items; names follow the existing 200-character rule; editable shopping notes allow up to 250 characters. Editable purchase quantities must be greater than zero and at most 9,999, regardless of Ingredient or purchase unit; measured quantities allow decimals. | Apply the same input limit in API and UI. This does not cap Recipe requirement totals, truncate consolidated/restored demand or rewrite existing Recipe notes. |
+| P4 | Display timestamps and interpret history/completed dates, including "today", in New Zealand time (`Pacific/Auckland`), regardless of browser timezone. Completed/history default to today with an explicit all-dates option. | Store UTC instants internally; derive UTC query boundaries from Auckland calendar dates using daylight-saving rules. Dates affect visibility, never retention or undo eligibility. |
+| P5 | The first visit shows an empty list; no legacy Grocery List import is needed. Added items, purchases and history persist across navigation, reloads and API/database restarts. | Empty startup is not a reset-on-navigation policy. Never overwrite new-app data with a legacy export. |
+| P6 | Automatically poll every 15 seconds while the Grocery List page is visible. Pause when hidden/backgrounded or the phone is locked; fetch immediately on returning, then resume. Mutation responses refresh affected views. | No user refresh is required to discover changes. Preserve dirty forms, announce changes and expose failed checks/staleness. Browsers may suspend execution; no guarantee of locked/background polling or delivery within 15 seconds plus network time. |
+
+P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 9,999; preserve it exactly rather than rejecting or truncating those operations. Display such totals with an explanation of the editable input limit. The limit applies to user-entered quantities, not the Buy all action that records an existing outstanding balance.
 
 ## 5. User Stories
 
@@ -128,7 +131,8 @@ PRD05 preserves agreed workflows, not legacy implementation shortcuts. Legacy cu
 - As a user, I want to record a partial purchase so that unavailable quantities stay visible.
 - As a user, I want to undo a purchase so that changing my mind at checkout restores the outstanding item.
 - As a user, I want dated purchase history so that I can review what I recorded as bought without confusing it with delivery evidence.
-- As a migration operator, I want a documented inventory and authority decision so that legacy imports cannot silently overwrite new-app shopping or Ingredient changes.
+- As a user, I want updates from another device to appear automatically while I shop so that I notice newly added items without refreshing the page.
+- As a migration operator, I want a documented authority decision so that legacy imports cannot silently overwrite new-app shopping or Ingredient changes.
 
 ## 6. Quantity Interpretation & Consolidation
 
@@ -275,7 +279,7 @@ All routes require authentication, DTOs, cancellation propagation and centralize
 - Client retries an uncertain request with the same UUID and identical payload; genuinely new user intent uses a new UUID. Explicitly surface an uncertain outcome rather than reporting a false failure/success.
 - Require an explicit numeric purchase amount even for Buy all, so a changed remainder cannot silently change the submitted purchase.
 - History page defaults to 1 and page size 25, allowed 1-100; stable order UTC occurred time descending then event GUID. Invalid filters return `400`; expose total count.
-- History uses an inclusive start and exclusive end UTC instant, derived from the chosen local calendar dates with timezone offsets. Do not assume a day is always 24 hours. Queries include events in range; their reversal state is evaluated across all dates.
+- History uses an inclusive start and exclusive end UTC instant, derived from chosen `Pacific/Auckland` calendar dates using the offsets applicable on those dates. Do not use the device timezone, a fixed NZ offset or assume a day is always 24 hours. Queries include events in range; their reversal state is evaluated across all dates.
 - No API accepts an arbitrary owner, trusts client recipe contents, accesses supermarket websites or marks purchases by ingredient name.
 
 ## 10. Web Requirements
@@ -290,7 +294,11 @@ All routes require authentication, DTOs, cancellation propagation and centralize
 - Recipe-source details show each addition and its original contributions; users can open the existing Recipe View. An archived/unavailable Recipe does not remove its snapshot or historical contribution.
 - Name display/edit values use shared title case on load/blur, not every keystroke; do not rewrite stored legacy names in bulk.
 - Provide distinct never-used/empty, all-completed, no-filter-results, loading and error/retry states. Preserve outstanding screen content and drafts during failed writes.
-- Explicit refresh and page-focus reload use cancellable reads; a refresh cannot overwrite a dirty form. Clear owner-scoped state on logout/account change. Existing session-expiry routing remains authoritative.
+- Poll the authoritative Grocery List read endpoint every 15 seconds while its page is visible; do not require manual refresh to discover another device's changes. Use cancellable reads without overlapping requests or stale responses overwriting newer mutation results.
+- Pause polling on document visibility becoming hidden (including normal phone lock/background behavior), route exit, logout or account change. On visibility return, page restoration or reconnection, perform an immediate read and restart the interval without duplicate timers. Page focus may trigger the same deduplicated refresh. A browser can suspend a page before notification; no background execution guarantee is required.
+- Apply incoming changes automatically to the nonedited list and show a brief accessible "Grocery list updated" notice when displayed data changes, not on every unchanged poll. Preserve scroll/focus where practical. Do not overwrite or reset an open dirty form; show that newer data is available and require fresh review/version validation before applying conflicting edits.
+- Show the last successful check and a visible "Unable to check for updates" indication after failed checks. Keep the last known list readable but do not imply it is current; retry at the polling interval while visible and immediately on reconnection. A browser online event alone does not establish synchronization: clear stale/error state only after a successful authoritative read.
+- Clear owner-scoped state and stop polling on logout/account change; existing session-expiry routing remains authoritative. No polling of inactive feature routes or claim of instantaneous Firestore-style synchronization.
 - Show completed/history date scope and purchase units plainly. Never label manual/OnlineCart history as confirmed delivered goods.
 
 ## 11. Legacy Migration, Database Authority & Cutover
@@ -299,11 +307,11 @@ This feature does not depend on a live production database or an actual-data imp
 
 Before production usage:
 
-1. Inventory legacy Grocery List references and document whether current demand must be migrated or can deliberately start empty. Keep real data outside Git and ordinary logs.
+1. Start the new Grocery List empty without importing legacy current demand, completions or purchase history. The user can enter the small current list manually; keep real data outside Git and ordinary logs.
 2. Decide the authoritative application for Recipes, Ingredients and shopping data during transition. No ongoing dual-write/three-way-merge system is introduced.
 3. Rehearse final Ingredient/Recipe import, same-owner references and PostgreSQL backup/restore. Existing import approvals can replace authored fields; they do not infer which application's change should win.
-4. If legacy current demand must transfer, define a separately reviewed migration slice/PRD before cutover. Match Ingredient GUIDs and resolve Recipe references through owner/LegacyId; do not equate old optional Ingredient IDs with unique grocery-line IDs.
-5. Never invent purchase events from a legacy `purchased` boolean lacking a reliable occurrence time/quantity. Any retained legacy completion must be explicitly identified as imported state, not a verified historical purchase.
+4. Verify that Grocery additions and purchase history persist across reloads, navigation and API/database restarts. Do not confuse an initially empty list with disposable shopping data.
+5. Do not manufacture historical purchases from legacy completion flags. PRD05 history starts with purchases actually recorded in the new application.
 6. No legacy import may silently clear, replace or reinterpret new-app outstanding items, events or reversals. Preview conflicts and require an explicit migration policy.
 7. Stop legacy edits for final cutover, verify restored database and existing image associations, then switch actual usage. Hosting alone does not solve authority conflicts.
 
@@ -325,6 +333,9 @@ Common/Pending migration and extension readiness are not prerequisites to local 
 | Recipe/import changes existing Steps | Shopping uses recorded contributions, not positional live reconciliation. Require new preview for a new addition; do not rewrite existing demand/history. |
 | API/database unavailable or quota failure | Explicit standard errors and logging; no success-shaped fallback or locally claimed committed purchase. |
 | Offline while shopping | Display unavailable/failed-save state; no queued offline mutations or claim of synchronization. |
+| Another device edits the list while it remains open | Next successful visible-page poll applies changes and announces them; dirty forms are preserved and conflicts require review. |
+| Phone locks or page is backgrounded | Polling pauses when hidden/suspended; immediately fetch on return before resuming the interval, without accumulating duplicate timers. |
+| Poll fails or an older response arrives late | Display stale/error state and retain readable data; no stale response replaces newer committed state or silently resets an edit. |
 
 ## 13. Acceptance Criteria
 
@@ -342,7 +353,7 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | AC-06 | Range, embedded, heaped, blank, zero/negative, invalid fraction or known non-NZ source units | Interpreter runs | Explicit unresolved results preserve text; no prefix parsing, divide-by-zero, silent zero/one or NZ reinterpretation | Unit |
 | AC-07 | Linked and unlinked items with equal names and compatible units | Consolidation runs | Linked identity uses Ingredient GUID; unlinked uses normalized name; no silent catalogue linking; concurrent active keys do not duplicate | Unit + BDD |
 | AC-08 | A 45 ml requirement and existing purchase target | Another Recipe is added | Requirement and purchase target are separately labelled; user confirms keeping/incrementing the target; 45 ml never means 45 packs | Unit + BDD + E2E |
-| AC-09 | Supported input at numeric precision/limit boundaries | API and UI validate | Accepted values retain exact supported quantities; invalid/overflow/limit inputs return field errors, not silent truncation or zero | Unit + BDD |
+| AC-09 | Purchase inputs of 0, negative values, 9,999 and values above 9,999 across count/measured units, plus supported measured decimals | API and UI validate, or consolidation/Undo exceeds the input limit | Entered quantities must be greater than zero and at most 9,999; measured decimals retain supported precision; requirement totals and consolidated/restored demand are not capped or truncated; above-limit outstanding balances remain visible and purchasable through Buy all without permitting above-limit edited input | Unit + BDD |
 
 ### Recipes and manual entry
 
@@ -373,7 +384,7 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | AC-26 | Purchase reversed outside its original date range | Original date history is viewed or Undo repeated | Purchase shows reversed state; repeated undo does not restore twice or erase events | BDD |
 | AC-27 | Outstanding and completed items | User removes one or clears outstanding list | Confirmation cancels outstanding demand only; no fabricated purchase and no history deletion | BDD + E2E |
 | AC-28 | Ingredient/Recipe/store metadata changes after purchase | History and outstanding list load | History retains original snapshots; current display can resolve latest names/mappings without rewriting events | BDD |
-| AC-29 | Purchases around midnight and daylight-saving transitions | Local dates become query boundaries | Correct inclusive-start/exclusive-end UTC range and deterministic paging; no assumed 24-hour day | Unit + BDD |
+| AC-29 | Purchases around Auckland midnight/daylight-saving transitions and a browser in another timezone | Dates display and chosen NZ dates become query boundaries | Display/default today use Pacific/Auckland; correct inclusive-start/exclusive-end UTC range and deterministic paging; no device-timezone, fixed-offset or 24-hour-day assumption | Unit + BDD + E2E |
 | AC-30 | Two devices and a lost post-commit response | Concurrent/stale writes and identical UUID retries occur | Version conflict prevents lost updates; replay has one effect; changed payload under reused UUID returns 409 | BDD |
 | AC-31 | A failure during catalogue/event/contribution persistence | Transaction fails | All command changes and receipt roll back; explicit error is shown/logged; entered data is retained | BDD + E2E |
 
@@ -387,8 +398,10 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | AC-35 | Loading, empty, all-completed, no-results, failed read/write and expired session | Views/actions run | Distinct states and explicit retry/session handling; no false committed success, lost dirty form on refresh or owner-state leakage | Unit + E2E |
 | AC-36 | Existing auth, navigation, Ingredient maintenance, Recipe browsing/images and migration tests | PRD05 integrates | Intended existing behavior remains; only Grocery stub and explicit Add to grocery action change; deferred destinations stay stubs | BDD + E2E |
 | AC-37 | Synthetic seeded Recipe/Ingredient and isolated PostgreSQL | End-to-end add/shop/partial/undo/reload journey runs | Persistent counts, totals, source identities and history match requirements without mocked mutation APIs or real personal data | BDD + E2E |
-| AC-38 | Legacy inventory and final cutover planning | Read-only review completes | Written authority/start-empty-or-migrate decision; no invented legacy purchase events or unapproved writes; required backup/restore and migration work is identified | Manual review |
+| AC-38 | An owner first opens Grocery List and then adds items/records purchases | They navigate away, reload and restart API/database | Initial list is empty without legacy import; subsequently recorded outstanding items, purchases and history persist; authority/cutover guidance preserves new-app data | BDD + E2E |
 | AC-39 | Existing persistent development data | Database migrations and focused regression run | Existing Ingredient/Recipe IDs, text, provenance and images are preserved; no Firestore or provider change is required to develop PRD05 | BDD |
+| AC-41 | A visible list and changes made from a second device | A 15-second polling interval elapses and its read succeeds | Updates appear automatically with a change notice; unchanged reads do not announce changes; no overlapping reads, stale-response rollback or dirty-form overwrite | Unit + BDD + E2E |
+| AC-42 | Polling page becomes hidden, restored, disconnected, reconnected or exits/logs out | Lifecycle and connectivity events occur | Hidden/exited polling stops; return/reconnection fetches immediately and resumes one interval only while visible; failed checks show stale state/last success; only a successful read clears that state; expired sessions stop owner-scoped polling | Unit + E2E |
 
 ## 14. Implementation Slices, Tests & Definition of Done
 
@@ -396,12 +409,12 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 
 | Slice | Proposed issue / scope | Acceptance evidence | Prerequisites |
 |---|---|---|---|
-| S1 | Grocery aggregate, quantity contracts and persistence foundation | Review P1-P6; failing numeric/identity/history-invariant tests; precise DTO/decimal contracts; EF migrations, ownership keys, version/receipt rules; AC-01/02/03-09/25/26/30/39 foundation | PRD03, PRD04 |
-| S2 | Owner-scoped reads, store grouping and responsive outstanding view | Empty/loading/error states, shared controls, current metadata and cancellable refresh; AC-02/24/28/29/32-35 read coverage | S1 |
+| S1 | Grocery aggregate, quantity contracts and persistence foundation | Implement accepted P1-P6 decisions and uniform purchase-input limits without truncating aggregation/Undo; failing numeric/identity/history-invariant tests; precise DTO/decimal contracts; EF migrations, ownership keys, version/receipt rules; AC-01/02/03-09/25/26/30/39 foundation | PRD03, PRD04 |
+| S2 | Owner-scoped reads, store grouping and responsive outstanding view | Empty/loading/error states, shared controls, NZ date handling, lifecycle-aware visible-page polling and stale/change notices; AC-02/24/28/29/32-35/41/42 read coverage | S1 |
 | S3 | Atomic manual single/batch additions, optional Ingredient creation and prompted linked-Ingredient editing | Transaction-bound reuse of existing validation/persistence; explicit catalogue-update prompt, dual-version checks, duplicate and rollback handling; AC-07/08/09/16-20/30/31/40 | S1 |
 | S4 | Recipe preview, confirmed additions and source cancellation | Typed eligibility, source snapshots, unit consolidation and reviewed purchase targets; AC-03-15/30/31 | S1, S3 purchase-target contracts |
 | S5 | Purchases, partial completion, cancellation, history and Undo | Immutable events/reversals, date scopes, completed view, safe retries; AC-21-31/35 | S1, S3 |
-| S6 | Integrated UI journeys, regressions and transition inventory | Wire S3-S5 to S2; synthetic real-API E2E, accessibility, persistence reload, written legacy/cutover decision; AC-34-39 plus cross-slice coverage | S2, S3, S4, S5 |
+| S6 | Integrated UI journeys, regressions and transition guidance | Wire S3-S5 to S2; synthetic real-API E2E, accessibility, persistence reload, documented start-empty/cutover policy; AC-34-39/41/42 plus cross-slice coverage | S2, S3, S4, S5 |
 
 S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress in parallel after S3's addition/target contracts. None depends on production imports. Create GitHub issues only after reviewing this draft, then replace placeholders with actual epic/sub-issue and PR links.
 
@@ -411,7 +424,8 @@ S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress 
 - Unit fixtures assert exact output shapes, decimals and unresolved reasons, not only that two rows became one. Include quantity examples, parsing rejection, canonical aliases and count-label separation.
 - Reqnroll covers owner boundaries, real PostgreSQL constraints, transaction rollback, concurrent first list/name/add/purchase writes, stale previews and command replay.
 - Model concurrency with separate contexts/devices; simulate response loss after a successful commit, not only failures before saving.
-- Vitest covers typed boundaries, form retention, independent requirement/purchase presentation, date boundaries, duplicate confirmation and completed/undo state.
+- Vitest covers typed boundaries, form retention, independent requirement/purchase presentation, Auckland date/DST boundaries, duplicate confirmation and completed/undo state. Use controlled timers for polling, visibility/reconnect events, nonoverlap and stale-response handling.
+- Playwright verifies automatic second-device updates without manual refresh, preserved dirty forms and visible failed-check notices; test visibility lifecycle deterministically rather than claiming physical phone-lock coverage from a desktop browser.
 - Playwright primary journeys use seeded API/database data, accessible selectors and auto-waiting, not arbitrary sleeps. Run desktop/mobile and purchase/undo reload paths.
 - Retain focused Ingredient create/edit/import, Recipe import/read/image, authentication and navigation regressions for shared-context/service/UI changes. Existing CI must run the applicable lint/tests; no new cloud credentials are needed.
 
@@ -423,7 +437,7 @@ S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress 
 - Same-owner integrity, exact compatible totals, explicit unresolved quantities and separate shopping targets are verified.
 - Single/batch catalogue saving is consistent and atomic; linked catalogue-field edits prompt for explicit approval and commit with shopping edits using list/Ingredient concurrency checks. Unapproved master changes and partial-success batches are absent.
 - Purchases, partial purchases, cancellation, immutable history, date views and Undo persist across reloads; retries/concurrency cannot duplicate effective changes.
-- Docs explain local database authority, start-empty/migration decision, retry/undo semantics and future OnlineCart meaning. No unreviewed production writes or scope creep.
+- Docs explain local database authority, persistent empty startup without legacy-list import, NZ time, visible-page polling/staleness, retry/undo semantics and future OnlineCart meaning. No unreviewed production writes or scope creep.
 - Components/classes remain within the project's 200-250-line guidance; shared helpers are reused and affected regressions pass.
 
 ## 15. Risks, Assumptions & Future Considerations
@@ -440,4 +454,4 @@ S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress 
 | Future Common/Pending workflow | Reuse stable item identities and commands. Selected Pending demand promotes before cart attempts and stays outstanding on failure, per D9. |
 | Future Woolworths integration | Separate PRD for scoped authentication, confirmed per-item outcomes, safe retries and website-compatible interaction. No promise to bypass website restrictions. |
 | History retention increases storage | Measure actual usage; no silent pruning. A future retention/export decision must preserve user understanding and reversal semantics. |
-| No offline or live push shopping updates | Explicit availability/refresh behavior and server concurrency checks; offline or realtime support requires its own reviewed scope. |
+| No offline writes or server-push updates | Visible-page 15-second polling, immediate return/reconnection reads and stale notices provide automatic updates without persistent push connections. Offline writes or server push require separately reviewed scope. |
