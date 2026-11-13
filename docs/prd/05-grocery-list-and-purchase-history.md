@@ -142,10 +142,11 @@ P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 
 - Parse only complete supported numeric expressions: positive integers, decimals, simple fractions and mixed fractions. Do not use prefix parsing that turns `1-2` into `1` or `2 heaped` into `2`.
 - Recognize case-insensitive, explicitly enumerated aliases for mass (`g`, `gram(s)`, `kg`, `kilogram(s)`), volume (`ml`, `millilitre(s)`, `l`, `litre(s)`, `tsp`, `teaspoon(s)`, `tbsp`, `tablespoon(s)`, `cup(s)`), and counts/container labels.
 - Normalize mass to grams and volume to millilitres using decimal arithmetic. NZ teaspoon = 5 ml, tablespoon = 15 ml, cup = 250 ml; kilogram = 1,000 g and litre = 1,000 ml.
+- Teaspoons, tablespoons and cups are volume measures whether the Ingredient is liquid or dry. Millilitres represent recipe volume, not mass: `250 ml flour` is not `250 g flour`, and `10 ml cinnamon` is not `10 g cinnamon`.
 - Ingredient identity plus dimension determines safe consolidation. For counts, keep the canonical count/container label in the key; an unlabelled piece and a tin are not interchangeable.
 - Ranges, unknown units, ambiguous embedded units, heaped/packed measures, zero/negative source quantities, blank quantities and "to taste" remain unresolved contributions with the original text visible. They never silently become zero, one, or a validated physical quantity.
 - If a recipe explicitly indicates another measurement standard, do not reinterpret it as NZ: retain it unresolved for review. The UI states the NZ assumption for ordinary unqualified cup/spoon units.
-- No mass/volume conversion, ingredient density, piece weight, volume nutrition calculation or unit guessing from a product URL.
+- No mass/volume conversion, ingredient density, piece weight, volume nutrition calculation or unit guessing from a product URL. A volume requirement can be shown beside a separately confirmed purchase target in grams or kilograms, but the system must not imply that the values are equivalent or calculate one from the other.
 - Unknown units may share an Ingredient display grouping, but not a numeric total. Keep unresolved lines/contributions distinguishable and visibly excluded from any known total.
 
 ### Examples and required outputs
@@ -157,6 +158,8 @@ P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 
 | `1 cup` and `50 ml` | `300 ml` under the NZ assumption | A standard is stated, not silently inferred from nationality or recipe source. |
 | `0.5 kg` and `250 g` | `750 g` | No grams-to-packs conversion. |
 | `1/2 tbsp` and `1 1/2 tsp` | `10 ml` | No intermediate whole-number rounding. |
+| `1 tsp cinnamon` and `1 cup cinnamon` | `255 ml` volume requirement | Cinnamon is dry, but both source measures are volume. This does not mean 255 g; the user chooses the amount/package to buy by mass. |
+| `1 cup flour` | `250 ml` volume requirement | Not 250 g. No ingredient-specific gram estimate is made; show the original volume and require a separately chosen purchase target. |
 | `2 tins` and `1 tin` | `3 tin` in the canonical numeric model; user-facing pluralization is grammatical | Proposed purchase count is 3 tins. |
 | `1 tbsp` and `20 g` | Separate `15 ml` and `20 g` requirements | Cannot consolidate across dimensions without Ingredient-specific information. |
 | `1-2 tsp` and `1 tbsp` | Unresolved `1-2 tsp` plus known `15 ml` | No false complete numeric total. |
@@ -164,6 +167,7 @@ P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 
 ### Requirements are not purchase quantities
 
 - A Grocery Item exposes known requirements and unresolved contributions separately from `OutstandingPurchaseQuantity` and `PurchaseUnit`.
+- Recipe volume and mass totals remain distinct requirements. If an Ingredient is normally bought by mass, a volume-based Recipe does not supply enough information to calculate its gram amount; display both concepts separately and require the user to select/confirm what to buy.
 - No physical amount is automatically treated as a number of packs. P2 requires explicit review/confirmation of a suggested purchase target before committing a Recipe addition.
 - When an addition joins an existing line, show the existing and proposed purchase target. The user confirms an increment or keeps the existing target; do not automatically add one pack for every Recipe.
 - Purchase units support explicit count labels and measured grams/millilitres. All purchase amounts are numeric; ad-hoc descriptive requirements can coexist with an explicitly chosen purchase target.
@@ -447,7 +451,7 @@ S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress 
 |---|---|
 | Recipes use different spoon/cup standards or ambiguous expressions | State NZ measures; keep explicit alternatives/unparseable values unresolved. Never silently reinterpret existing storage. |
 | Grocery requirements are mistaken for purchase packs | Separate physical requirements, user-confirmed targets and purchase units; do not promise pack-size intelligence. |
-| Food Diary needs grams for per-100 g nutrition | Later add Ingredient-specific conversion records with measurement/preparation, source and uncertainty; volume ratios alone do not determine grams. Preserve original requirements now. |
+| Grocery shopping or Food Diary needs grams for a volume-based Ingredient such as flour or cinnamon | Later research Ingredient-specific conversion records that retain source measure, Ingredient, preparation/packing assumptions, grams-per-measure, source/provenance and confidence/uncertainty. A cup's ml volume is not its gram weight; do not claim a sourced estimate is exact or convert in PRD05. Preserve original recipe measures and keep volume/mass totals separate now. |
 | Purchased/history is mistaken for delivered/consumed | Manual events are user assertions; future OnlineCart origin means cart addition. Order/delivery/intake events require separate verified workflows. |
 | Repeated additions lose per-Recipe identity | Retain distinct Recipe-addition and contribution IDs, not a dictionary keyed only by Recipe ID or child position. |
 | Legacy import overwrites local authored Ingredients/Recipes | Define authority and final cutover explicitly; moving to a hosted database does not remove import conflict risk. |
