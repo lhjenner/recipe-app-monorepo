@@ -33,7 +33,7 @@ This is not Recipe authoring, nutritional calculation, a supermarket checkout sy
 - Keep weight-based and count-based requirements for the same Ingredient on separate lines; prompt before manually adding a duplicate outstanding item.
 - Separate recipe requirements from an explicit purchase quantity and purchase unit.
 - Store-based department grouping, including unmapped and not-stocked states.
-- Full and partial purchases, automatic hiding, completed-item visibility, date-filtered history and undo.
+- Whole-line purchases, automatic hiding, completed-item visibility, date-filtered history and undo.
 - Explicit removal/cancellation without falsely recording a purchase.
 - Ownership, optimistic concurrency, atomic writes, safe command retries, and accessible responsive UI.
 - Automatic polling while the Grocery List is visible, with change notices and explicit stale/offline states.
@@ -96,7 +96,7 @@ PRD05 preserves agreed workflows, not legacy implementation shortcuts. Legacy cu
 |---|---|---|
 | D1 | One ongoing list with purchase-event history from the first release. | Shopping is not reliably weekly or completed in one trip. |
 | D2 | Purchased items hide automatically; expose completed items, date-filterable history and undo. | Keep the screen clear without deleting evidence of purchases. No midnight reset. |
-| D3 | Buy the full outstanding purchase quantity by default; allow a smaller quantity. | Support partially available stock and intermittent shopping. |
+| D3 | Marking an item purchased records its entire outstanding line quantity; there is no partial-purchase action. Manual decreases cannot reduce the quantity below the Recipe-derived minimum. | Keep shopping controls simple while preserving Recipe requirements and explicit whole-line purchase history. |
 | D4 | Manual entry always adds to the Grocery List; catalogue saving defaults off and is explicit per item in both single and batch entry. | Ad-hoc items must not silently become Ingredients. |
 | D5 | Apply NZ teaspoon/tablespoon/cup measures and consolidate compatible units. | Resolve the agreed spoon/cup duplication problem without needing ingredient densities. |
 | D6 | Ask before adding another Recipe's worth while the same Recipe contributes outstanding items. | Distinguish intentional repetition from an accidental click. |
@@ -116,7 +116,7 @@ PRD05 preserves agreed workflows, not legacy implementation shortcuts. Legacy cu
 | P5 | The first visit shows an empty list; no legacy Grocery List import is needed. Added items, purchases and history persist across navigation, reloads and API/database restarts. | Empty startup is not a reset-on-navigation policy. Never overwrite new-app data with a legacy export. |
 | P6 | Automatically poll every 15 seconds while the Grocery List page is visible. Pause when hidden/backgrounded or the phone is locked; fetch immediately on returning, then resume. Mutation responses refresh affected views. | No user refresh is required to discover changes. Preserve dirty forms, announce changes and expose failed checks/staleness. Browsers may suspend execution; no guarantee of locked/background polling or delivery within 15 seconds plus network time. |
 
-P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 9,999; preserve it exactly rather than rejecting or truncating those operations. Display such totals with an explanation of the editable input limit. The limit applies to user-entered quantities, not the Buy all action that records an existing outstanding balance.
+P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 9,999; preserve it exactly rather than rejecting or truncating those operations. Display such totals with an explanation of the editable input limit. The limit applies to user-entered quantities, not the whole-line purchase action that records an existing outstanding balance.
 
 ## 5. User Stories
 
@@ -130,7 +130,7 @@ P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 
 - As a user, I want to correct a linked Ingredient's department for the currently selected supermarket from the Grocery List with confirmation so that future shops use the corrected department.
 - As a user, I want store-based grouping so that I can find items efficiently while shopping.
 - As a user, I want bought items to disappear from the outstanding view so that I can concentrate on what remains.
-- As a user, I want to record a partial purchase so that unavailable quantities stay visible.
+- As a user, I want to mark an entire grocery line purchased so that it disappears from the outstanding list and is recorded in history.
 - As a user, I want to undo a purchase so that changing my mind at checkout restores the outstanding item.
 - As a user, I want dated purchase history so that I can review what I recorded as bought without confusing it with delivery evidence.
 - As a user, I want updates from another device to appear automatically while I shop so that I notice newly added items without refreshing the page.
@@ -177,14 +177,13 @@ P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 
 - Recipe volume and mass totals remain distinct requirements. If an Ingredient is normally bought by mass, a volume-based Recipe does not supply enough information to calculate its gram amount; display both concepts separately and let the user adjust what to buy.
 - For compatible countable Ingredients and countable packages, automatically recalculate the purchase quantity when Recipe contributions are added or removed. Sum compatible Recipe contributions, round the aggregate count up, add the user's separately stored manual quantity, and account for purchases as described below. Do not prompt once per Ingredient.
 - Increasing the displayed purchase amount manually records the increment as manual demand on the same line. Removing Recipe contributions removes only their demand and preserves manual demand; show both Recipe attribution and the manual amount. A compatible manual tofu packet and Recipe tofu packet are not separate visible lines.
-- For a countable item, the manual decrease control removes manual demand only and cannot reduce the outstanding purchase quantity below the remaining Recipe-derived minimum. Calculate that minimum as the rounded-up compatible Recipe count minus effective, unreversed purchases in the current shopping occurrence, bounded at zero. Disable or reject a decrease that would cross the minimum; do not alter Recipe contributions. The same floor applies to direct quantity edits, not just buttons.
+- For a countable item, the manual decrease control removes manual demand only and cannot reduce the outstanding purchase quantity below the rounded-up compatible Recipe count for its current outstanding demand. Disable or reject a decrease that would cross the minimum; do not alter Recipe contributions. The same floor applies to direct quantity edits, not just buttons.
 - A measured Recipe requirement defaults to one pack/item, clearly identified as a suggestion rather than a guarantee of sufficiency. Adding further measured Recipe contributions consolidates requirements but does not automatically add one pack per Recipe. Let the user adjust the purchase quantity; retain manual increments separately. Never calculate pack counts or mass from physical volume without the necessary conversion and pack information.
-- For a countable item with a partial purchase, apply its effective, unreversed purchased quantity to the remaining combined Recipe/manual requirement when a Recipe is removed. For example, X contributes 2 onions, Y contributes 1, one was purchased, and removing X leaves 0 outstanding. Never make outstanding negative or delete purchase history.
 - Do not apply a past completed shopping occurrence's purchases as credit against a genuinely new later Recipe/manual addition. Preserve event history and distinguish the new demand from the completed occurrence.
 - When the final measured Recipe contributing to a line is removed, automatically remove its outstanding Recipe-driven suggested pack, preserving any manually added packs. If another measured Recipe still contributes to that line, keep the single suggestion. Do not invent a pack-to-volume conversion or delete purchase history; a measured Recipe amount cannot establish a numeric minimum in packs or weight without a conversion.
 - Purchase units support explicit count labels and measured grams/millilitres. All purchase amounts are numeric; ad-hoc descriptive requirements can coexist with an explicitly chosen purchase target.
 - Purchase events consume the outstanding purchase target, not an inferred fraction of Recipe requirements. Buying one of two packs does not prove that half the recipe's grams were obtained.
-- Partial purchases subtract the recorded amount in the same purchase unit. Do not change that unit while a line has purchase history; create a separate line for a different purchase unit.
+- Do not change a line's purchase unit while it has purchase history; create a separate line for a different purchase unit.
 - Requirements remain source evidence; completion means the chosen shopping target was recorded purchased, not proof of precise ingredient mass, calorie intake or delivery.
 - Store decimal values without float accumulation. Render sensible precision while retaining the unrounded stored amount; finite precision/overflow validation must reject unrepresentable input rather than silently rounding a supported quantity to zero.
 
@@ -218,8 +217,8 @@ The implementation may simplify physical columns or use owned values, but must p
 
 ### Purchase-event semantics
 
-- Purchase command appends an immutable event and updates the outstanding quantity in one transaction. Full completion leaves the line available to history but hidden by default. For countable items, effective purchases are applied to the remaining current demand during automatic recalculation; they are not assigned to a specific Recipe.
-- Full completion retires that line's current outstanding contribution associations; partial completion leaves them outstanding without claiming proportional physical fulfillment. Record the affected contribution IDs in the event snapshot. Later manual/new-Recipe additions do not reactivate old completed associations, so an unrelated re-addition cannot trigger a false repeat-Recipe warning.
+- Purchase command appends an immutable event for the entire reviewed outstanding line quantity and completes the line in one transaction; the line remains available to history but hidden by default.
+- Completion retires that line's current outstanding contribution associations. Record the affected contribution IDs in the event snapshot. Later manual/new-Recipe additions do not reactivate old completed associations, so an unrelated re-addition cannot trigger a false repeat-Recipe warning.
 - Explicit removal cancels only outstanding demand; it appends no purchase. Existing purchases remain visible and reversible.
 - Undo appends a compensating reversal and restores exactly the purchased quantity in one transaction. It does not erase the purchase or recreate previously cancelled unrelated demand.
 - Undo restores source associations affected by that event only, and only where they have not subsequently been explicitly cancelled. The restored shopping quantity remains valid even when its Recipe association was separately cancelled; retain historical attribution without resurrecting cancelled Recipe demand.
@@ -240,7 +239,7 @@ The implementation may simplify physical columns or use owned values, but must p
 6. Commit the source Recipe/list versions and any required repeat decision atomically; automatically recalculate compatible countable purchase quantities. A stale reviewed list or Recipe requires a fresh review, not per-Ingredient confirmation.
 7. Show a success notice and link to Grocery List. Once previous demand is completed/cancelled, adding again creates new outstanding demand without rewriting purchase history.
 
-Provide a "Remove this recipe's outstanding requirements" action for contributing additions. Automatically remove that addition's contributions and recalculate compatible countable quantities without prompting for each affected line. Preserve other Recipes, manual demand and purchase history; apply prior unreversed purchases against remaining countable demand. For measured quantities, remove the outstanding Recipe-driven pack suggestion only when its final contributing Recipe is removed; keep manually added packs and never derive pack subtraction from Recipe grams or volume.
+Provide a "Remove this recipe's outstanding requirements" action for contributing additions. Automatically remove that addition's contributions and recalculate compatible countable quantities without prompting for each affected line. Preserve other Recipes, manual demand and purchase history. For measured quantities, remove the outstanding Recipe-driven pack suggestion only when its final contributing Recipe is removed; keep manually added packs and never derive pack subtraction from Recipe grams or volume.
 
 ### Manual single and batch entry
 
@@ -266,9 +265,9 @@ Provide a "Remove this recipe's outstanding requirements" action for contributin
 
 ### Shopping, removal and undo
 
-- Default view contains only outstanding, noncancelled lines. "Mark purchased" defaults to all outstanding quantity; a partial option accepts a smaller positive amount in the same purchase unit.
+- Default view contains only outstanding, noncancelled lines. "Mark purchased" records the entire outstanding line; no partial-purchase option is offered. Quantity adjustments do not create purchase events and cannot cross the Recipe-derived minimum.
 - Completed lines hide immediately after confirmed success; show an accessible notice with Undo. Do not optimistically claim success before the server confirms it.
-- "Show completed" exposes completed rows/events for the selected date scope; partially purchased lines stay outstanding and expose their recent events.
+- "Show completed" exposes completed rows/events for the selected date scope.
 - History lists purchases and reversals with effective/reversed state, amount/unit, item snapshot, store and origin. Server-side paging and date filters; default today, selectable all dates. Reversals outside a date range must still determine the original event's current reversed state.
 - Restore exactly one event with Undo, even after midnight or a later purchase. Repeated undo has no additional effect.
 - "Remove item" and "Clear outstanding list" are cancellation actions with confirmation, not purchases. Neither clears history. Do not introduce a destructive "clear history" action.
@@ -287,7 +286,7 @@ All routes require authentication, DTOs, cancellation propagation and centralize
 | `POST` | `/api/grocery-list/recipe-preview` | Read-only eligible Recipe/target preview with source/list versions; `200`; no rows or side effects. |
 | `POST` | `/api/grocery-list/recipe-additions` | Commit Recipe addition and required repeat decision; automatically recalculate compatible quantities; `201` with addition identity/version. |
 | `POST` | `/api/grocery-list/recipe-additions/{id}/cancel` | Cancel the addition's outstanding contributions and recalculate countable demand; preserve manual demand, history and other sources; `200`. |
-| `POST` | `/api/grocery-list/items/{id}/purchases` | Full/partial purchase from explicit reviewed amount and version; `201` with event identity/version. |
+| `POST` | `/api/grocery-list/items/{id}/purchases` | Purchase the entire reviewed outstanding line with its expected quantity/unit and version; `201` with event identity/version. |
 | `GET` | `/api/grocery-list/purchase-history` | Paged date-filtered events, snapshots and reversal state; `200`. |
 | `POST` | `/api/grocery-list/purchase-history/{id}/reverse` | Append one reversal/restore quantity; `201` first time; `200` for an already-reversed purchase with its existing reversal. |
 
@@ -297,7 +296,7 @@ All routes require authentication, DTOs, cancellation propagation and centralize
 - Linked-Ingredient updates require explicit department-update approval, the linked Ingredient ID/version, the reviewed selected supermarket's store ID and the proposed department. The edit contract allows only that store's department update, not a full Ingredient replacement or other catalogue changes; reject attempts to update disallowed fields or additional store mappings with `400`. Omitted department updates leave the Ingredient unchanged. Stale Ingredient/list versions return `409` and roll back the combined edit; invalid or other-owner department references return `400`. The client must bind the store ID to its reviewed selection; the server validates ownership and the store/department references without relying on browser state.
 - Check a committed identical command receipt before rejecting its originally supplied stale version. Replay returns its recorded result and does not repeat mutations; UI reloads the current list. Different content with the same UUID returns `409`.
 - Client retries an uncertain request with the same UUID and identical payload; genuinely new user intent uses a new UUID. Explicitly surface an uncertain outcome rather than reporting a false failure/success.
-- Require an explicit numeric purchase amount even for Buy all, so a changed remainder cannot silently change the submitted purchase.
+- Require the expected full outstanding quantity and unit with a purchase command; reject a stale value with `409` and reject an attempt to purchase a smaller amount with `400`. This prevents a concurrent quantity change from silently changing the submitted purchase; a committed identical command retry still returns its receipt.
 - History page defaults to 1 and page size 25, allowed 1-100; stable order UTC occurred time descending then event GUID. Invalid filters return `400`; expose total count.
 - History uses an inclusive start and exclusive end UTC instant, derived from chosen `Pacific/Auckland` calendar dates using the offsets applicable on those dates. Do not use the device timezone, a fixed NZ offset or assume a day is always 24 hours. Queries include events in range; their reversal state is evaluated across all dates.
 - No API accepts an arbitrary owner, trusts client recipe contents, accesses supermarket websites or marks purchases by ingredient name.
@@ -310,7 +309,7 @@ All routes require authentication, DTOs, cancellation propagation and centralize
 - Fixed choices use native selects; Ingredient typeahead uses shared `LookupTypeahead`. Accessible labels, focus management, keyboard actions, and error/status announcements.
 - Default group by selected store's department and then title-cased name, with stable item-ID tie-break. Persist selected seeded store locally; no additional store-management screen.
 - Resolve current linked mappings for display. Unmapped/ad-hoc-without-mapping items show "Uncategorised"; not stocked remains explicitly visible as "Not stocked here", not silently hidden or purchased.
-- Clearly label requirement totals, unresolved source text, purchase quantity/unit, partial outstanding amounts and purchase-origin/history state.
+- Clearly label requirement totals, unresolved source text, outstanding purchase quantity/unit and purchase-origin/history state.
 - Recipe-source details show each addition and its original contributions; users can open the existing Recipe View. An archived/unavailable Recipe does not remove its snapshot or historical contribution.
 - Name display/edit values use shared title case on load/blur, not every keystroke; do not rewrite stored legacy names in bulk.
 - Provide distinct never-used/empty, all-completed, no-filter-results, loading and error/retry states. Preserve outstanding screen content and drafts during failed writes.
@@ -347,7 +346,7 @@ Common/Pending migration and extension readiness are not prerequisites to local 
 | Unsupported source expression | Retain original text and unresolved reason; do not fabricate a numeric total. Show any default purchase suggestion as unverified and allow adjustment without a per-Ingredient confirmation step. |
 | Ingredient archived/excluded after selection | Revalidate eligibility before commit; preserve existing demand/history and explain any blocked new addition. |
 | Purchase undone after explicit item removal | Explain reopening; restore only that event's quantity, not cancelled unrelated demand. |
-| Partial purchase and later addition on the same line | Preserve distinct events and new demand; undo affects only the selected purchase. |
+| Completed purchase and later addition of the same item | Preserve the completed event separately from new demand; undo affects only the selected purchase and must not credit it against new demand. |
 | Reversal occurs tomorrow | Original purchase still displays as reversed when viewing yesterday; no date-based lockout. |
 | One batch row invalid or Ingredient insert races | Roll back the complete command; preserve all input, identify rows/conflicts explicitly. |
 | Manual duplicate appears or changes on another device during confirmation | Reject the stale command and show the updated quantity for fresh review; do not silently increment or commit part of a batch. |
@@ -374,7 +373,7 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | AC-06 | Range, embedded, heaped, blank, zero/negative, invalid fraction or known non-NZ source units | Interpreter runs | Explicit unresolved results preserve text; no prefix parsing, divide-by-zero, silent zero/one or NZ reinterpretation | Unit |
 | AC-07 | Linked and unlinked items with equal names and compatible units | Consolidation runs | Linked identity uses Ingredient GUID; unlinked uses normalized name; no silent catalogue linking; concurrent active keys do not duplicate | Unit + BDD |
 | AC-08 | A 45 ml requirement and existing purchase target | Another measured Recipe is added | Requirement and purchase target remain separately labelled; amounts consolidate without per-Ingredient confirmation or automatic extra pack; 45 ml never means 45 packs | Unit + BDD + E2E |
-| AC-09 | Purchase inputs of 0, negative values, 9,999 and values above 9,999 across count/measured units, plus supported measured decimals | API and UI validate, or consolidation/Undo exceeds the input limit | Entered quantities must be greater than zero and at most 9,999; measured decimals retain supported precision; requirement totals and consolidated/restored demand are not capped or truncated; above-limit outstanding balances remain visible and purchasable through Buy all without permitting above-limit edited input | Unit + BDD |
+| AC-09 | Purchase inputs of 0, negative values, 9,999 and values above 9,999 across count/measured units, plus supported measured decimals | API and UI validate, or consolidation/Undo exceeds the input limit | Entered quantities must be greater than zero and at most 9,999; measured decimals retain supported precision; requirement totals and consolidated/restored demand are not capped or truncated; above-limit outstanding balances remain visible and purchasable as a whole line without permitting above-limit edited input | Unit + BDD |
 
 ### Recipes and manual entry
 
@@ -387,13 +386,13 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | AC-14 | Recipe/list changes after preview | Commit is attempted | 409 requires fresh review; no unreviewed source or target applies | BDD + E2E |
 | AC-15 | Recipe X contributes 2 onions, Recipe Y 1 and manual increment 1 | Both Recipe additions are removed | One line shows 4 with source attribution before removal and 1 manual onion afterwards; quantity changes automatically without per-Ingredient confirmation | Unit + BDD + E2E |
 | AC-43 | A Recipe contributes 1 tofu packet and the user increments the same item by 1 | Recipe is removed | One tofu line shows 2 packets with separate Recipe/manual contributions; removing the Recipe leaves 1 manual packet | Unit + BDD + E2E |
-| AC-44 | Recipe X contributes 2 onions, Recipe Y 1 and one onion is purchased | Recipe X is removed | Remaining Recipe requirement is 1, prior unreversed purchase is applied against it, outstanding is 0, and the original purchase event remains in history | Unit + BDD |
+| AC-44 | Recipe X contributes 2 onions and Recipe Y 1; the whole line was purchased, then a later new onion demand was added | Recipe X's completed addition is no longer outstanding | Prior purchase remains in history and is not applied as credit against the later demand | Unit + BDD |
 | AC-45 | One Recipe contributes 5 mushrooms by count and another 250 g of the same linked Ingredient | Both Recipes are added | Two visible lines retain their respective units, purchase quantities and Recipe sources; no count-to-weight conversion or automatic merge occurs | Unit + BDD + E2E |
 | AC-46 | Onions are already outstanding from a Recipe or previous manual addition | User manually adds more onions | A prompt displays the existing quantity, proposed increment and resulting quantity; confirming increments the same compatible line with separate manual attribution; cancelling makes no change and retains input | BDD + E2E |
 | AC-47 | A batch has duplicate manual rows or an existing duplicate changes during review | User submits, cancels or retries after a concurrent update | Each affected increment requires review; cancellation/failure commits nothing and retains the draft; stale/new duplicates require fresh review; an identical committed command retry has no second effect | Unit + BDD + E2E |
 | AC-48 | Count and weight mushroom lines are both outstanding | User manually adds mushrooms in a compatible unit | The prompt identifies the matching line and its unit; confirming updates only that line; incompatible lines remain separate | BDD + E2E |
 | AC-49 | Recipes contribute 3 onions and a manual increment adds 1 | User decreases the purchase amount with buttons or direct entry | It can decrease from 4 to 3 by removing the manual onion, but cannot go below 3; Recipe contributions stay unchanged and the limit is explained accessibly | Unit + BDD + E2E |
-| AC-50 | Recipes contribute 3 onions and 1 was purchased in the current shopping occurrence | User decreases the outstanding amount | The minimum is 2 outstanding; an attempt to go below 2 is prevented without altering Recipe contributions or purchase history | Unit + BDD + E2E |
+| AC-50 | Recipes contribute 2 onions and the user wants only 1 | User tries to decrease below the Recipe minimum, then removes the line and adds 1 onion manually | The decrease is blocked; explicit removal followed by a manual addition creates one outstanding onion without recording a purchase or changing Recipe data | Unit + BDD + E2E |
 | AC-51 | A measured flour Recipe contributes an unverified suggestion of 1 bag and the user manually adds 1 bag | The final flour Recipe is removed | The Recipe-driven suggestion is removed automatically; the manual bag remains on the same line, with no fabricated volume-to-pack conversion or deletion of purchase history | Unit + BDD + E2E |
 | AC-52 | Two Recipes contribute measured flour requirements with one shared suggested bag and a manual bag | One Recipe is removed, then the other | Removing the first retains the one Recipe-driven suggestion and manual bag; removing the last removes only the outstanding suggestion and retains the manual bag, without per-item prompts | Unit + BDD + E2E |
 | AC-16 | One or several new manual items | Saved with catalogue choices unchecked | Grocery additions commit, no Ingredients are created, and defaults/notes/identity follow the same single/batch rules | BDD + E2E |
@@ -407,10 +406,10 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 
 | ID | Given | When | Then | Test Type |
 |---|---|---|---|---|
-| AC-21 | Three outstanding tins | Mark purchased uses default amount | One event records three tins atomically, outstanding becomes zero, item hides and success notice offers Undo | BDD + E2E |
-| AC-22 | Three outstanding tins | One tin is recorded purchased | Event records one, two remain outstanding in the same unit, and recipe physical requirements are not falsely recalculated | Unit + BDD + E2E |
-| AC-23 | Zero, negative, excessive or wrong-unit purchase input | Submitted | 400/409 as appropriate; no event, no negative remainder and no changed source requirements | Unit + BDD |
-| AC-24 | Full/partial purchases across several dates | Completed/history scope changes | Outstanding default remains uncluttered; date scope is visible; all-dates is available; no midnight loss/reset | BDD + E2E |
+| AC-21 | Three outstanding tins | Mark purchased is selected | One event records all three tins atomically, outstanding becomes zero, item hides and success notice offers Undo | BDD + E2E |
+| AC-22 | Three outstanding tins | The user attempts to purchase fewer than the whole line | No partial-purchase control is offered; an API request for a smaller amount returns 400 and records no event | Unit + BDD + E2E |
+| AC-23 | A purchase request has zero, negative, wrong-unit, excessive or stale expected quantity | Submitted | 400/409 as appropriate; no event, no negative remainder and no changed source requirements | Unit + BDD |
+| AC-24 | Whole-line purchases across several dates | Completed/history scope changes | Outstanding default remains uncluttered; date scope is visible; all-dates is available; no midnight loss/reset | BDD + E2E |
 | AC-25 | A purchase, later additions and optionally removed original line | User reviews and confirms Undo | Exactly one compensating event restores only purchased quantity; original purchase/snapshot survives; unrelated cancelled demand is not restored | Unit + BDD + E2E |
 | AC-26 | Purchase reversed outside its original date range | Original date history is viewed or Undo repeated | Purchase shows reversed state; repeated undo does not restore twice or erase events | BDD |
 | AC-27 | Outstanding and completed items | User removes one or clears outstanding list | Confirmation cancels outstanding demand only; no fabricated purchase and no history deletion | BDD + E2E |
@@ -425,10 +424,10 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 |---|---|---|---|---|
 | AC-32 | Mapped, unmapped, not-stocked and ad-hoc items | Seeded store selection changes | Correct stable department/name grouping; not-stocked items remain explicit; selected store persists locally | Unit + BDD + E2E |
 | AC-33 | Lowercase names and single/batch lookup fields | Viewed, edited and blurred | Shared title case and dropdowns apply without per-keystroke rewriting or bulk stored-data changes | Unit + E2E |
-| AC-34 | 375 px and 1280 px viewports with keyboard navigation | Primary workflows run | Add Recipe/manual, quantity review, partial purchase, completed/history and Undo are accessible with equivalent essential behavior | E2E |
+| AC-34 | 375 px and 1280 px viewports with keyboard navigation | Primary workflows run | Add Recipe/manual, quantity review, whole-line purchase, completed/history and Undo are accessible with equivalent essential behavior | E2E |
 | AC-35 | Loading, empty, all-completed, no-results, failed read/write and expired session | Views/actions run | Distinct states and explicit retry/session handling; no false committed success, lost dirty form on refresh or owner-state leakage | Unit + E2E |
 | AC-36 | Existing auth, navigation, Ingredient maintenance, Recipe browsing/images and migration tests | PRD05 integrates | Intended existing behavior remains; only Grocery stub and explicit Add to grocery action change; deferred destinations stay stubs | BDD + E2E |
-| AC-37 | Synthetic seeded Recipe/Ingredient and isolated PostgreSQL | End-to-end add/shop/partial/undo/reload journey runs | Persistent counts, totals, source identities and history match requirements without mocked mutation APIs or real personal data | BDD + E2E |
+| AC-37 | Synthetic seeded Recipe/Ingredient and isolated PostgreSQL | End-to-end add/shop/whole-line purchase/undo/reload journey runs | Persistent counts, totals, source identities and history match requirements without mocked mutation APIs or real personal data | BDD + E2E |
 | AC-38 | An owner first opens Grocery List and then adds items/records purchases | They navigate away, reload and restart API/database | Initial list is empty without legacy import; subsequently recorded outstanding items, purchases and history persist; authority/cutover guidance preserves new-app data | BDD + E2E |
 | AC-39 | Existing persistent development data | Database migrations and focused regression run | Existing Ingredient/Recipe IDs, text, provenance and images are preserved; no Firestore or provider change is required to develop PRD05 | BDD |
 | AC-41 | A visible list and changes made from a second device | A 15-second polling interval elapses and its read succeeds | Updates appear automatically with a change notice; unchanged reads do not announce changes; no overlapping reads, stale-response rollback or dirty-form overwrite | Unit + BDD + E2E |
@@ -444,7 +443,7 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | S2 | Owner-scoped reads, store grouping and responsive outstanding view | Empty/loading/error states, shared controls, NZ date handling, lifecycle-aware visible-page polling and stale/change notices; AC-02/24/28/29/32-35/41/42 read coverage | S1 |
 | S3 | Atomic manual single/batch additions, optional Ingredient creation and prompted selected-store department editing | Transaction-bound reuse of existing validation/persistence; duplicate-increment review, Recipe-derived decrease floor, department-only update prompt, selected-store binding, dual-version checks and rollback handling; AC-07/08/09/16-20/30/31/40/46-50 | S1 |
 | S4 | Recipe additions, source attribution and automatic quantity recalculation | Typed eligibility, source snapshots, separate count/weight lines, manual/count contributions and source cancellation including measured-item suggestions without per-item quantity prompts; AC-03-15/30/31/43-45/51/52 | S1, S3 purchase-target contracts |
-| S5 | Purchases, partial completion, cancellation, history and Undo | Immutable events/reversals, date scopes, completed view, safe retries; AC-21-31/35 | S1, S3 |
+| S5 | Whole-line purchases, cancellation, history and Undo | Immutable events/reversals, date scopes, completed view, safe retries; AC-21-31/35 | S1, S3 |
 | S6 | Integrated UI journeys, regressions and transition guidance | Wire S3-S5 to S2; synthetic real-API E2E, accessibility, persistence reload, documented start-empty/cutover policy; AC-34-39/41/42 plus cross-slice coverage | S2, S3, S4, S5 |
 
 S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress in parallel after S3's addition/target contracts. None depends on production imports. Create GitHub issues only after reviewing this draft, then replace placeholders with actual epic/sub-issue and PR links.
@@ -467,7 +466,7 @@ S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress 
 - New persistence is deployed through EF migrations; existing data and legacy source text remain intact.
 - Same-owner integrity, exact compatible totals, explicit unresolved quantities and separate shopping targets are verified.
 - Single/batch catalogue creation is consistent and atomic; existing linked Ingredients expose only the selected supermarket's department for prompted updates committed with shopping edits using list/Ingredient concurrency checks. Other master fields remain unchanged; unapproved master changes and partial-success batches are absent.
-- Purchases, partial purchases, cancellation, immutable history, date views and Undo persist across reloads; retries/concurrency cannot duplicate effective changes.
+- Whole-line purchases, cancellation, immutable history, date views and Undo persist across reloads; retries/concurrency cannot duplicate effective changes.
 - Docs explain local database authority, persistent empty startup without legacy-list import, NZ time, visible-page polling/staleness, retry/undo semantics and future OnlineCart meaning. No unreviewed production writes or scope creep.
 - Components/classes remain within the project's 200-250-line guidance; shared helpers are reused and affected regressions pass.
 
