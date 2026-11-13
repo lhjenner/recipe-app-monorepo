@@ -109,7 +109,7 @@ PRD05 preserves agreed workflows, not legacy implementation shortcuts. Legacy cu
 | ID | Recommendation | Boundary |
 |---|---|---|
 | P1 | Consolidate by linked Ingredient identity plus compatible dimension; unlinked items use normalized name plus dimension. Keep count/container labels distinct. | Do not silently link ad-hoc names to Ingredients or equate a tin with a piece. |
-| P2 | Measured requirements suggest one pack/item to buy, explicitly labelled as a suggestion requiring confirmation; count requirements suggest their rounded-up count. | No guessed pack contents or automatic weight purchase. Persist the confirmed purchase unit separately from requirements. |
+| P2 | Automatically update purchase quantities for countable Recipe contributions. Measured requirements default to one pack/item as a clearly labelled suggestion, not a calculated pack quantity; adding another measured Recipe does not add another pack automatically. | No per-Ingredient purchase-target confirmation when adding/removing a Recipe. No guessed pack contents or automatic volume-to-weight conversion; keep shopping quantities separate from measured requirements. |
 | P3 | In batch entry, up to 10 items; names follow the existing 200-character rule; editable shopping notes allow up to 250 characters. Editable purchase quantities must be greater than zero and at most 9,999, regardless of Ingredient or purchase unit; measured quantities allow decimals. | Apply the same input limit in API and UI. This does not cap Recipe requirement totals, truncate consolidated/restored demand or rewrite existing Recipe notes. |
 | P4 | Display timestamps and interpret history/completed dates, including "today", in New Zealand time (`Pacific/Auckland`), regardless of browser timezone. Completed/history default to today with an explicit all-dates option. | Store UTC instants internally; derive UTC query boundaries from Auckland calendar dates using daylight-saving rules. Dates affect visibility, never retention or undo eligibility. |
 | P5 | The first visit shows an empty list; no legacy Grocery List import is needed. Added items, purchases and history persist across navigation, reloads and API/database restarts. | Empty startup is not a reset-on-navigation policy. Never overwrite new-app data with a legacy export. |
@@ -123,6 +123,7 @@ P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 
 - As a user, I want to add a Recipe's eligible ingredients so that I do not have to enter them individually.
 - As a user, I want compatible amounts of the same Ingredient consolidated so that teaspoons and tablespoons do not become duplicate shopping lines.
 - As a user, I want recipe requirements and purchase quantities shown separately so that I can decide how many packs or how much produce to buy.
+- As a user, I want each consolidated item to show its Recipe and manual contributions so that adding or removing a Recipe automatically updates countable shopping quantities without losing my manual additions.
 - As a user, I want to add ad-hoc items without creating Ingredients so that occasional purchases do not clutter my catalogue.
 - As a user, I want to save selected single or batch items as Ingredients so that I can reuse them later.
 - As a user, I want to correct a linked Ingredient's department for the currently selected supermarket from the Grocery List with confirmation so that future shops use the corrected department.
@@ -159,17 +160,23 @@ P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 
 | `0.5 kg` and `250 g` | `750 g` | No grams-to-packs conversion. |
 | `1/2 tbsp` and `1 1/2 tsp` | `10 ml` | No intermediate whole-number rounding. |
 | `1 tsp cinnamon` and `1 cup cinnamon` | `255 ml` volume requirement | Cinnamon is dry, but both source measures are volume. This does not mean 255 g; the user chooses the amount/package to buy by mass. |
-| `1 cup flour` | `250 ml` volume requirement | Not 250 g. No ingredient-specific gram estimate is made; show the original volume and require a separately chosen purchase target. |
-| `2 tins` and `1 tin` | `3 tin` in the canonical numeric model; user-facing pluralization is grammatical | Proposed purchase count is 3 tins. |
+| `1 cup flour` | `250 ml` volume requirement | Not 250 g. No ingredient-specific gram estimate is made; show the original volume and the separately adjustable, unverified pack suggestion. |
+| `2 tins` and `1 tin` | `3 tin` in the canonical numeric model; user-facing pluralization is grammatical | Purchase count automatically becomes 3 tins, subject to recorded purchases and manual adjustments. |
+| Recipe X: `2 onions`; Recipe Y: `1 onion`; manual increment: `1 onion` | One line; Recipe X contributes 2, Recipe Y 1, manual 1 | Purchase count is 4; removing both Recipes automatically leaves the manual 1 onion. |
+| Recipe: `1 packet tofu`; manual increment: `1 packet` | One tofu line with separate Recipe and manual contributions | Purchase count is 2 packets; removing the Recipe leaves 1 manual packet. |
 | `1 tbsp` and `20 g` | Separate `15 ml` and `20 g` requirements | Cannot consolidate across dimensions without Ingredient-specific information. |
 | `1-2 tsp` and `1 tbsp` | Unresolved `1-2 tsp` plus known `15 ml` | No false complete numeric total. |
 
 ### Requirements are not purchase quantities
 
 - A Grocery Item exposes known requirements and unresolved contributions separately from `OutstandingPurchaseQuantity` and `PurchaseUnit`.
-- Recipe volume and mass totals remain distinct requirements. If an Ingredient is normally bought by mass, a volume-based Recipe does not supply enough information to calculate its gram amount; display both concepts separately and require the user to select/confirm what to buy.
-- No physical amount is automatically treated as a number of packs. P2 requires explicit review/confirmation of a suggested purchase target before committing a Recipe addition.
-- When an addition joins an existing line, show the existing and proposed purchase target. The user confirms an increment or keeps the existing target; do not automatically add one pack for every Recipe.
+- Recipe volume and mass totals remain distinct requirements. If an Ingredient is normally bought by mass, a volume-based Recipe does not supply enough information to calculate its gram amount; display both concepts separately and let the user adjust what to buy.
+- For compatible countable Ingredients and countable packages, automatically recalculate the purchase quantity when Recipe contributions are added or removed. Sum compatible Recipe contributions, round the aggregate count up, add the user's separately stored manual quantity, and account for purchases as described below. Do not prompt once per Ingredient.
+- Increasing the displayed purchase amount manually records the increment as manual demand on the same line. Removing Recipe contributions removes only their demand and preserves manual demand; show both Recipe attribution and the manual amount. A compatible manual tofu packet and Recipe tofu packet are not separate visible lines.
+- A measured Recipe requirement defaults to one pack/item, clearly identified as a suggestion rather than a guarantee of sufficiency. Adding further measured Recipe contributions consolidates requirements but does not automatically add one pack per Recipe. Let the user adjust the purchase quantity; retain manual increments separately. Never calculate pack counts or mass from physical volume without the necessary conversion and pack information.
+- For a countable item with a partial purchase, apply its effective, unreversed purchased quantity to the remaining combined Recipe/manual requirement when a Recipe is removed. For example, X contributes 2 onions, Y contributes 1, one was purchased, and removing X leaves 0 outstanding. Never make outstanding negative or delete purchase history.
+- Do not apply a past completed shopping occurrence's purchases as credit against a genuinely new later Recipe/manual addition. Preserve event history and distinguish the new demand from the completed occurrence.
+- The exact attribution of manual decreases below Recipe-derived demand, and the behavior of measured-item pack suggestions when their final Recipe is removed, are not yet decided. Resolve these before implementing the affected controls; do not silently discard manual demand or invent a pack-to-volume conversion.
 - Purchase units support explicit count labels and measured grams/millilitres. All purchase amounts are numeric; ad-hoc descriptive requirements can coexist with an explicitly chosen purchase target.
 - Purchase events consume the outstanding purchase target, not an inferred fraction of Recipe requirements. Buying one of two packs does not prove that half the recipe's grams were obtained.
 - Partial purchases subtract the recorded amount in the same purchase unit. Do not change that unit while a line has purchase history; create a separate line for a different purchase unit.
@@ -186,7 +193,7 @@ Extend the existing `AppDbContext` through EF Core migrations, with one entity c
 |---|---|---|
 | GroceryList | `Id`, `OwnerUserId`, UTC created/updated times, `Version` | One per owner via unique index; creation is concurrency-safe. Every command updates the list version, including child/event writes. |
 | GroceryItem | `Id`, `GroceryListId`, `OwnerUserId`, optional `IngredientId`, name/normalized-name snapshot, optional note and ad-hoc store mapping, consolidation dimension/count label, `PurchaseUnit`, `OutstandingPurchaseQuantity`, state, UTC audit times | Stable line ID distinct from Ingredient ID. Nonnegative outstanding quantity; removed/completed rows retained when referenced by history. No automatic catalogue writes. |
-| GroceryContribution | `Id`, `GroceryItemId`, `OwnerUserId`, origin Manual/Recipe, optional `RecipeAdditionId`, original text fields, interpreted decimal amount/dimension or unresolved reason, source name/IDs snapshot, outstanding/completed/cancelled state | Each original requirement stays traceable. Source data survives later Recipe/Ingredient changes. A contribution is not a purchase. |
+| GroceryContribution | `Id`, `GroceryItemId`, `OwnerUserId`, origin Manual/Recipe, optional `RecipeAdditionId`, original text fields, interpreted decimal amount/dimension or unresolved reason, source name/IDs snapshot, manual purchase increment where applicable, outstanding/completed/cancelled state | Keep manual and each Recipe's demand separately attributable on one compatible visible line. Source data survives later Recipe/Ingredient changes. A contribution is not a purchase. |
 | GroceryRecipeAddition | `Id`, `GroceryListId`, `OwnerUserId`, `RecipeId`, Recipe name/version snapshot, UTC added time | Distinguish intentional repeated additions; never collapse them into an overwritable map keyed only by Recipe ID. |
 | GroceryPurchaseEvent | `Id`, `GroceryListId`, `GroceryItemId`, `OwnerUserId`, positive quantity, purchase unit, UTC occurred time, name/note/store/source snapshots, origin, optional `ReversesEventId` | Append-only purchase or reversal. Reversal references exactly one same-owner purchase and is unique for that purchase. PRD05 writes manual origin only. |
 | GroceryCommandReceipt | Owner/list, command UUID, command type/request fingerprint, committed result identities/version | Persist with the business transaction. A repeated identical command has one effect; same UUID with different content is a conflict. Not a generic event bus. |
@@ -206,7 +213,7 @@ The implementation may simplify physical columns or use owned values, but must p
 
 ### Purchase-event semantics
 
-- Purchase command appends an immutable event and decrements the outstanding quantity in one transaction. Full completion leaves the line available to history but hidden by default.
+- Purchase command appends an immutable event and updates the outstanding quantity in one transaction. Full completion leaves the line available to history but hidden by default. For countable items, effective purchases are applied to the remaining current demand during automatic recalculation; they are not assigned to a specific Recipe.
 - Full completion retires that line's current outstanding contribution associations; partial completion leaves them outstanding without claiming proportional physical fulfillment. Record the affected contribution IDs in the event snapshot. Later manual/new-Recipe additions do not reactivate old completed associations, so an unrelated re-addition cannot trigger a false repeat-Recipe warning.
 - Explicit removal cancels only outstanding demand; it appends no purchase. Existing purchases remain visible and reversible.
 - Undo appends a compensating reversal and restores exactly the purchased quantity in one transaction. It does not erase the purchase or recreate previously cancelled unrelated demand.
@@ -223,12 +230,12 @@ The implementation may simplify physical columns or use owned values, but must p
 1. Offer "Add to grocery list" on active Recipe View. Preserve read-only recipe content and current cooking-progress state; no Recipe save occurs.
 2. Server resolves same-owner active Recipe and eligible current Ingredient references. Include only typed Ingredient items not marked `ExcludeFromGroceryList`; skip Heading and Note, without legacy name-pattern filtering.
 3. Archived linked Ingredients may contribute from an existing Recipe, with an explicit archived indication. Cross-owner/missing references block the whole command rather than silently dropping requirements.
-4. Preview included, excluded and unresolved contributions, consolidation, and purchase-target suggestions. A Recipe with no eligible items shows an explicit no-items message and performs no addition.
+4. Present included, excluded and unresolved contributions and consolidation without requiring a separate purchase-target decision for each Ingredient. A Recipe with no eligible items shows an explicit no-items message and performs no addition.
 5. If the Recipe contributes any outstanding line through an uncancelled addition, ask whether another Recipe's worth is intended. Cancelling leaves everything unchanged. Intentional confirmation creates a distinct addition.
-6. Commit the reviewed source Recipe/list versions, confirmed purchase targets and explicit repeat decision atomically. A changed preview requires fresh review.
+6. Commit the source Recipe/list versions and any required repeat decision atomically; automatically recalculate compatible countable purchase quantities. A stale reviewed list or Recipe requires a fresh review, not per-Ingredient confirmation.
 7. Show a success notice and link to Grocery List. Once previous demand is completed/cancelled, adding again creates new outstanding demand without rewriting purchase history.
 
-Provide a "Remove this recipe's outstanding requirements" action for contributing additions. Preserve other Recipes, manual demand and purchase history. Because packs are independent of requirements, preview affected lines and require an explicit choice to retain, reduce or cancel each affected purchase target. Do not derive pack subtraction from recipe grams.
+Provide a "Remove this recipe's outstanding requirements" action for contributing additions. Automatically remove that addition's contributions and recalculate compatible countable quantities without prompting for each affected line. Preserve other Recipes, manual demand and purchase history; apply prior unreversed purchases against remaining countable demand. For measured quantities, do not derive pack subtraction from Recipe grams or volume; the final-Recipe removal behavior remains an open decision above.
 
 ### Manual single and batch entry
 
@@ -247,7 +254,7 @@ Provide a "Remove this recipe's outstanding requirements" action for contributin
 - If that department changes, show a before/after prompt explaining that updating the master Ingredient changes its department for this supermarket wherever it is used. Offer "Update master Ingredient", "Discard department change and save shopping changes", and Cancel. Do not silently discard the change or imply that a declined change was saved locally.
 - Approval updates the same linked Ingredient's selected-store mapping by Ingredient/store IDs, never by name or by creating a replacement Ingredient. Reuse Ingredient Maintenance department validation, ownership and optimistic concurrency. Include the loaded Ingredient version as well as the list version; a conflict preserves the draft and requires renewed review.
 - Commit the approved department update and shopping edits in one transaction. Preserve name, category, other stores' mappings, nutrition, product links and all other unrelated Ingredient fields. Shopping-only edits bypass the prompt and leave the master Ingredient unchanged. History snapshots and original Recipe contribution text remain unchanged in every branch.
-- Preview duplicate consolidation and purchase-target changes. Keep entered data on validation/concurrency/network errors and require explicit review for identity changes.
+- Show duplicate consolidation and source contributions; adding or removing a Recipe must not require per-Ingredient purchase-quantity confirmation. Keep entered data on validation/concurrency/network errors and require explicit review for identity changes.
 
 ### Shopping, removal and undo
 
@@ -270,8 +277,8 @@ All routes require authentication, DTOs, cancellation propagation and centralize
 | `DELETE` | `/api/grocery-list/items/{id}` | Cancel outstanding demand without deleting historical records; `204`. |
 | `DELETE` | `/api/grocery-list/items` | Explicitly confirmed cancellation of all outstanding items, requiring list version; `204`. |
 | `POST` | `/api/grocery-list/recipe-preview` | Read-only eligible Recipe/target preview with source/list versions; `200`; no rows or side effects. |
-| `POST` | `/api/grocery-list/recipe-additions` | Commit reviewed Recipe addition, targets and repeat decision; `201` with addition identity/version. |
-| `POST` | `/api/grocery-list/recipe-additions/{id}/cancel` | Cancel reviewed outstanding contributions/targets; preserve history and other sources; `200`. |
+| `POST` | `/api/grocery-list/recipe-additions` | Commit Recipe addition and required repeat decision; automatically recalculate compatible quantities; `201` with addition identity/version. |
+| `POST` | `/api/grocery-list/recipe-additions/{id}/cancel` | Cancel the addition's outstanding contributions and recalculate countable demand; preserve manual demand, history and other sources; `200`. |
 | `POST` | `/api/grocery-list/items/{id}/purchases` | Full/partial purchase from explicit reviewed amount and version; `201` with event identity/version. |
 | `GET` | `/api/grocery-list/purchase-history` | Paged date-filtered events, snapshots and reversal state; `200`. |
 | `POST` | `/api/grocery-list/purchase-history/{id}/reverse` | Append one reversal/restore quantity; `201` first time; `200` for an already-reversed purchase with its existing reversal. |
@@ -329,7 +336,7 @@ Common/Pending migration and extension readiness are not prerequisites to local 
 | Two devices purchase the same outstanding quantity | One reviewed mutation wins; the other returns `409`, with no negative outstanding value or duplicate effective purchase. |
 | Response lost after commit | Identical UUID retry returns the committed result; no duplicate Ingredients, additions or events. |
 | Second Recipe click after preview changes | Refresh and reconfirm; no blind duplicate addition or automatic approval. |
-| Unsupported source expression | Retain original text and unresolved reason; require an explicit shopping target, not a successful fabricated total. |
+| Unsupported source expression | Retain original text and unresolved reason; do not fabricate a numeric total. Show any default purchase suggestion as unverified and allow adjustment without a per-Ingredient confirmation step. |
 | Ingredient archived/excluded after selection | Revalidate eligibility before commit; preserve existing demand/history and explain any blocked new addition. |
 | Purchase undone after explicit item removal | Explain reopening; restore only that event's quantity, not cancelled unrelated demand. |
 | Partial purchase and later addition on the same line | Preserve distinct events and new demand; undo affects only the selected purchase. |
@@ -357,7 +364,7 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | AC-05 | Same Ingredient in mass, volume, different count labels and unresolved expressions | Additions are previewed/committed | Incompatible requirements stay separate; unresolved text is visible and excluded from known totals; no density/pack assumptions occur | Unit + BDD + E2E |
 | AC-06 | Range, embedded, heaped, blank, zero/negative, invalid fraction or known non-NZ source units | Interpreter runs | Explicit unresolved results preserve text; no prefix parsing, divide-by-zero, silent zero/one or NZ reinterpretation | Unit |
 | AC-07 | Linked and unlinked items with equal names and compatible units | Consolidation runs | Linked identity uses Ingredient GUID; unlinked uses normalized name; no silent catalogue linking; concurrent active keys do not duplicate | Unit + BDD |
-| AC-08 | A 45 ml requirement and existing purchase target | Another Recipe is added | Requirement and purchase target are separately labelled; user confirms keeping/incrementing the target; 45 ml never means 45 packs | Unit + BDD + E2E |
+| AC-08 | A 45 ml requirement and existing purchase target | Another measured Recipe is added | Requirement and purchase target remain separately labelled; amounts consolidate without per-Ingredient confirmation or automatic extra pack; 45 ml never means 45 packs | Unit + BDD + E2E |
 | AC-09 | Purchase inputs of 0, negative values, 9,999 and values above 9,999 across count/measured units, plus supported measured decimals | API and UI validate, or consolidation/Undo exceeds the input limit | Entered quantities must be greater than zero and at most 9,999; measured decimals retain supported precision; requirement totals and consolidated/restored demand are not capped or truncated; above-limit outstanding balances remain visible and purchasable through Buy all without permitting above-limit edited input | Unit + BDD |
 
 ### Recipes and manual entry
@@ -369,7 +376,9 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | AC-12 | A Recipe already contributes outstanding items | User adds it again and cancels or confirms | Cancellation changes nothing; confirmation creates a distinct addition and reviewed demand, retaining prior history | BDD + E2E |
 | AC-13 | Prior Recipe demand is completed/cancelled and its old line is later reused manually | Recipe is added again | New demand is created without a false repeat-outstanding warning or alteration of old events; manual reuse did not reactivate old Recipe associations | BDD |
 | AC-14 | Recipe/list changes after preview | Commit is attempted | 409 requires fresh review; no unreviewed source or target applies | BDD + E2E |
-| AC-15 | An addition shares a line with another Recipe/manual demand and purchases | Its outstanding contributions are cancelled | Explicit target review preserves other sources and all purchases; no inferred grams-to-pack subtraction | Unit + BDD + E2E |
+| AC-15 | Recipe X contributes 2 onions, Recipe Y 1 and manual increment 1 | Both Recipe additions are removed | One line shows 4 with source attribution before removal and 1 manual onion afterwards; quantity changes automatically without per-Ingredient confirmation | Unit + BDD + E2E |
+| AC-43 | A Recipe contributes 1 tofu packet and the user increments the same item by 1 | Recipe is removed | One tofu line shows 2 packets with separate Recipe/manual contributions; removing the Recipe leaves 1 manual packet | Unit + BDD + E2E |
+| AC-44 | Recipe X contributes 2 onions, Recipe Y 1 and one onion is purchased | Recipe X is removed | Remaining Recipe requirement is 1, prior unreversed purchase is applied against it, outstanding is 0, and the original purchase event remains in history | Unit + BDD |
 | AC-16 | One or several new manual items | Saved with catalogue choices unchecked | Grocery additions commit, no Ingredients are created, and defaults/notes/identity follow the same single/batch rules | BDD + E2E |
 | AC-17 | Single and batch rows explicitly opt into catalogue saving | User adds/removes rows, toggles individual checkboxes and submits | Only checked new rows expand optional Category/Departments fields; unchecking hides and excludes their catalogue values from validation and persistence; existing selections show linked status instead of a creation checkbox; valid submission creates selected Ingredients and Grocery items atomically, unchecked new rows stay ad-hoc, and failed saves retain all remaining row inputs with field errors | Unit + BDD + E2E |
 | AC-18 | Batch rows share a normalized catalogue name | Fields agree or conflict | Agreed explicit creation uses one Ingredient; contradictory values return row errors and zero command writes | Unit + BDD |
@@ -417,7 +426,7 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 | S1 | Grocery aggregate, quantity contracts and persistence foundation | Implement accepted P1-P6 decisions and uniform purchase-input limits without truncating aggregation/Undo; failing numeric/identity/history-invariant tests; precise DTO/decimal contracts; EF migrations, ownership keys, version/receipt rules; AC-01/02/03-09/25/26/30/39 foundation | PRD03, PRD04 |
 | S2 | Owner-scoped reads, store grouping and responsive outstanding view | Empty/loading/error states, shared controls, NZ date handling, lifecycle-aware visible-page polling and stale/change notices; AC-02/24/28/29/32-35/41/42 read coverage | S1 |
 | S3 | Atomic manual single/batch additions, optional Ingredient creation and prompted selected-store department editing | Transaction-bound reuse of existing validation/persistence; department-only update prompt, selected-store binding, dual-version checks, duplicate and rollback handling; AC-07/08/09/16-20/30/31/40 | S1 |
-| S4 | Recipe preview, confirmed additions and source cancellation | Typed eligibility, source snapshots, unit consolidation and reviewed purchase targets; AC-03-15/30/31 | S1, S3 purchase-target contracts |
+| S4 | Recipe additions, source attribution and automatic quantity recalculation | Typed eligibility, source snapshots, manual/count contributions and source cancellation without per-item quantity prompts; AC-03-15/30/31/43/44 | S1, S3 purchase-target contracts |
 | S5 | Purchases, partial completion, cancellation, history and Undo | Immutable events/reversals, date scopes, completed view, safe retries; AC-21-31/35 | S1, S3 |
 | S6 | Integrated UI journeys, regressions and transition guidance | Wire S3-S5 to S2; synthetic real-API E2E, accessibility, persistence reload, documented start-empty/cutover policy; AC-34-39/41/42 plus cross-slice coverage | S2, S3, S4, S5 |
 
@@ -450,7 +459,7 @@ S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress 
 | Risk / future feature | Response |
 |---|---|
 | Recipes use different spoon/cup standards or ambiguous expressions | State NZ measures; keep explicit alternatives/unparseable values unresolved. Never silently reinterpret existing storage. |
-| Grocery requirements are mistaken for purchase packs | Separate physical requirements, user-confirmed targets and purchase units; do not promise pack-size intelligence. |
+| Grocery requirements are mistaken for purchase packs | Separate physical requirements, adjustable purchase quantities and purchase units; label default pack suggestions as unverified and do not promise pack-size intelligence. |
 | Grocery shopping or Food Diary needs grams for a volume-based Ingredient such as flour or cinnamon | Later research Ingredient-specific conversion records that retain source measure, Ingredient, preparation/packing assumptions, grams-per-measure, source/provenance and confidence/uncertainty. A cup's ml volume is not its gram weight; do not claim a sourced estimate is exact or convert in PRD05. Preserve original recipe measures and keep volume/mass totals separate now. |
 | Purchased/history is mistaken for delivered/consumed | Manual events are user assertions; future OnlineCart origin means cart addition. Order/delivery/intake events require separate verified workflows. |
 | Repeated additions lose per-Recipe identity | Retain distinct Recipe-addition and contribution IDs, not a dictionary keyed only by Recipe ID or child position. |
