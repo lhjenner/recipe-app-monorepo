@@ -3,8 +3,8 @@
 ## Status & Traceability
 
 - Status: Draft; product decisions confirmed during planning, with remaining recommendations identified below.
-- Epic: Not yet created.
-- Implementation issues and pull requests: Not yet created. Section 14 defines proposed slices, not existing GitHub work.
+- Epic: [#73 - Grocery List & Purchase History](https://github.com/lhjenner/recipe-app-monorepo/issues/73).
+- Implementation issues: [#74](https://github.com/lhjenner/recipe-app-monorepo/issues/74), [#75](https://github.com/lhjenner/recipe-app-monorepo/issues/75), [#76](https://github.com/lhjenner/recipe-app-monorepo/issues/76), [#77](https://github.com/lhjenner/recipe-app-monorepo/issues/77), [#78](https://github.com/lhjenner/recipe-app-monorepo/issues/78), and [#79](https://github.com/lhjenner/recipe-app-monorepo/issues/79). Pull requests will be linked when created.
 - Depends on: [PRD01 - Authentication & Login](./01-authentication-and-login.md), [PRD02 - App Shell & Navigation](./02-app-shell-and-navigation.md), [PRD03 - Ingredient Maintenance](./03-ingredient-maintenance.md), and [PRD04 - Recipe Foundation & Browsing](./04-recipe-foundation-and-browsing.md).
 - Each implementation issue and PR must link this PRD and identify its applicable acceptance criteria.
 - This document does not authorize production provisioning, legacy-data writes, changes to the old application, or implementation before the draft decisions are reviewed.
@@ -435,18 +435,18 @@ Unit = xUnit/FluentAssertions for backend and Vitest for frontend; BDD = Reqnrol
 
 ## 14. Implementation Slices, Tests & Definition of Done
 
-### Proposed issues and prerequisites
+### Issues and prerequisites
 
-| Slice | Proposed issue / scope | Acceptance evidence | Prerequisites |
+| Slice | Issue / scope | Acceptance evidence | Prerequisites |
 |---|---|---|---|
-| S1 | Grocery aggregate, quantity contracts and persistence foundation | Implement accepted P1-P6 decisions and uniform purchase-input limits without truncating aggregation/Undo; failing numeric/identity/history-invariant tests; precise DTO/decimal contracts; EF migrations, ownership keys, version/receipt rules; AC-01/02/03-09/25/26/30/39 foundation | PRD03, PRD04 |
-| S2 | Owner-scoped reads, store grouping and responsive outstanding view | Empty/loading/error states, shared controls, NZ date handling, lifecycle-aware visible-page polling and stale/change notices; AC-02/24/28/29/32-35/41/42 read coverage | S1 |
-| S3 | Atomic manual single/batch additions, optional Ingredient creation and prompted selected-store department editing | Transaction-bound reuse of existing validation/persistence; duplicate-increment review, Recipe-derived decrease floor, department-only update prompt, selected-store binding, dual-version checks and rollback handling; AC-07/08/09/16-20/30/31/40/46-50 | S1 |
-| S4 | Recipe additions, source attribution and automatic quantity recalculation | Typed eligibility, source snapshots, separate count/weight lines, manual/count contributions and source cancellation including measured-item suggestions without per-item quantity prompts; AC-03-15/30/31/43-45/51/52 | S1, S3 purchase-target contracts |
-| S5 | Whole-line purchases, cancellation, history and Undo | Immutable events/reversals, date scopes, completed view, safe retries; AC-21-31/35 | S1, S3 |
-| S6 | Integrated UI journeys, regressions and transition guidance | Wire S3-S5 to S2; synthetic real-API E2E, accessibility, persistence reload, documented start-empty/cutover policy; AC-34-39/41/42 plus cross-slice coverage | S2, S3, S4, S5 |
+| S1 | [#74 - Grocery aggregate, quantity contracts and persistence foundation](https://github.com/lhjenner/recipe-app-monorepo/issues/74) | Implement accepted P1-P6 decisions and uniform purchase-input limits without truncating aggregation/Undo; failing numeric/identity/history-invariant tests; precise DTO/decimal contracts; EF migrations, ownership keys, version/receipt rules; AC-01/02/03-09/25/26/30/39 foundation | PRD03, PRD04 |
+| S2 | [#75 - Owner-scoped reads, store grouping and responsive outstanding view](https://github.com/lhjenner/recipe-app-monorepo/issues/75) | Empty/loading/error states, shared controls, NZ date handling, lifecycle-aware visible-page polling and stale/change notices; AC-02/24/28/29/32-35/41/42 read coverage | S1 |
+| S3 | [#76 - Atomic manual single/batch additions, optional Ingredient creation and prompted selected-store department editing](https://github.com/lhjenner/recipe-app-monorepo/issues/76) | Transaction-bound reuse of existing validation/persistence; duplicate-increment review, Recipe-derived decrease floor, department-only update prompt, selected-store binding, dual-version checks and rollback handling; AC-07/08/09/16-20/30/31/40/46-50 | S1 |
+| S4 | [#77 - Recipe additions, source attribution and automatic quantity recalculation](https://github.com/lhjenner/recipe-app-monorepo/issues/77) | Typed eligibility, source snapshots, separate count/weight lines, manual/count contributions and source cancellation including measured-item suggestions without per-item quantity prompts; AC-03-15/30/31/43-45/51/52 | S1, S3 purchase-target contracts |
+| S5 | [#78 - Whole-line purchases, cancellation, history and Undo](https://github.com/lhjenner/recipe-app-monorepo/issues/78) | Immutable events/reversals, date scopes, completed view, safe retries; AC-21-31/35 | S1, S3 |
+| S6 | [#79 - Integrated UI journeys, regressions and transition guidance](https://github.com/lhjenner/recipe-app-monorepo/issues/79) | Wire S3-S5 to S2; synthetic real-API E2E, accessibility, persistence reload, documented start-empty/cutover policy; AC-34-39/41/42 plus cross-slice coverage | S2, S3, S4, S5 |
 
-S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress in parallel after S3's addition/target contracts. None depends on production imports. Create GitHub issues only after reviewing this draft, then replace placeholders with actual epic/sub-issue and PR links.
+S2 and S3 may progress independently after S1 contracts; S4 and S5 can progress in parallel after S3's addition/target contracts. None depends on production imports. Link implementation PRs when created.
 
 ### Test strategy
 
