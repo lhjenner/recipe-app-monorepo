@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { mockAuthApi, type LogoutHandler } from './support/mockAuthApi.ts';
+import { mockGroceryApi } from './support/mockGroceryApi.ts';
 
 const logoutFails: LogoutHandler = async (route) => {
   await route.fulfill({ status: 503 });
@@ -7,6 +8,10 @@ const logoutFails: LogoutHandler = async (route) => {
 };
 
 test.describe('Logout', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockGroceryApi(page);
+  });
+
   test('AC-22 ends the session immediately without confirmation', async ({ page }) => {
     const api = await mockAuthApi(page, { hasSession: true });
     let confirmationShown = false;
@@ -59,7 +64,7 @@ test.describe('Logout', () => {
     await page.getByRole('button', { name: 'Log out' }).click();
 
     await expect(page).toHaveURL(/\/grocery-list$/);
-    await expect(page.getByRole('alert')).toHaveText('The authentication service is unavailable. Please try again.');
+    await expect(page.getByTestId('app-header').getByRole('alert')).toHaveText('The authentication service is unavailable. Please try again.');
     expect(api.logoutRequestCount).toBe(1);
 
     api.setLogoutHandler(async (route) => {
