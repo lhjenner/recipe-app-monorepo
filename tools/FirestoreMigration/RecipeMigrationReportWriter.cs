@@ -28,10 +28,11 @@ public static class RecipeMigrationReportWriter
         cancellationToken.ThrowIfCancellationRequested();
         using var reportLock = new FileStream(reportPath + ".lock", FileMode.OpenOrCreate,
             FileAccess.ReadWrite, FileShare.None);
-        await WriteReservedAsync(reportPath, report, cancellationToken, replace);
+        await WriteUnderReservationAsync(reportPath, report, cancellationToken, replace);
     }
 
-    internal static async Task WriteReservedAsync(string reportPath, RecipeMigrationReport report,
+    // Call only while holding the report's exclusive .lock sidecar.
+    public static async Task WriteUnderReservationAsync(string reportPath, RecipeMigrationReport report,
         CancellationToken cancellationToken, bool replace = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
