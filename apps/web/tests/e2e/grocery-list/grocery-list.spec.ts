@@ -61,22 +61,26 @@ test.describe('Grocery list reads', () => {
 
   test('discovers a second-device update through visible-page polling', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
-    await page.clock.install();
+    await page.clock.install({ time: new Date('2026-04-05T00:00:00Z') });
+    await page.clock.pauseAt(new Date('2026-04-05T00:00:01Z'));
     let readCount = 0;
+    let secondDeviceUpdated = false;
     await page.route('**/api/supermarkets', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', json: [] }));
     await page.route('**/api/grocery-list', async (route) => {
       readCount += 1;
-      const body = readCount <= 2 ? { ...groceryList, items: [] } : groceryList;
+      const body = secondDeviceUpdated ? groceryList : { ...groceryList, items: [] };
       await route.fulfill({ status: 200, contentType: 'application/json', json: body });
     });
     await page.goto('/grocery-list');
     await expect(page.getByText('There are no outstanding grocery items.', { exact: true })).toBeVisible();
+    const initialReadCount = readCount;
 
+    secondDeviceUpdated = true;
     await page.clock.fastForward(15_000);
 
     await expect(page.getByRole('status')).toContainText('Grocery list updated.');
     await expect(page.getByRole('table', { name: 'Outstanding grocery items' })).toBeVisible();
-    expect(readCount).toBeGreaterThanOrEqual(3);
+    expect(readCount).toBeGreaterThan(initialReadCount);
   });
 });

@@ -53,6 +53,58 @@ test('refreshes immediately after reconnecting', async () => {
   unmount();
 });
 
+test('retires a pending read on reconnect and ignores its late response', async () => {
+  let resolveDisconnected: ((value: GroceryList) => void) | undefined;
+  let resolveReconnected: ((value: GroceryList) => void) | undefined;
+  getGroceryListMock
+    .mockResolvedValueOnce(emptyList)
+    .mockImplementationOnce(() => new Promise<GroceryList>((resolve) => { resolveDisconnected = resolve; }))
+    .mockImplementationOnce(() => new Promise<GroceryList>((resolve) => { resolveReconnected = resolve; }));
+  const { result } = renderHook(() => useGroceryList());
+  await act(async () => {});
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000);
+  });
+  const disconnectedSignal = getGroceryListMock.mock.calls[1][0];
+  await act(async () => {
+    window.dispatchEvent(new Event('online'));
+  });
+  expect(disconnectedSignal?.aborted).toBe(true);
+  expect(getGroceryListMock).toHaveBeenCalledTimes(3);
+
+  await act(async () => {
+    resolveDisconnected?.({ ...emptyList, version: 99 });
+    await vi.advanceTimersByTimeAsync(15_000);
+  });
+  expect(result.current.data).toEqual(emptyList);
+  expect(getGroceryListMock).toHaveBeenCalledTimes(3);
+
+  const reconnectedList = { ...emptyList, id: 'list', version: 1, completedItemCount: 1 };
+  await act(async () => {
+    resolveReconnected?.(reconnectedList);
+  });
+  expect(result.current.data).toEqual(reconnectedList);
+  expect(result.current.isStale).toBe(false);
+});
+
+test.each([
+  { change: 'list creation', next: { ...emptyList, id: 'list', version: 1 }, updated: true },
+  { change: 'completed count', next: { ...emptyList, completedItemCount: 1 }, updated: true },
+  { change: 'version only', next: { ...emptyList, version: 1 }, updated: false },
+])('announces $change only when displayed data changes', async ({ next, updated }) => {
+  getGroceryListMock.mockResolvedValueOnce(emptyList).mockResolvedValue(next);
+  const { result } = renderHook(() => useGroceryList());
+  await act(async () => {});
+  expect(result.current.updated).toBe(false);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000);
+  });
+  expect(result.current.data).toEqual(next);
+  expect(result.current.updated).toBe(updated);
+});
+
 test('keeps the last good list stale after a failed poll and clears stale only on success', async () => {
   getGroceryListMock
     .mockResolvedValueOnce(emptyList)

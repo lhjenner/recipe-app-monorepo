@@ -8,7 +8,9 @@ internal static class GroceryReadResponseMapper
     {
         var currentName = item.Ingredient?.Name ?? item.NameSnapshot;
         var activeContributions = item.Contributions
-            .Where(contribution => contribution.State != GroceryContributionState.Cancelled)
+            .Where(contribution => contribution.State != GroceryContributionState.Cancelled
+                && (item.State != GroceryItemState.Outstanding
+                    || contribution.State == GroceryContributionState.Outstanding))
             .ToArray();
         var requirementAmount = activeContributions
             .Where(contribution => contribution.Dimension == item.Dimension

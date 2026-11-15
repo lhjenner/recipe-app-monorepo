@@ -33,7 +33,13 @@ export function useGroceryList(): GroceryListState {
     let noticeTimeoutId: number | null = null;
     let controller: AbortController | null = null;
     let requestInFlight = false;
-    let previousItems = '';
+    let previousSnapshot = '';
+
+    function retireRequest() {
+      controller?.abort();
+      controller = null;
+      requestInFlight = false;
+    }
 
     function clearIntervalTimer() {
       if (intervalId !== null) {
@@ -64,15 +70,19 @@ export function useGroceryList(): GroceryListState {
           return;
         }
 
-        const nextItems = JSON.stringify(next.items);
-        if (previousItems && previousItems !== nextItems) {
+        const nextSnapshot = JSON.stringify({
+          id: next.id,
+          completedItemCount: next.completedItemCount,
+          items: next.items,
+        });
+        if (previousSnapshot && previousSnapshot !== nextSnapshot) {
           setUpdated(true);
           if (noticeTimeoutId !== null) {
             window.clearTimeout(noticeTimeoutId);
           }
           noticeTimeoutId = window.setTimeout(() => setUpdated(false), CHANGE_NOTICE_MS);
         }
-        previousItems = nextItems;
+        previousSnapshot = nextSnapshot;
         hasDataRef.current = true;
         setData(next);
         setError(null);
@@ -99,9 +109,7 @@ export function useGroceryList(): GroceryListState {
     function handleVisibilityChange() {
       if (document.visibilityState === 'hidden') {
         clearIntervalTimer();
-        controller?.abort();
-        controller = null;
-        requestInFlight = false;
+        retireRequest();
         return;
       }
 
@@ -110,6 +118,7 @@ export function useGroceryList(): GroceryListState {
     }
 
     function handleOnline() {
+      retireRequest();
       void refresh();
       startInterval();
     }
@@ -134,7 +143,7 @@ export function useGroceryList(): GroceryListState {
       active = false;
       refreshRef.current = null;
       clearIntervalTimer();
-      controller?.abort();
+      retireRequest();
       if (noticeTimeoutId !== null) {
         window.clearTimeout(noticeTimeoutId);
       }

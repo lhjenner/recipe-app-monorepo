@@ -19,7 +19,7 @@ function GroceryItemList({ groups }: GroceryItemListProps) {
           <thead>
             <tr>
               <th scope="col">Item</th>
-              <th scope="col">Recipe requirements and sources</th>
+              <th scope="col">Requirements and sources</th>
               <th scope="col">To buy</th>
             </tr>
           </thead>
@@ -61,8 +61,8 @@ function RequirementDetails({ item }: { item: GroceryItem }) {
   return (
     <div className="grocery-requirement-details">
       {item.requirementAmount !== null && item.requirementUnit !== null
-        ? <p><strong>Recipe requirement:</strong> {formatAmount(item.requirementAmount)} {item.requirementUnit}</p>
-        : <p><strong>Recipe requirement:</strong> No numeric total</p>}
+        ? <p><strong>Requirement:</strong> {formatAmount(item.requirementAmount)} {item.requirementUnit}</p>
+        : <p><strong>Requirement:</strong> No numeric total</p>}
       {item.note && <p><strong>Note:</strong> {item.note}</p>}
       {item.contributions.length > 0 && (
         <details>

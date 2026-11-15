@@ -32,8 +32,7 @@ public sealed class GroceryReadAssertionSteps(ApiAuthContext context)
     public async Task AssertCurrentIngredientReadAsync()
     {
         context.Response!.StatusCode.Should().Be(HttpStatusCode.OK);
-        using var document = await JsonDocument.ParseAsync(
-            await context.Response.Content.ReadAsStreamAsync());
+        using var document = JsonDocument.Parse(await context.Response.Content.ReadAsStringAsync());
         var item = document.RootElement.GetProperty("items")[0];
         item.GetProperty("name").GetString().Should().Be("current onion name");
         item.GetProperty("requirementAmount").GetDecimal().Should().Be(2);
