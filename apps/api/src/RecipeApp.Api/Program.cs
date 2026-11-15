@@ -13,6 +13,7 @@ using RecipeApp.Api.Lookups;
 using RecipeApp.Api.Images;
 using RecipeApp.Api.Recipes;
 using RecipeApp.Api.Middleware;
+using RecipeApp.Api.Grocery;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,6 +50,7 @@ builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IIngredientReadService, IngredientReadService>();
 builder.Services.AddScoped<IIngredientWriteService, IngredientWriteService>();
 builder.Services.AddScoped<IRecipeReadService, RecipeReadService>();
+builder.Services.AddScoped<IGroceryReadService, GroceryReadService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ITicketStore, PostgresTicketStore>();
 builder.Services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)

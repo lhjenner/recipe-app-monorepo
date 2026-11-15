@@ -67,7 +67,7 @@ public sealed class GroceryItemConfiguration : IEntityTypeConfiguration<GroceryI
             .WithMany()
             .HasForeignKey(entity => entity.StoreId)
             .OnDelete(DeleteBehavior.Restrict);
-        item.HasOne<Department>()
+        item.HasOne(entity => entity.Department)
             .WithMany()
             .HasForeignKey(entity => new { entity.DepartmentId, entity.OwnerUserId })
             .HasPrincipalKey(entity => new { entity.Id, entity.OwnerUserId })
