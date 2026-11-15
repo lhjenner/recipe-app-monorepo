@@ -25,6 +25,16 @@ public static class RecipeMigrationReportWriter
     public static async Task WriteAsync(string reportPath, RecipeMigrationReport report,
         CancellationToken cancellationToken, bool replace = false)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var reportLock = new FileStream(reportPath + ".lock", FileMode.OpenOrCreate,
+            FileAccess.ReadWrite, FileShare.None);
+        await WriteReservedAsync(reportPath, report, cancellationToken, replace);
+    }
+
+    internal static async Task WriteReservedAsync(string reportPath, RecipeMigrationReport report,
+        CancellationToken cancellationToken, bool replace = false)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var json = JsonSerializer.SerializeToUtf8Bytes(report, new JsonSerializerOptions
         {
             WriteIndented = true
