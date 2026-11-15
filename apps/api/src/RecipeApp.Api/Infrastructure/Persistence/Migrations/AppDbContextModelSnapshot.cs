@@ -400,9 +400,9 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IngredientId", "OwnerUserId");
 
-                    b.HasIndex("OwnerUserId", "GroceryListId", "ConsolidationKey")
+                    b.HasIndex("OwnerUserId", "GroceryListId", "ConsolidationKey", "PurchaseUnit")
                         .IsUnique()
-                        .HasDatabaseName("IX_GroceryItems_ActiveConsolidationKey")
+                        .HasDatabaseName("IX_GroceryItems_ActivePurchaseLineKey")
                         .HasFilter("\"State\" = 0");
 
                     b.HasIndex("OwnerUserId", "GroceryListId", "State")

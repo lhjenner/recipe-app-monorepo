@@ -302,9 +302,9 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                 columns: new[] { "SourceRecipeId", "OwnerUserId" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_GroceryItems_ActiveConsolidationKey",
+                name: "IX_GroceryItems_ActivePurchaseLineKey",
                 table: "GroceryItems",
-                columns: new[] { "OwnerUserId", "GroceryListId", "ConsolidationKey" },
+                columns: new[] { "OwnerUserId", "GroceryListId", "ConsolidationKey", "PurchaseUnit" },
                 unique: true,
                 filter: "\"State\" = 0");
 

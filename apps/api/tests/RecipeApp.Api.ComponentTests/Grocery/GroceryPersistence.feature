@@ -25,3 +25,8 @@ Feature: Grocery persistence foundation
     Given an owner with a long-named recipe and grocery list
     When an unresolved recipe contribution with a long unit is persisted
     Then the full recipe name and unit are retained with a bounded key
+
+  Scenario: Undo keeps different purchase units on separate active lines
+    Given a completed pack purchase and an active grams line with the same requirement
+    When the pack purchase is undone
+    Then both purchase-unit lines remain outstanding and the reversal is retained

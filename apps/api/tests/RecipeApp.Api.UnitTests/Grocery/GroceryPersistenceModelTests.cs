@@ -44,7 +44,7 @@ public sealed class GroceryPersistenceModelTests
     {
         var item = _db.Model.FindEntityType(typeof(GroceryItem))!;
         var activeKey = item.GetIndexes()
-            .Single(index => index.GetDatabaseName() == "IX_GroceryItems_ActiveConsolidationKey");
+            .Single(index => index.GetDatabaseName() == "IX_GroceryItems_ActivePurchaseLineKey");
         var purchaseEvent = _db.Model.FindEntityType(typeof(GroceryPurchaseEvent))!;
         var reversalKey = purchaseEvent.GetIndexes()
             .Single(index => index.GetDatabaseName() == "IX_GroceryPurchaseEvents_OneReversalPerEvent");
@@ -54,6 +54,12 @@ public sealed class GroceryPersistenceModelTests
 
         activeKey.IsUnique.Should().BeTrue();
         activeKey.GetFilter().Should().Be("\"State\" = 0");
+        activeKey.Properties.Select(property => property.Name)
+            .Should().Equal(
+                nameof(GroceryItem.OwnerUserId),
+                nameof(GroceryItem.GroceryListId),
+                nameof(GroceryItem.ConsolidationKey),
+                nameof(GroceryItem.PurchaseUnit));
         reversalKey.IsUnique.Should().BeTrue();
         commandKey.IsUnique.Should().BeTrue();
     }

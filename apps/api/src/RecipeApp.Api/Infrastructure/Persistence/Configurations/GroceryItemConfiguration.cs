@@ -47,11 +47,12 @@ public sealed class GroceryItemConfiguration : IEntityTypeConfiguration<GroceryI
             {
                 entity.OwnerUserId,
                 entity.GroceryListId,
-                entity.ConsolidationKey
+                entity.ConsolidationKey,
+                entity.PurchaseUnit
             })
             .IsUnique()
             .HasFilter("\"State\" = 0")
-            .HasDatabaseName("IX_GroceryItems_ActiveConsolidationKey");
+            .HasDatabaseName("IX_GroceryItems_ActivePurchaseLineKey");
         item.HasOne(entity => entity.GroceryList)
             .WithMany(entity => entity.Items)
             .HasForeignKey(entity => new { entity.GroceryListId, entity.OwnerUserId })
