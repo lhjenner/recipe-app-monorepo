@@ -23,6 +23,7 @@ public sealed class GroceryItem
     public DateTime UpdatedAtUtc { get; set; }
     public GroceryList? GroceryList { get; set; }
     public Ingredient? Ingredient { get; set; }
+    public Department? Department { get; set; }
     public ICollection<GroceryContribution> Contributions { get; } = new List<GroceryContribution>();
     public ICollection<GroceryPurchaseEvent> PurchaseEvents { get; } = new List<GroceryPurchaseEvent>();
 }

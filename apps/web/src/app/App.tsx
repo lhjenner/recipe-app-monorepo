@@ -16,6 +16,8 @@ import IngredientMaintenancePage from '../features/ingredients/pages/IngredientM
 import IngredientEditorPage from '../features/ingredients/pages/IngredientEditorPage';
 import RecipeListPage from '../features/recipes/pages/RecipeListPage';
 import RecipeDetailPage from '../features/recipes/pages/RecipeDetailPage';
+import GroceryListPage from '../features/grocery-list/pages/GroceryListPage';
+import GroceryHistoryPage from '../features/grocery-list/pages/GroceryHistoryPage';
 
 function App() {
   return <RouterProvider router={router} />;
@@ -125,7 +127,11 @@ function ApplicationRoutes() {
         <Route path="/ingredient-maintenance/:id" element={<IngredientEditorPage />} />
         <Route path="/recipes" element={<RecipeListPage />} />
         <Route path="/recipes/:id" element={<RecipeDetailPage />} />
-        {stubItems.filter((item) => item.route !== '/ingredient-maintenance' && item.route !== '/recipes').map((item) => (
+        <Route path="/grocery-list" element={<GroceryListPage />} />
+        <Route path="/grocery-list/history" element={<GroceryHistoryPage />} />
+        {stubItems.filter((item) => item.route !== '/ingredient-maintenance'
+          && item.route !== '/recipes'
+          && item.route !== '/grocery-list').map((item) => (
           <Route key={item.route} path={item.route} element={<StubPage pageTitle={item.pageTitle} />} />
         ))}
         <Route path="*" element={<NotFoundPage />} />

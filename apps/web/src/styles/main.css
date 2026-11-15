@@ -10,6 +10,7 @@
 @import './pagination.css';
 @import '../features/recipes/styles/recipe-list.css';
 @import '../features/recipes/styles/recipe-detail.css';
+@import '../features/grocery-list/styles/grocery-list.css';
 
 *,
 *::before,

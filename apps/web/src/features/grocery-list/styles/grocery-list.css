@@ -1,0 +1,226 @@
+.grocery-list-page,
+.grocery-history-page {
+  display: grid;
+  gap: 20px;
+}
+
+.grocery-page-heading,
+.grocery-list-controls,
+.grocery-history-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.grocery-page-heading h1 {
+  margin: 0 0 6px;
+}
+
+.grocery-page-heading p,
+.grocery-last-check,
+.grocery-history-count {
+  color: var(--color-text-muted);
+}
+
+.grocery-list-controls {
+  justify-content: flex-start;
+}
+
+.grocery-store-select {
+  display: grid;
+  gap: 6px;
+  width: min(100%, 360px);
+  font-weight: var(--font-weight-semibold);
+}
+
+.grocery-store-select select,
+.grocery-history-controls input[type='date'] {
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-input-border);
+  border-radius: 5px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.grocery-history-controls {
+  justify-content: flex-start;
+}
+
+.grocery-history-all-dates {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.grocery-list-status,
+.grocery-empty-state {
+  padding: 24px;
+  text-align: center;
+}
+
+.grocery-empty-state {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  background: var(--color-surface);
+}
+
+.grocery-update-notice,
+.grocery-stale-notice,
+.grocery-inline-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 5px;
+}
+
+.grocery-stale-notice,
+.grocery-inline-error {
+  border-color: var(--color-danger);
+}
+
+.grocery-items-table-wrap,
+.grocery-history-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+}
+
+.grocery-items-table,
+.grocery-history-table {
+  width: 100%;
+  min-width: 700px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.grocery-items-table th,
+.grocery-items-table td,
+.grocery-history-table th,
+.grocery-history-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: top;
+}
+
+.grocery-items-table thead th,
+.grocery-history-table thead th {
+  background: var(--color-primary);
+  color: var(--color-on-brand);
+}
+
+.grocery-group-heading th {
+  background: var(--color-muted-surface);
+  color: var(--color-text);
+}
+
+.grocery-requirement-details,
+.grocery-requirement-details ul {
+  display: grid;
+  gap: 6px;
+}
+
+.grocery-requirement-details p {
+  margin: 0;
+}
+
+.grocery-history-table th span,
+.grocery-history-table th small {
+  display: block;
+  margin-top: 4px;
+  font-weight: var(--font-weight-regular);
+}
+
+.grocery-item-cards,
+.grocery-history-cards {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .grocery-page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .grocery-list-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .grocery-store-select {
+    width: 100%;
+  }
+
+  .grocery-history-controls {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .grocery-history-all-dates {
+    grid-column: 1 / -1;
+  }
+
+  .grocery-history-controls input[type='date'] {
+    min-width: 0;
+  }
+
+  .grocery-items-table-wrap,
+  .grocery-history-table-wrap {
+    display: none;
+  }
+
+  .grocery-item-cards,
+  .grocery-history-cards {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .grocery-item-card-group,
+  .grocery-item-card,
+  .grocery-history-card {
+    display: grid;
+    gap: 12px;
+  }
+
+  .grocery-item-card-group h2,
+  .grocery-item-card h3,
+  .grocery-history-card h2 {
+    margin: 0;
+  }
+
+  .grocery-item-card,
+  .grocery-history-card {
+    padding: 16px;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 6px;
+    background: var(--color-surface);
+  }
+
+  .grocery-history-card dl,
+  .grocery-history-card dl > div {
+    display: grid;
+    gap: 6px;
+  }
+
+  .grocery-history-card dl {
+    margin: 0;
+  }
+
+  .grocery-history-card dl > div {
+    grid-template-columns: minmax(90px, 1fr) 2fr;
+  }
+
+  .grocery-history-card dd {
+    margin: 0;
+  }
+}

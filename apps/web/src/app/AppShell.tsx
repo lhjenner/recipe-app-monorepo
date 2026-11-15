@@ -20,6 +20,9 @@ function AppShell({ onLogout }: AppShellProps) {
   const flyoutRef = useRef<HTMLElement>(null);
   const activeItem = getActiveNavigationItem(pathname);
   const isFlyoutVisible = isMobile && isFlyoutOpen;
+  const mobilePageTitle = pathname === '/grocery-list/history'
+    ? 'Purchase History'
+    : activeItem?.pageTitle ?? 'Recipe App';
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -129,7 +132,7 @@ function AppShell({ onLogout }: AppShellProps) {
                 <span className="mobile-menu-button-line" />
                 <span className="mobile-menu-button-line" />
               </button>
-              <span className="mobile-page-title" data-testid="mobile-page-title">{activeItem?.pageTitle ?? 'Recipe App'}</span>
+              <span className="mobile-page-title" data-testid="mobile-page-title">{mobilePageTitle}</span>
               <span className="mobile-header-actions-placeholder" aria-hidden="true" />
             </header>
             {isFlyoutVisible && (
