@@ -22,6 +22,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<RecipeTag> RecipeTags => Set<RecipeTag>();
     public DbSet<RecipeImage> RecipeImages => Set<RecipeImage>();
     public DbSet<RecipeImportProvenance> RecipeImportProvenance => Set<RecipeImportProvenance>();
+    public DbSet<GroceryList> GroceryLists => Set<GroceryList>();
+    public DbSet<GroceryItem> GroceryItems => Set<GroceryItem>();
+    public DbSet<GroceryContribution> GroceryContributions => Set<GroceryContribution>();
+    public DbSet<GroceryRecipeAddition> GroceryRecipeAdditions => Set<GroceryRecipeAddition>();
+    public DbSet<GroceryPurchaseEvent> GroceryPurchaseEvents => Set<GroceryPurchaseEvent>();
+    public DbSet<GroceryCommandReceipt> GroceryCommandReceipts => Set<GroceryCommandReceipt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

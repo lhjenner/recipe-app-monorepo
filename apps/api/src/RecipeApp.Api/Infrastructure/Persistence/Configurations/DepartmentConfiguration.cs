@@ -9,6 +9,8 @@ public sealed class DepartmentConfiguration : IEntityTypeConfiguration<Departmen
     {
         department.ToTable("Departments");
         department.HasKey(entity => entity.Id);
+        department.HasAlternateKey(entity => new { entity.Id, entity.OwnerUserId })
+            .HasName("AK_Departments_Id_OwnerUserId");
         department.Property(entity => entity.Name).IsRequired().HasMaxLength(100);
         department.Property(entity => entity.NormalizedName).IsRequired().HasMaxLength(100);
         department.HasIndex(entity => new { entity.OwnerUserId, entity.NormalizedName })
