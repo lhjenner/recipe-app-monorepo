@@ -8,5 +8,5 @@ public interface IRecipeReportPublisher
 public sealed class FileRecipeReportPublisher : IRecipeReportPublisher
 {
     public Task PublishAsync(string path, RecipeMigrationReport report, bool replace, CancellationToken cancellationToken) =>
-        RecipeMigrationReportWriter.WriteAsync(path, report, cancellationToken, replace);
+        RecipeMigrationReportWriter.WriteUnderReservationAsync(path, report, cancellationToken, replace);
 }

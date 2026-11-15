@@ -93,5 +93,9 @@ public sealed class RecipeMigrationReportWriterTests : IDisposable
     private void AssertNoTemporaryFiles() =>
         Directory.GetFiles(Path.GetDirectoryName(_path)!, Path.GetFileName(_path) + ".*.tmp").Should().BeEmpty();
 
-    public void Dispose() => File.Delete(_path);
+    public void Dispose()
+    {
+        File.Delete(_path);
+        File.Delete(_path + ".lock");
+    }
 }

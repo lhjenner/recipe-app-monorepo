@@ -160,7 +160,7 @@ P1-P6 are accepted. Consolidation and Undo may produce outstanding demand above 
 | `2 tbsp` and `1 tsp` | `35 ml` | Same rule; no Ingredient density required. |
 | `1 cup` and `50 ml` | `300 ml` under the NZ assumption | A standard is stated, not silently inferred from nationality or recipe source. |
 | `0.5 kg` and `250 g` | `750 g` | No grams-to-packs conversion. |
-| `1/2 tbsp` and `1 1/2 tsp` | `10 ml` | No intermediate whole-number rounding. |
+| `1/2 tsp` and `1 1/2 tsp` | `10 ml` | No intermediate whole-number rounding. |
 | `1 tsp cinnamon` and `1 cup cinnamon` | `255 ml` volume requirement | Cinnamon is dry, but both source measures are volume. This does not mean 255 g; the user chooses the amount/package to buy by mass. |
 | `1 cup flour` | `250 ml` volume requirement | Not 250 g. No ingredient-specific gram estimate is made; show the original volume and the separately adjustable, unverified pack suggestion. |
 | `2 tins` and `1 tin` | `3 tin` in the canonical numeric model; user-facing pluralization is grammatical | Purchase count automatically becomes 3 tins, subject to recorded purchases and manual adjustments. |
@@ -203,6 +203,8 @@ Extend the existing `AppDbContext` through EF Core migrations, with one entity c
 | GroceryCommandReceipt | Owner/list, command UUID, command type/request fingerprint, committed result identities/version | Persist with the business transaction. A repeated identical command has one effect; same UUID with different content is a conflict. Not a generic event bus. |
 
 The implementation may simplify physical columns or use owned values, but must preserve these identities, ownership constraints and observable invariants. Choose and document decimal precision/scale during S1, with fixtures covering every example in section 6 and the accepted limits.
+
+**S1 quantity and command contract:** Store interpreted amounts and purchase quantities as PostgreSQL `numeric(28,9)` / .NET `decimal`, and reject any conversion or sum that cannot be represented exactly; never round to fit. Numeric source expressions allow positive integers, decimals, simple fractions and mixed fractions with at most nine exact decimal places (for example, `1/2` is supported, while repeating `1/3` remains unresolved). Convert mass to `g` and volume to `ml` before summing. The explicit count labels are `piece`, `item`, `whole`, `clove`, `bunch`, `tin`, `can`, `packet`, `pack`, `bag`, `jar`, `bottle`, `box`, `slice`, `sprig`, `leaf`, `bulb`, `head`, `stalk`, `stick`, `fillet`, `breast`, `egg`, `onion`, `mushroom`, `potato`, `tomato`, `apple`, `banana`, `carrot`, and `pepper`; only each listed singular/plural pair canonicalizes together, and different labels remain separate. User-entered purchase quantities are positive and at most 9,999, with whole counts and up to nine measured decimal places. Manual batches contain 1-10 rows, names are limited to 200 characters, and notes to 250 characters. Command receipts are unique by owner/list/command UUID and persist a SHA-256 request fingerprint and committed result with the command transaction; a retry with a different fingerprint is a conflict.
 
 ### Ownership and integrity
 

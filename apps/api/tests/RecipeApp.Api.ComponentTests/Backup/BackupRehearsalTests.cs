@@ -60,6 +60,8 @@ public sealed class BackupRehearsalTests(ITestOutputHelper output) : IAsyncLifet
     [Fact]
     public async Task FullRehearsal_RestoresDatabaseAndExactImageBytes_ThenRefusesNonemptyTargets()
     {
+        await using var source = Context(_source);
+        var sourceMigrations = await source.Database.GetAppliedMigrationsAsync();
         var manifest = await Exporter.ExportAsync(_source.GetConnectionString(), _sourceStorage, Archive);
         output.WriteLine($"Synthetic archive: {new FileInfo(Archive).Length} bytes; database dump: {manifest.DatabaseBytes} bytes.");
         manifest.Images.Should().ContainSingle().Which.OwnerUserId.Should().Be(_owner);
@@ -77,7 +79,7 @@ public sealed class BackupRehearsalTests(ITestOutputHelper output) : IAsyncLifet
         recipe.Name.Should().Be("Synthetic Archived Recipe");
         recipe.Image!.ObjectKey.Should().Be(Key);
         _targetStorage.Objects[Key].Should().Equal(TestFixtures.SyntheticImage.Png);
-        (await restored.Database.GetAppliedMigrationsAsync()).Should().HaveCount(6);
+        (await restored.Database.GetAppliedMigrationsAsync()).Should().Equal(sourceMigrations);
 
         var repeat = () => Restorer.RestoreAsync(_target.GetConnectionString(), client,
             "isolated-test", _targetStorage, Archive);

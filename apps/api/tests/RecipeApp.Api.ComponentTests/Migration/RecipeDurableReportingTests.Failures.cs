@@ -103,7 +103,7 @@ public sealed partial class RecipeDurableReportingTests
                 _failed = true;
                 throw new IOException("Synthetic report publication failure.");
             }
-            return RecipeMigrationReportWriter.WriteAsync(path, report, cancellationToken, replace);
+            return RecipeMigrationReportWriter.WriteUnderReservationAsync(path, report, cancellationToken, replace);
         }
     }
 

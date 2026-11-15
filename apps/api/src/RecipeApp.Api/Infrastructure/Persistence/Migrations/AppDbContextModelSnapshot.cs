@@ -160,11 +160,416 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("Id", "OwnerUserId")
+                        .HasName("AK_Departments_Id_OwnerUserId");
+
                     b.HasIndex("OwnerUserId", "NormalizedName")
                         .IsUnique()
                         .HasDatabaseName("IX_Departments_OwnerUserId_NormalizedName");
 
                     b.ToTable("Departments", (string)null);
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CommandType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CommittedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GroceryListId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<long>("ResultListVersion")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroceryListId", "OwnerUserId");
+
+                    b.HasIndex("OwnerUserId", "GroceryListId", "CommandId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_GroceryCommandReceipts_Owner_List_Command");
+
+                    b.ToTable("GroceryCommandReceipts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GroceryCommandReceipts_CommandId", "\"CommandId\" <> '00000000-0000-0000-0000-000000000000'");
+
+                            t.HasCheckConstraint("CK_GroceryCommandReceipts_CommandType", "\"CommandType\" ~ '[^[:space:]]'");
+
+                            t.HasCheckConstraint("CK_GroceryCommandReceipts_Fingerprint", "\"RequestFingerprint\" ~ '^[0-9A-Fa-f]{64}$'");
+
+                            t.HasCheckConstraint("CK_GroceryCommandReceipts_ResultJson", "jsonb_typeof(\"ResultJson\") = 'object'");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryContribution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CountLabel")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Dimension")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("GroceryItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GroceryListId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("InterpretedAmount")
+                        .HasPrecision(28, 9)
+                        .HasColumnType("numeric(28,9)");
+
+                    b.Property<decimal?>("ManualPurchaseIncrement")
+                        .HasPrecision(28, 9)
+                        .HasColumnType("numeric(28,9)");
+
+                    b.Property<int>("Origin")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OriginalAmountText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OriginalNameText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OriginalNotesText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OriginalUnitText")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RecipeAdditionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SourceRecipeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceRecipeNameSnapshot")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("SourceRecipeStepId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SourceRecipeStepItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UnresolvedReason")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroceryListId", "OwnerUserId");
+
+                    b.HasIndex("OwnerUserId", "RecipeAdditionId")
+                        .HasDatabaseName("IX_GroceryContributions_Owner_RecipeAddition");
+
+                    b.HasIndex("SourceRecipeId", "OwnerUserId");
+
+                    b.HasIndex("GroceryItemId", "OwnerUserId", "GroceryListId");
+
+                    b.HasIndex("RecipeAdditionId", "OwnerUserId", "GroceryListId");
+
+                    b.HasIndex("OwnerUserId", "GroceryListId", "GroceryItemId", "State")
+                        .HasDatabaseName("IX_GroceryContributions_Owner_List_Item_State");
+
+                    b.ToTable("GroceryContributions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GroceryContributions_Amounts", "(\"InterpretedAmount\" IS NULL OR \"InterpretedAmount\" > 0) AND (\"ManualPurchaseIncrement\" IS NULL OR \"ManualPurchaseIncrement\" >= 0)");
+
+                            t.HasCheckConstraint("CK_GroceryContributions_CountLabel", "(\"Dimension\" = 0 AND \"CountLabel\" IS NOT NULL AND \"CountLabel\" ~ '[^[:space:]]') OR (\"Dimension\" IS DISTINCT FROM 0 AND \"CountLabel\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_GroceryContributions_Origin_State", "\"Origin\" IN (0, 1) AND \"State\" IN (0, 1, 2)");
+
+                            t.HasCheckConstraint("CK_GroceryContributions_Source", "(\"Origin\" = 0 AND \"RecipeAdditionId\" IS NULL AND \"SourceRecipeId\" IS NULL) OR (\"Origin\" = 1 AND \"RecipeAdditionId\" IS NOT NULL AND \"SourceRecipeId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConsolidationKey")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("CountLabel")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("Dimension")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("GroceryListId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("IngredientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<decimal>("OutstandingPurchaseQuantity")
+                        .HasPrecision(28, 9)
+                        .HasColumnType("numeric(28,9)");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PurchaseUnit")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("StoreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "OwnerUserId")
+                        .HasName("AK_GroceryItems_Id_OwnerUserId");
+
+                    b.HasAlternateKey("Id", "OwnerUserId", "GroceryListId")
+                        .HasName("AK_GroceryItems_Id_OwnerUserId_GroceryListId");
+
+                    b.HasIndex("StoreId");
+
+                    b.HasIndex("DepartmentId", "OwnerUserId");
+
+                    b.HasIndex("GroceryListId", "OwnerUserId");
+
+                    b.HasIndex("IngredientId", "OwnerUserId");
+
+                    b.HasIndex("OwnerUserId", "GroceryListId", "ConsolidationKey", "PurchaseUnit")
+                        .IsUnique()
+                        .HasDatabaseName("IX_GroceryItems_ActivePurchaseLineKey")
+                        .HasFilter("\"State\" = 0");
+
+                    b.HasIndex("OwnerUserId", "GroceryListId", "State")
+                        .HasDatabaseName("IX_GroceryItems_OwnerUserId_GroceryListId_State");
+
+                    b.ToTable("GroceryItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GroceryItems_CountLabel", "(\"Dimension\" = 0 AND \"CountLabel\" IS NOT NULL AND \"CountLabel\" ~ '[^[:space:]]') OR (\"Dimension\" IS DISTINCT FROM 0 AND \"CountLabel\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_GroceryItems_NameAndUnit_NotBlank", "\"NormalizedName\" ~ '[^[:space:]]' AND \"PurchaseUnit\" ~ '[^[:space:]]' AND \"ConsolidationKey\" ~ '[^[:space:]]'");
+
+                            t.HasCheckConstraint("CK_GroceryItems_OutstandingPurchaseQuantity_Nonnegative", "\"OutstandingPurchaseQuantity\" >= 0");
+
+                            t.HasCheckConstraint("CK_GroceryItems_State_Dimension", "\"State\" IN (0, 1, 2) AND (\"Dimension\" IS NULL OR \"Dimension\" IN (0, 1, 2))");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryList", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "OwnerUserId")
+                        .HasName("AK_GroceryLists_Id_OwnerUserId");
+
+                    b.HasIndex("OwnerUserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_GroceryLists_OwnerUserId");
+
+                    b.ToTable("GroceryLists", (string)null);
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryPurchaseEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AffectedContributionIdsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("GroceryItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GroceryListId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ItemNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NoteSnapshot")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Origin")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PurchaseUnit")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(28, 9)
+                        .HasColumnType("numeric(28,9)");
+
+                    b.Property<Guid?>("ReversesEventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("StoreIdSnapshot")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "OwnerUserId", "GroceryListId")
+                        .HasName("AK_GroceryPurchaseEvents_Id_Owner_List");
+
+                    b.HasIndex("GroceryListId", "OwnerUserId");
+
+                    b.HasIndex("OwnerUserId", "ReversesEventId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_GroceryPurchaseEvents_OneReversalPerEvent")
+                        .HasFilter("\"ReversesEventId\" IS NOT NULL");
+
+                    b.HasIndex("GroceryItemId", "OwnerUserId", "GroceryListId");
+
+                    b.HasIndex("ReversesEventId", "OwnerUserId", "GroceryListId");
+
+                    b.HasIndex("OwnerUserId", "GroceryListId", "OccurredAtUtc", "Id")
+                        .HasDatabaseName("IX_GroceryPurchaseEvents_Owner_List_Date_Id");
+
+                    b.ToTable("GroceryPurchaseEvents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GroceryPurchaseEvents_Kind_Reference", "\"Kind\" IN (0, 1) AND ((\"Kind\" = 0 AND \"ReversesEventId\" IS NULL) OR (\"Kind\" = 1 AND \"ReversesEventId\" IS NOT NULL))");
+
+                            t.HasCheckConstraint("CK_GroceryPurchaseEvents_Origin", "\"Origin\" IN (0, 1)");
+
+                            t.HasCheckConstraint("CK_GroceryPurchaseEvents_Quantity", "\"Quantity\" > 0");
+
+                            t.HasCheckConstraint("CK_GroceryPurchaseEvents_Snapshot", "jsonb_typeof(\"AffectedContributionIdsJson\") = 'array'");
+                        });
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryRecipeAddition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AddedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GroceryListId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RecipeNameSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("RecipeVersion")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "OwnerUserId", "GroceryListId")
+                        .HasName("AK_GroceryRecipeAdditions_Id_Owner_List");
+
+                    b.HasIndex("GroceryListId", "OwnerUserId");
+
+                    b.HasIndex("RecipeId", "OwnerUserId");
+
+                    b.HasIndex("OwnerUserId", "GroceryListId", "RecipeId")
+                        .HasDatabaseName("IX_GroceryRecipeAdditions_Owner_List_Recipe");
+
+                    b.ToTable("GroceryRecipeAdditions", (string)null);
                 });
 
             modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Ingredient", b =>
@@ -698,6 +1103,143 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryCommandReceipt", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.GroceryList", "GroceryList")
+                        .WithMany("CommandReceipts")
+                        .HasForeignKey("GroceryListId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("GroceryList");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryContribution", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.GroceryList", "GroceryList")
+                        .WithMany()
+                        .HasForeignKey("GroceryListId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Recipe", "SourceRecipe")
+                        .WithMany()
+                        .HasForeignKey("SourceRecipeId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.GroceryItem", "GroceryItem")
+                        .WithMany("Contributions")
+                        .HasForeignKey("GroceryItemId", "OwnerUserId", "GroceryListId")
+                        .HasPrincipalKey("Id", "OwnerUserId", "GroceryListId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.GroceryRecipeAddition", "RecipeAddition")
+                        .WithMany("Contributions")
+                        .HasForeignKey("RecipeAdditionId", "OwnerUserId", "GroceryListId")
+                        .HasPrincipalKey("Id", "OwnerUserId", "GroceryListId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("GroceryItem");
+
+                    b.Navigation("GroceryList");
+
+                    b.Navigation("RecipeAddition");
+
+                    b.Navigation("SourceRecipe");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryItem", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.GroceryList", "GroceryList")
+                        .WithMany("Items")
+                        .HasForeignKey("GroceryListId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Ingredient", "Ingredient")
+                        .WithMany()
+                        .HasForeignKey("IngredientId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("GroceryList");
+
+                    b.Navigation("Ingredient");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryList", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Auth.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryPurchaseEvent", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.GroceryList", "GroceryList")
+                        .WithMany("PurchaseEvents")
+                        .HasForeignKey("GroceryListId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.GroceryItem", "GroceryItem")
+                        .WithMany("PurchaseEvents")
+                        .HasForeignKey("GroceryItemId", "OwnerUserId", "GroceryListId")
+                        .HasPrincipalKey("Id", "OwnerUserId", "GroceryListId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.GroceryPurchaseEvent", "ReversesEvent")
+                        .WithMany()
+                        .HasForeignKey("ReversesEventId", "OwnerUserId", "GroceryListId")
+                        .HasPrincipalKey("Id", "OwnerUserId", "GroceryListId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("GroceryItem");
+
+                    b.Navigation("GroceryList");
+
+                    b.Navigation("ReversesEvent");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryRecipeAddition", b =>
+                {
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.GroceryList", "GroceryList")
+                        .WithMany("RecipeAdditions")
+                        .HasForeignKey("GroceryListId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Recipe", null)
+                        .WithMany()
+                        .HasForeignKey("RecipeId", "OwnerUserId")
+                        .HasPrincipalKey("Id", "OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("GroceryList");
+                });
+
             modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Ingredient", b =>
                 {
                     b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Category", "Category")
@@ -887,6 +1429,29 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Chain");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryItem", b =>
+                {
+                    b.Navigation("Contributions");
+
+                    b.Navigation("PurchaseEvents");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryList", b =>
+                {
+                    b.Navigation("CommandReceipts");
+
+                    b.Navigation("Items");
+
+                    b.Navigation("PurchaseEvents");
+
+                    b.Navigation("RecipeAdditions");
+                });
+
+            modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.GroceryRecipeAddition", b =>
+                {
+                    b.Navigation("Contributions");
                 });
 
             modelBuilder.Entity("RecipeApp.Api.Infrastructure.Persistence.Ingredient", b =>
