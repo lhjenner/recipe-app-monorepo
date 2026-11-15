@@ -555,8 +555,7 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("RecipeNameSnapshot")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("text");
 
                     b.Property<long>("RecipeVersion")
                         .HasColumnType("bigint");

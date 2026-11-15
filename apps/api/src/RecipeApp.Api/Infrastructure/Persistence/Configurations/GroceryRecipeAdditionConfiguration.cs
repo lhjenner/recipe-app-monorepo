@@ -10,7 +10,7 @@ public sealed class GroceryRecipeAdditionConfiguration : IEntityTypeConfiguratio
         addition.ToTable("GroceryRecipeAdditions");
         addition.HasKey(entity => entity.Id);
         addition.Property(entity => entity.Id).ValueGeneratedNever();
-        addition.Property(entity => entity.RecipeNameSnapshot).IsRequired().HasMaxLength(200);
+        addition.Property(entity => entity.RecipeNameSnapshot).IsRequired().HasColumnType("text");
         addition.Property(entity => entity.AddedAtUtc).IsRequired();
         addition.HasAlternateKey(entity => new { entity.Id, entity.OwnerUserId, entity.GroceryListId })
             .HasName("AK_GroceryRecipeAdditions_Id_Owner_List");

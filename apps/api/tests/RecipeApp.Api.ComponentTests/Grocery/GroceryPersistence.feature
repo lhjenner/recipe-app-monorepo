@@ -20,3 +20,8 @@ Feature: Grocery persistence foundation
     Then the duplicate reversal is rejected
     When the original purchase event is edited
     Then the purchase event mutation is rejected
+
+  Scenario: Long recipe snapshots and unresolved unit text remain persistable
+    Given an owner with a long-named recipe and grocery list
+    When an unresolved recipe contribution with a long unit is persisted
+    Then the full recipe name and unit are retained with a bounded key

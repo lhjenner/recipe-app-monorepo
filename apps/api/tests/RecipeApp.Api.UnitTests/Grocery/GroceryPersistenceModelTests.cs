@@ -79,4 +79,15 @@ public sealed class GroceryPersistenceModelTests
                 property.GetPrecision() == 28 && property.GetScale() == 9);
         }
     }
+
+    [Fact]
+    public void Recipe_name_snapshots_preserve_unrestricted_source_text()
+    {
+        var addition = _db.Model.FindEntityType(typeof(GroceryRecipeAddition))!;
+        var recipeName = addition.FindProperty(nameof(GroceryRecipeAddition.RecipeNameSnapshot))!;
+
+        recipeName.IsNullable.Should().BeFalse();
+        recipeName.GetMaxLength().Should().BeNull();
+        recipeName.GetColumnType().Should().Be("text");
+    }
 }

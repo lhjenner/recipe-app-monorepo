@@ -132,7 +132,7 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                     GroceryListId = table.Column<Guid>(type: "uuid", nullable: false),
                     OwnerUserId = table.Column<Guid>(type: "uuid", nullable: false),
                     RecipeId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RecipeNameSnapshot = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    RecipeNameSnapshot = table.Column<string>(type: "text", nullable: false),
                     RecipeVersion = table.Column<long>(type: "bigint", nullable: false),
                     AddedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using RecipeApp.Api.Ingredients;
 
 namespace RecipeApp.Api.Grocery;
@@ -50,7 +52,7 @@ public static class GroceryConsolidationKey
                 throw new ArgumentException("Count dimensions require a canonical count label.", nameof(countLabel));
             }
 
-            return $"{identity}|count|{IngredientWriteValidator.Normalize(countLabel)}";
+            return Hash(identity, "count", IngredientWriteValidator.Normalize(countLabel));
         }
 
         if (!string.IsNullOrWhiteSpace(countLabel))
@@ -58,12 +60,24 @@ public static class GroceryConsolidationKey
             throw new ArgumentException("Only count dimensions can have a count label.", nameof(countLabel));
         }
 
-        return $"{identity}|{dimension.ToString().ToLowerInvariant()}";
+        return Hash(identity, dimension.ToString().ToLowerInvariant());
     }
 
     private static string ForUnresolved(string identity, string? unitText)
     {
         var normalizedUnit = IngredientWriteValidator.Normalize(unitText ?? string.Empty);
-        return $"{identity}|unresolved|{normalizedUnit}";
+        return Hash(identity, "unresolved", normalizedUnit);
+    }
+
+    private static string Hash(params string[] components)
+    {
+        var canonical = new StringBuilder();
+        foreach (var component in components)
+        {
+            canonical.Append(component.Length).Append(':').Append(component);
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString())))
+            .ToLowerInvariant();
     }
 }

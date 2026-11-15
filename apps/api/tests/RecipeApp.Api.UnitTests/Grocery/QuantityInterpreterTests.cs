@@ -9,10 +9,13 @@ public sealed class QuantityInterpreterTests
     [InlineData("1", "tbsp", 15)]
     [InlineData("2", "tsp", 10)]
     [InlineData("1 1/2", "tsp", 7.5)]
+    [InlineData("1 / 2", "tsp", 2.5)]
+    [InlineData("1 1 / 2", "tsp", 7.5)]
     [InlineData("0.5", "kg", 500)]
     [InlineData("250", "g", 250)]
     [InlineData("1", "cup", 250)]
     [InlineData("50", "ml", 50)]
+    [InlineData("1.0000000000000000000000000000000000000000", "g", 1)]
     [InlineData("1", "tin", 1)]
     public void Interprets_supported_quantities_without_rounding(
         string amount,
@@ -33,6 +36,8 @@ public sealed class QuantityInterpreterTests
     [InlineData("-1", "g")]
     [InlineData("1/0", "tsp")]
     [InlineData("1/3", "tsp")]
+    [InlineData("1.00000000000000000000000000001", "g")]
+    [InlineData("79228162514264337593543950334/79228162514264337593543950335", "tsp")]
     [InlineData("10000000000000000000", "g")]
     [InlineData("2", "unknown-unit")]
     [InlineData("1", "US cup")]
@@ -80,6 +85,25 @@ public sealed class QuantityInterpreterTests
 
         tinKey.Should().NotBe(pieceKey);
         tinKey.Should().NotBe(massKey);
+    }
+
+    [Fact]
+    public void Unresolved_consolidation_keys_are_bounded_and_normalize_long_source_units()
+    {
+        var ingredientId = Guid.CreateVersion7();
+        var longUnit = new string('u', 500);
+
+        var key = GroceryConsolidationKey.ForUnresolvedIngredient(ingredientId, longUnit);
+
+        key.Should().HaveLength(64);
+        GroceryConsolidationKey.ForUnresolvedIngredient(
+                ingredientId,
+                $"  {longUnit}  ")
+            .Should().Be(key);
+        GroceryConsolidationKey.ForUnresolvedIngredient(
+                Guid.CreateVersion7(),
+                longUnit)
+            .Should().NotBe(key);
     }
 
     [Theory]
