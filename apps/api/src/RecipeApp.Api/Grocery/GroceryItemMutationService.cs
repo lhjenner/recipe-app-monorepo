@@ -39,12 +39,12 @@ public sealed class GroceryItemMutationService(
 
         if (list.Version != request.ExpectedListVersion)
         {
-            return Conflict("The grocery list changed. Reload it and review the edit again.");
+            return await RecoverAsync(Conflict("The grocery list changed. Reload it and review the edit again."));
         }
 
         if (item.State != GroceryItemState.Outstanding)
         {
-            return Conflict("Only outstanding grocery items can be edited.");
+            return await RecoverAsync(Conflict("Only outstanding grocery items can be edited."));
         }
 
         var errors = GroceryWriteValidator.ValidateUpdate(request, item.PurchaseUnit);
@@ -81,7 +81,9 @@ public sealed class GroceryItemMutationService(
                 database, item, request.DepartmentUpdate, ownerId, now, cancellationToken);
             if (departmentError is not null)
             {
-                return departmentError;
+                return departmentError.StatusCode == StatusCodes.Status409Conflict
+                    ? await RecoverAsync(departmentError)
+                    : departmentError;
             }
         }
         else if (item.IngredientId is null)
@@ -115,7 +117,8 @@ public sealed class GroceryItemMutationService(
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Conflict("The grocery list or Ingredient changed during this edit. Reload and review it again.");
+            return await RecoverAsync(Conflict(
+                "The grocery list or Ingredient changed during this edit. Reload and review it again."));
         }
 
         var receipt = GroceryMutationPersistence.CreateReceipt(
@@ -128,10 +131,29 @@ public sealed class GroceryItemMutationService(
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Conflict("The grocery list or Ingredient changed during this edit. Reload and review it again.");
+            return await RecoverAsync(Conflict(
+                "The grocery list or Ingredient changed during this edit. Reload and review it again."));
+        }
+        catch (DbUpdateException exception) when (GroceryMutationPersistence.IsReceiptConflict(exception))
+        {
+            return await RecoverAsync(Conflict(
+                "The grocery list or Ingredient changed during this edit. Reload and review it again."));
         }
 
         return Success(receipt);
+
+        async Task<GroceryWriteOutcome> RecoverAsync(GroceryWriteOutcome fallback)
+        {
+            var committed = await GroceryMutationPersistence.FindReceiptAfterRollbackAsync(
+                databaseFactory, transaction, ownerId, request.CommandId, cancellationToken);
+            if (committed is null)
+            {
+                return fallback;
+            }
+            return committed.CommandType == CommandType && committed.RequestFingerprint == fingerprint
+                ? Success(committed)
+                : Conflict("This command ID was already used with different content.");
+        }
     }
 
     private static async Task<GroceryWriteOutcome?> FindReplayAsync(

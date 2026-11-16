@@ -50,7 +50,8 @@ public sealed class GroceryManualEntryService(
             }
             catch (DbUpdateException exception) when (IsOwnerListConflict(exception))
             {
-                return Conflict("The grocery list was created elsewhere. Reload it and review the addition again.");
+                return await RecoverAsync(Conflict(
+                    "The grocery list was created elsewhere. Reload it and review the addition again."));
             }
         }
         else
@@ -64,7 +65,7 @@ public sealed class GroceryManualEntryService(
 
             if (list.Version != command.ExpectedListVersion)
             {
-                return Conflict("The grocery list changed. Reload it and review the addition again.");
+                return await RecoverAsync(Conflict("The grocery list changed. Reload it and review the addition again."));
             }
         }
 
@@ -77,11 +78,11 @@ public sealed class GroceryManualEntryService(
 
         if (prepared.ConflictDetail is not null)
         {
-            return new GroceryWriteOutcome(
+            return await RecoverAsync(new GroceryWriteOutcome(
                 null,
                 StatusCodes.Status409Conflict,
                 "Ingredient name conflict",
-                prepared.ConflictDetail);
+                prepared.ConflictDetail));
         }
 
         if (prepared.Errors.Count != 0)
@@ -99,12 +100,12 @@ public sealed class GroceryManualEntryService(
         var submittedReviews = command.ReviewedDuplicates ?? [];
         if (!duplicateReviews.SequenceEqual(submittedReviews.OrderBy(review => review.EntryIndex)))
         {
-            return new GroceryWriteOutcome(
+            return await RecoverAsync(new GroceryWriteOutcome(
                 null,
                 StatusCodes.Status409Conflict,
                 "Review duplicate grocery items",
                 "One or more entries match an outstanding item. Review the current quantity and confirm the increment.",
-                DuplicateReviews: duplicateReviews);
+                DuplicateReviews: duplicateReviews));
         }
 
         foreach (var ingredient in prepared.NewIngredients)
@@ -124,16 +125,16 @@ public sealed class GroceryManualEntryService(
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Conflict("The grocery list changed during this save. Reload and review the addition again.");
+            return await RecoverAsync(Conflict("The grocery list changed during this save. Reload and review the addition again."));
         }
         catch (DbUpdateException exception) when (IsGroceryLineConflict(exception))
         {
-            return Conflict("A matching grocery line changed during this save. Reload and review the addition again.");
+            return await RecoverAsync(Conflict("A matching grocery line changed during this save. Reload and review the addition again."));
         }
         catch (DbUpdateException exception) when (IsIngredientNameConflict(exception))
         {
-            return Conflict(
-                "An Ingredient with this name was added elsewhere. Select it from the Ingredient lookup or restore it before retrying.");
+            return await RecoverAsync(Conflict(
+                "An Ingredient with this name was added elsewhere. Select it from the Ingredient lookup or restore it before retrying."));
         }
 
         var receipt = GroceryMutationPersistence.CreateReceipt(
@@ -146,15 +147,27 @@ public sealed class GroceryManualEntryService(
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Conflict("The grocery list changed during this save. Reload and review the addition again.");
+            return await RecoverAsync(Conflict("The grocery list changed during this save. Reload and review the addition again."));
         }
-        catch (DbUpdateException exception) when (IsReceiptConflict(exception))
+        catch (DbUpdateException exception) when (GroceryMutationPersistence.IsReceiptConflict(exception))
         {
-            return await FindReplayAfterConflictAsync(
-                ownerId, list.Id, command.CommandId, fingerprint, cancellationToken);
+            return await RecoverAsync(Conflict("The grocery list changed during this save. Reload and review the addition again."));
         }
 
         return Success(receipt);
+
+        async Task<GroceryWriteOutcome> RecoverAsync(GroceryWriteOutcome fallback)
+        {
+            var committed = await GroceryMutationPersistence.FindReceiptAfterRollbackAsync(
+                databaseFactory, transaction, ownerId, command.CommandId, cancellationToken);
+            if (committed is null)
+            {
+                return fallback;
+            }
+            return committed.CommandType == CommandType && committed.RequestFingerprint == fingerprint
+                ? Success(committed)
+                : Conflict("This command ID was already used with different content.");
+        }
     }
 
     private static async Task<GroceryWriteOutcome?> FindReplayAsync(
@@ -180,26 +193,6 @@ public sealed class GroceryManualEntryService(
             : Conflict("This command ID was already used with different content.");
     }
 
-    private async Task<GroceryWriteOutcome> FindReplayAfterConflictAsync(
-        Guid ownerId,
-        Guid listId,
-        Guid commandId,
-        string fingerprint,
-        CancellationToken cancellationToken)
-    {
-        await using var database = await databaseFactory.CreateDbContextAsync(cancellationToken);
-        var receipt = await database.GroceryCommandReceipts
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.OwnerUserId == ownerId
-                && item.GroceryListId == listId
-                && item.CommandId == commandId, cancellationToken);
-        return receipt is not null
-            && receipt.CommandType == CommandType
-            && receipt.RequestFingerprint == fingerprint
-                ? Success(receipt)
-                : Conflict("The grocery list changed during this save. Reload and review the addition again.");
-    }
-
     private static GroceryWriteOutcome Success(GroceryCommandReceipt receipt)
     {
         var response = JsonSerializer.Deserialize<GroceryCommandReceiptResponse>(receipt.ResultJson);
@@ -222,9 +215,6 @@ public sealed class GroceryManualEntryService(
 
     private static bool IsIngredientNameConflict(DbUpdateException exception) =>
         IsUniqueViolation(exception, "IX_Ingredients_OwnerUserId_NormalizedName");
-
-    private static bool IsReceiptConflict(DbUpdateException exception) =>
-        IsUniqueViolation(exception, "IX_GroceryCommandReceipts_Owner_List_Command");
 
     private static bool IsUniqueViolation(DbUpdateException exception, string constraintName) =>
         exception.InnerException is PostgresException

@@ -71,6 +71,11 @@ internal static class GroceryWriteValidator
             }
 
             var storeMappings = item.StoreMappings ?? [];
+            if (storeMappings.Any(mapping => mapping is null))
+            {
+                Add(errors, $"{field}.storeMappings", "Store mappings must not contain null entries.");
+                continue;
+            }
             var ingredientRequest = new IngredientWriteRequest
             {
                 Name = item.Name ?? string.Empty,

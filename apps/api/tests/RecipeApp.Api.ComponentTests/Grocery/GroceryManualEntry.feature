@@ -94,3 +94,23 @@ Feature: Atomic manual grocery entry
       | nested storeMappings    |
       | adHocStoreId            |
       | adHocDepartmentId       |
+
+  Scenario: Reject null store mapping entries without writing the batch
+    Given a logged in user
+    When I submit a grocery batch with a null store mapping
+    Then the invalid Ingredient batch returns 400 without creating a list or receipt
+
+  Scenario Outline: Overlapping grocery commands recover the committed receipt
+    Given a logged in user
+    When two overlapping "<operation>" commands are submitted with "<content>" content
+    Then the overlapping grocery commands have the expected outcomes without duplicate writes
+    Examples:
+      | operation     | content   |
+      | first add     | identical |
+      | existing add  | identical |
+      | update        | identical |
+      | cancel        | identical |
+      | first add     | different |
+      | existing add  | different |
+      | update        | different |
+      | cancel        | different |

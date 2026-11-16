@@ -99,13 +99,39 @@ test('retries a removal with the same command after an ambiguous network failure
   fireEvent.click(removeButtons[0]);
   fireEvent.click(screen.getByRole('button', { name: 'Remove item' }));
   await waitFor(() => expect(mocks.cancelGroceryItem).toHaveBeenCalledTimes(1));
-  fireEvent.click(removeButtons[0]);
-  fireEvent.click(screen.getByRole('button', { name: 'Remove item' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry removal' }));
 
   await waitFor(() => expect(mocks.cancelGroceryItem).toHaveBeenCalledTimes(2));
   expect(mocks.cancelGroceryItem.mock.calls[1][0]).toBe('item-id');
   expect(mocks.cancelGroceryItem.mock.calls[1][1]).toBe(mocks.cancelGroceryItem.mock.calls[0][1]);
   expect(mocks.cancelGroceryItem.mock.calls[1][2]).toBe(12);
+});
+
+test('retains explicit removal retry when a refresh no longer includes the item', async () => {
+  mocks.cancelGroceryItem.mockRejectedValueOnce(new Error('Response lost')).mockResolvedValueOnce(undefined);
+  const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  const state = mocks.useGroceryList.mock.results[0].value;
+  fireEvent.click(screen.getAllByRole('button', { name: 'Remove onions from Grocery List' })[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove item' }));
+  await screen.findByRole('button', { name: 'Retry removal' });
+  mocks.useGroceryList.mockReturnValue({ ...state, data: { ...state.data, version: 13, items: [] } });
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  expect(screen.queryByRole('button', { name: 'Remove onions from Grocery List' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry removal' }));
+  await waitFor(() => expect(mocks.cancelGroceryItem).toHaveBeenCalledTimes(2));
+  expect(mocks.cancelGroceryItem.mock.calls[1]).toEqual(mocks.cancelGroceryItem.mock.calls[0]);
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry removal' })).not.toBeInTheDocument());
+});
+
+test('a known removal rejection clears retry and refreshes the list', async () => {
+  mocks.cancelGroceryItem.mockRejectedValueOnce(new GroceryListApiError('Stale list', 409));
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  const state = mocks.useGroceryList.mock.results[0].value;
+  fireEvent.click(screen.getAllByRole('button', { name: 'Remove onions from Grocery List' })[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove item' }));
+  await screen.findByText('Stale list');
+  expect(screen.queryByRole('button', { name: 'Retry removal' })).not.toBeInTheDocument();
+  expect(state.reload).toHaveBeenCalledOnce();
 });
 
 test('cancelling removal confirmation leaves the grocery item unchanged', () => {

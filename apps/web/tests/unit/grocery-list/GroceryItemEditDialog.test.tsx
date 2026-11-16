@@ -141,3 +141,79 @@ test('a known rejection permits version review and correction with a new command
   expect(mocks.update.mock.calls[1][1].commandId).not.toBe(mocks.update.mock.calls[0][1].commandId);
   expect(screen.queryByRole('button', { name: 'Retry edit' })).not.toBeInTheDocument();
 });
+
+test.each(['list', 'store'])('rebases untouched quantity when reviewing a changed %s', async (review) => {
+  const initial = props();
+  const { rerender } = render(<GroceryItemEditDialog {...initial} />);
+  fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'My note' } });
+  rerender(<GroceryItemEditDialog
+    {...initial} listVersion={4}
+    item={{ ...initial.item, outstandingPurchaseQuantity: 3 }}
+    selectedStoreId={review === 'store' ? 'store-b' : 'store-a'}
+  />);
+  fireEvent.click(screen.getByRole('button', { name: review === 'store' ? 'Review Store B' : 'Review latest list' }));
+  expect(screen.getByLabelText('Quantity')).toHaveValue(3);
+  expect(screen.getByLabelText('Note (optional)')).toHaveValue('My note');
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+  expect(mocks.update.mock.calls[0][1]).toMatchObject({
+    expectedListVersion: 4, outstandingPurchaseQuantity: 3, note: 'My note',
+  });
+});
+
+test('requires a separate choice for each shopping field changed on both devices', async () => {
+  const initial = { ...props(), item: { ...item, note: 'Original' } };
+  const { rerender } = render(<GroceryItemEditDialog {...initial} />);
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '2' } });
+  fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'My note' } });
+  rerender(<GroceryItemEditDialog {...initial} listVersion={4}
+    item={{ ...initial.item, outstandingPurchaseQuantity: 3, note: 'Other note' }} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Review latest list' }));
+  expect(screen.getByText('My quantity: 2')).toBeVisible();
+  expect(screen.getByText('Latest quantity: 3')).toBeVisible();
+  expect(screen.getByText('My note: My note')).toBeVisible();
+  expect(screen.getByText('Latest note: Other note')).toBeVisible();
+  const apply = screen.getByRole('button', { name: 'Apply review choices' });
+  expect(apply).toBeDisabled();
+  fireEvent.click(screen.getByRole('radio', { name: 'Use latest quantity' }));
+  expect(apply).toBeDisabled();
+  fireEvent.click(screen.getByRole('radio', { name: 'Keep my note' }));
+  fireEvent.click(apply);
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+  expect(mocks.update.mock.calls[0][1]).toMatchObject({
+    expectedListVersion: 4, outstandingPurchaseQuantity: 3, note: 'My note',
+  });
+});
+
+test('requires a fresh review if the list changes while conflict choices are open', () => {
+  const initial = props();
+  const { rerender } = render(<GroceryItemEditDialog {...initial} />);
+  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '2' } });
+  rerender(<GroceryItemEditDialog {...initial} listVersion={4}
+    item={{ ...initial.item, outstandingPurchaseQuantity: 3 }} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Review latest list' }));
+  fireEvent.click(screen.getByRole('radio', { name: 'Keep my quantity' }));
+  rerender(<GroceryItemEditDialog {...initial} listVersion={5}
+    item={{ ...initial.item, outstandingPurchaseQuantity: 4 }} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Apply review choices' }));
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Review latest list' })).toBeVisible();
+});
+
+test('requires a choice when a linked department changes on both devices', async () => {
+  const initial = props(true);
+  const { rerender } = render(<GroceryItemEditDialog {...initial} />);
+  await screen.findByRole('option', { name: 'Produce' });
+  fireEvent.change(screen.getByLabelText('Store A department'), { target: { value: 'new-department' } });
+  rerender(<GroceryItemEditDialog {...initial} listVersion={4}
+    item={{ ...initial.item, ingredientVersion: 6, storeMappings: [] }} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Review latest list' }));
+  expect(screen.getByText('My department: Produce')).toBeVisible();
+  expect(screen.getByText('Latest department: Uncategorised')).toBeVisible();
+  fireEvent.click(screen.getByRole('radio', { name: 'Use latest department' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Apply review choices' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+  expect(mocks.update.mock.calls[0][1].departmentUpdate).toBeNull();
+});

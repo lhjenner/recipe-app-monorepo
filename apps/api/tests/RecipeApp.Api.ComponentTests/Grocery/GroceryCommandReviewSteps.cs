@@ -114,6 +114,28 @@ public sealed class GroceryCommandReviewSteps(ApiAuthContext context)
         (await db.GroceryCommandReceipts.AnyAsync(value => value.OwnerUserId == _ownerId)).Should().BeFalse();
     }
 
+    [When("I submit a grocery batch with a null store mapping")]
+    public async Task SubmitNullStoreMappingAsync()
+    {
+        await using var scope = context.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        _ownerId = (await db.Users.SingleAsync(user =>
+            user.Email == context.Email.Trim().ToLowerInvariant())).Id;
+        context.Response?.Dispose();
+        context.Response = await context.Client.PostAsJsonAsync("/api/grocery-list/items", new
+        {
+            commandId = Guid.NewGuid(),
+            expectedListVersion = 0,
+            items = new object[]
+            {
+                new { name = "Apples", purchaseQuantity = 1, purchaseUnit = "item" },
+                new { name = "Oats", purchaseQuantity = 1, purchaseUnit = "item",
+                    saveAsIngredient = true, storeMappings = new object?[] { null } }
+            },
+            reviewedDuplicates = Array.Empty<object>()
+        });
+    }
+
     private async Task<HttpResponseMessage> CancelAsync(Guid id, Guid commandId, uint version)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/grocery-list/items/{id}");

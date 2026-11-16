@@ -71,3 +71,25 @@ test.each([
     .toHaveLength(hasRecipe && origins.some((origin) => origin === 'manual') ? 2 : 0);
   expect(screen.queryAllByText('Onion Soup')).toHaveLength(hasRecipe ? 2 : 0);
 });
+
+test('shows distinct outstanding manual addition notes without a Sources accordion', () => {
+  const manual = (id: string, note: string, state: 'outstanding' | 'cancelled' = 'outstanding') => ({
+    id, origin: 'manual' as const, state, originalAmountText: '1', originalUnitText: 'item',
+    originalNotesText: note, interpretedAmount: null, canonicalUnit: 'item', unresolvedReason: null,
+    recipeId: null, recipeStepId: null, recipeStepItemId: null, recipeNameSnapshot: null,
+  });
+  const item: GroceryItem = {
+    id: 'item', ingredientId: null, name: 'oats', state: 'outstanding', note: 'First note',
+    dimension: 'count', countLabel: 'item', requirementAmount: null, requirementUnit: null,
+    outstandingPurchaseQuantity: 2, purchaseUnit: 'item', ingredientVersion: null,
+    adHocStoreId: null, adHocDepartmentId: null, adHocDepartmentName: null, storeMappings: [],
+    contributions: [manual('1', 'First note'), manual('2', 'Second note'),
+      manual('3', 'Second note'), manual('4', 'Cancelled note', 'cancelled')],
+  };
+  render(<MemoryRouter><GroceryItemList groups={[{ name: 'Uncategorised', items: [item] }]}
+    onEdit={() => {}} onRemove={() => {}} onQuantityChange={() => {}} disabled={false} /></MemoryRouter>);
+  expect(screen.getAllByText('First note')).toHaveLength(2);
+  expect(screen.getAllByText('Second note')).toHaveLength(2);
+  expect(screen.queryByText('Cancelled note')).not.toBeInTheDocument();
+  expect(screen.queryByText(/Sources/)).not.toBeInTheDocument();
+});

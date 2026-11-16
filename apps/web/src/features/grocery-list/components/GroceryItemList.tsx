@@ -166,12 +166,17 @@ function GroupToggle({ name, expanded, controls, onToggle }: GroupToggleProps) {
 }
 
 function RequirementDetails({ item }: { item: GroceryItem }) {
+  const manualNotes = [...new Set(item.contributions
+    .filter((contribution) => contribution.origin === 'manual' && contribution.state === 'outstanding')
+    .map((contribution) => contribution.originalNotesText?.trim())
+    .filter((note): note is string => Boolean(note) && note !== item.note?.trim()))];
   return (
     <div className="grocery-requirement-details">
       {item.requirementAmount !== null && item.requirementUnit !== null && (
         <p><strong>Requirement:</strong> {formatAmount(item.requirementAmount)} {item.requirementUnit}</p>
       )}
       {item.note && <p><strong>Note:</strong> {item.note}</p>}
+      {manualNotes.map((note) => <p key={note}><strong>Manual addition note:</strong> {note}</p>)}
       {item.contributions.some((contribution) => contribution.origin === 'recipe') && (
         <details>
           <summary>Sources ({item.contributions.length})</summary>

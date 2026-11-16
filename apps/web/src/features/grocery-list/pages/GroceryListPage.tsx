@@ -73,7 +73,7 @@ function GroceryListPage() {
                 className="btn btn-primary"
                 type="button"
                 onClick={() => setIsAddingItems(true)}
-                disabled={!grocery.data || quantityUpdate.disabled || removal.isRemoving}
+                disabled={!grocery.data || quantityUpdate.disabled || removal.disabled}
               >
                 Add items
               </button>
@@ -106,7 +106,17 @@ function GroceryListPage() {
           </div>
 
           {storePreference.error && <p className="grocery-inline-error" role="status">{storePreference.error}</p>}
-          {removal.error && <p className="grocery-inline-error" role="alert">{removal.error}</p>}
+          {removal.error && (
+            <p className="grocery-inline-error" role="alert">
+              {removal.error}
+              {removal.canRetry && (
+                <button className="btn btn-secondary" type="button" onClick={removal.retry}>
+                  Retry removal
+                </button>
+              )}
+              {removal.canRetry && removal.retryName && ` for ${toTitleCase(removal.retryName)}`}
+            </p>
+          )}
           {quantityUpdate.error && (
             <p className="grocery-inline-error" role="alert">
               {quantityUpdate.error}
@@ -160,7 +170,7 @@ function GroceryListPage() {
               onEdit={setEditingItem}
               onRemove={removal.request}
               onQuantityChange={quantityUpdate.changeQuantity}
-              disabled={quantityUpdate.disabled || removal.isRemoving}
+              disabled={quantityUpdate.disabled || removal.disabled}
             />
           )}
         </section>

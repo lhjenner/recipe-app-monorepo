@@ -51,12 +51,12 @@ public sealed class GroceryItemCancellationService(
 
         if (list.Version != command.ExpectedListVersion)
         {
-            return Conflict("The grocery list changed. Reload it before removing this item.");
+            return await RecoverAsync("The grocery list changed. Reload it before removing this item.");
         }
 
         if (item.State != GroceryItemState.Outstanding)
         {
-            return Conflict("Only outstanding grocery items can be removed.");
+            return await RecoverAsync("Only outstanding grocery items can be removed.");
         }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
@@ -76,7 +76,7 @@ public sealed class GroceryItemCancellationService(
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Conflict("The grocery list changed. Reload it before removing this item.");
+            return await RecoverAsync("The grocery list changed. Reload it before removing this item.");
         }
 
         database.GroceryCommandReceipts.Add(GroceryMutationPersistence.CreateReceipt(
@@ -88,10 +88,27 @@ public sealed class GroceryItemCancellationService(
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Conflict("The grocery list changed. Reload it before removing this item.");
+            return await RecoverAsync("The grocery list changed. Reload it before removing this item.");
+        }
+        catch (DbUpdateException exception) when (GroceryMutationPersistence.IsReceiptConflict(exception))
+        {
+            return await RecoverAsync("The grocery list changed. Reload it before removing this item.");
         }
 
         return new GroceryCancelOutcome(StatusCodes.Status204NoContent);
+
+        async Task<GroceryCancelOutcome> RecoverAsync(string fallback)
+        {
+            var committed = await GroceryMutationPersistence.FindReceiptAfterRollbackAsync(
+                databaseFactory, transaction, ownerId, command.CommandId, cancellationToken);
+            if (committed is null)
+            {
+                return Conflict(fallback);
+            }
+            return committed.CommandType == CommandType && committed.RequestFingerprint == fingerprint
+                ? new GroceryCancelOutcome(StatusCodes.Status204NoContent)
+                : Conflict("This command ID was already used with different content.");
+        }
     }
 
     private static GroceryCancelOutcome Conflict(string detail) =>

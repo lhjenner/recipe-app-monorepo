@@ -6,7 +6,9 @@ import {
   type GroceryItemUpdateRequest,
 } from '../services/groceryListApi';
 import { useGroceryCommand } from '../hooks/useGroceryCommand';
+import { useGroceryEditDraft } from '../hooks/useGroceryEditDraft';
 import GroceryDialog from './GroceryDialog';
+import GroceryEditConflicts from './GroceryEditConflicts';
 import GroceryEditDialogStatus from './GroceryEditDialogStatus';
 import GroceryItemEditForm from './GroceryItemEditForm';
 
@@ -19,16 +21,6 @@ interface GroceryItemEditDialogProps {
   onSaved: () => void;
 }
 
-function getDepartmentId(item: GroceryItem, storeId: string | null): string {
-  if (!storeId) {
-    return '';
-  }
-  if (!item.ingredientId) {
-    return item.adHocStoreId === storeId ? item.adHocDepartmentId ?? '' : '';
-  }
-  return item.storeMappings.find((mapping) => mapping.storeId === storeId)?.departmentId ?? '';
-}
-
 function GroceryItemEditDialog({
   item,
   listVersion,
@@ -37,17 +29,12 @@ function GroceryItemEditDialog({
   onClose,
   onSaved,
 }: GroceryItemEditDialogProps) {
-  const [quantity, setQuantity] = useState(String(item.outstandingPurchaseQuantity));
-  const [note, setNote] = useState(item.note ?? '');
-  const [reviewedStoreId, setReviewedStoreId] = useState(selectedStoreId);
-  const [departmentDrafts, setDepartmentDrafts] = useState<Record<string, string>>(() => ({
-    ...(selectedStoreId ? { [selectedStoreId]: getDepartmentId(item, selectedStoreId) } : {}),
-  }));
-  const [originalDepartments, setOriginalDepartments] = useState<Record<string, string>>(() => ({
-    ...(selectedStoreId ? { [selectedStoreId]: getDepartmentId(item, selectedStoreId) } : {}),
-  }));
-  const [expectedListVersion, setExpectedListVersion] = useState(listVersion);
-  const [expectedIngredientVersion, setExpectedIngredientVersion] = useState(item.ingredientVersion);
+  const draft = useGroceryEditDraft(item, listVersion, selectedStoreId);
+  const {
+    quantity, note, reviewedStoreId, expectedListVersion, expectedIngredientVersion,
+    currentDepartment, departmentChanged, latestListNeedsReview,
+    storeSelectionNeedsReview, ingredientNeedsReview,
+  } = draft;
   const [departments, setDepartments] = useState<LookupValue[]>([]);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,14 +47,9 @@ function GroceryItemEditDialog({
       onClose();
     },
   );
-  const latestListNeedsReview = expectedListVersion !== listVersion;
-  const storeSelectionNeedsReview = reviewedStoreId !== selectedStoreId;
-  const ingredientNeedsReview = item.ingredientVersion !== expectedIngredientVersion;
-  const currentDepartment = reviewedStoreId ? departmentDrafts[reviewedStoreId] ?? '' : '';
-  const initialDepartment = reviewedStoreId ? originalDepartments[reviewedStoreId] ?? '' : '';
-  const departmentChanged = currentDepartment !== initialDepartment;
   const selectedStore = stores.find((store) => store.id === reviewedStoreId);
-  const needsReview = latestListNeedsReview || storeSelectionNeedsReview || ingredientNeedsReview;
+  const needsReview = latestListNeedsReview || storeSelectionNeedsReview || ingredientNeedsReview
+    || draft.conflicts.length > 0;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -94,53 +76,15 @@ function GroceryItemEditDialog({
     mutation.clearError();
   }
 
-  function reviewSelectedStore() {
+  function reviewLatest(reviewStore: boolean) {
     if (mutation.locked) {
       return;
     }
-    setReviewedStoreId(selectedStoreId);
-    if (selectedStoreId) {
-      const departmentId = getDepartmentId(item, selectedStoreId);
-      setDepartmentDrafts((current) => ({
-        ...current,
-        [selectedStoreId]: current[selectedStoreId] ?? departmentId,
-      }));
-      setOriginalDepartments((current) => ({
-        ...current,
-        [selectedStoreId]: departmentId,
-      }));
-    }
-    setExpectedListVersion(listVersion);
-    setExpectedIngredientVersion(item.ingredientVersion);
+    draft.startReview(reviewStore);
     commandId.current = crypto.randomUUID();
     setShowConfirmation(false);
     setError(null);
     mutation.clearError();
-  }
-
-  function reviewLatestList() {
-    if (mutation.locked) {
-      return;
-    }
-    setExpectedListVersion(listVersion);
-    setExpectedIngredientVersion(item.ingredientVersion);
-    if (reviewedStoreId) {
-      const currentDepartmentId = getDepartmentId(item, reviewedStoreId);
-      setDepartmentDrafts((current) => ({
-        ...current,
-        [reviewedStoreId]: current[reviewedStoreId] === originalDepartments[reviewedStoreId]
-          ? currentDepartmentId
-          : current[reviewedStoreId] ?? currentDepartmentId,
-      }));
-      setOriginalDepartments((current) => ({
-        ...current,
-        [reviewedStoreId]: currentDepartmentId,
-      }));
-    }
-    setError(null);
-    setShowConfirmation(false);
-    mutation.clearError();
-    commandId.current = crypto.randomUUID();
   }
 
   function save(approveDepartmentChange = false, discardDepartmentChange = false) {
@@ -197,11 +141,11 @@ function GroceryItemEditDialog({
         ingredientNeedsReview={ingredientNeedsReview}
         selectedStoreName={stores.find((store) => store.id === selectedStoreId)?.name ?? null}
         lookupError={lookupError}
-        error={error ?? mutation.error?.message ?? null}
+        error={error ?? draft.reviewError ?? mutation.error?.message ?? null}
         fieldErrors={mutation.error?.fieldErrors ?? {}}
         onClose={onClose}
-        onReviewLatest={reviewLatestList}
-        onReviewStore={reviewSelectedStore}
+        onReviewLatest={() => reviewLatest(false)}
+        onReviewStore={() => reviewLatest(true)}
       />
       {mutation.canRetry && (
         <p role="status">
@@ -209,6 +153,8 @@ function GroceryItemEditDialog({
           <button className="btn btn-secondary" type="button" onClick={mutation.retry}>Retry edit</button>
         </p>
       )}
+      <GroceryEditConflicts conflicts={draft.conflicts} departments={departments}
+        onChoose={draft.choose} onApply={draft.applyReview} />
 
       <GroceryItemEditForm
         item={item}
@@ -218,18 +164,14 @@ function GroceryItemEditDialog({
         departmentId={currentDepartment}
         departments={departments}
         isSaving={mutation.isSaving}
-        locked={mutation.locked}
+        locked={mutation.locked || draft.conflicts.length > 0}
         showConfirmation={showConfirmation}
         canApprove={expectedIngredientVersion !== null}
         needsReview={needsReview}
         onSubmit={submit}
-        onQuantityChange={(value) => updateDraft(() => setQuantity(value))}
-        onNoteChange={(value) => updateDraft(() => setNote(value))}
-        onDepartmentChange={(departmentId) => updateDraft(() =>
-          setDepartmentDrafts((current) => ({
-            ...current,
-            [reviewedStoreId!]: departmentId,
-          })))}
+        onQuantityChange={(value) => updateDraft(() => draft.setQuantity(value))}
+        onNoteChange={(value) => updateDraft(() => draft.setNote(value))}
+        onDepartmentChange={(departmentId) => updateDraft(() => draft.setDepartment(departmentId))}
         onApprove={() => save(true)}
         onDiscard={() => save(false, true)}
         onCancelConfirmation={() => setShowConfirmation(false)}
