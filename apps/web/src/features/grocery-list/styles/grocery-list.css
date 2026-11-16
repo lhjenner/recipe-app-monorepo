@@ -282,7 +282,8 @@
   vertical-align: top;
 }
 
-.grocery-items-table > tbody:last-child > tr:last-child > :is(th, td) {
+.grocery-items-table > tbody:last-child > tr:last-child > :is(th, td),
+.grocery-items-table > tbody:last-child > .grocery-group-heading:has([aria-expanded='false']) > th {
   border-bottom: 0;
 }
 
@@ -292,9 +293,37 @@
   color: var(--color-on-brand);
 }
 
-.grocery-group-heading th {
+.grocery-group-heading th,
+.grocery-item-card-group > h2 {
   background: var(--color-muted-surface);
   color: var(--color-text);
+}
+
+.grocery-items-table .grocery-group-heading th {
+  padding: 0;
+}
+
+.grocery-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.grocery-group-chevron {
+  flex-shrink: 0;
+}
+
+.grocery-group-toggle[aria-expanded='false'] .grocery-group-chevron {
+  transform: rotate(-90deg);
 }
 
 .grocery-requirement-details,
@@ -390,6 +419,7 @@
   }
 
   .grocery-item-card-group,
+  .grocery-group-items:not([hidden]),
   .grocery-item-card,
   .grocery-history-card {
     display: grid;
@@ -400,6 +430,10 @@
   .grocery-item-card h3,
   .grocery-history-card h2 {
     margin: 0;
+  }
+
+  .grocery-item-card-group > h2 {
+    border-radius: 6px;
   }
 
   .grocery-item-card,

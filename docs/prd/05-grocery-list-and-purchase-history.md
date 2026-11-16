@@ -311,6 +311,8 @@ All routes require authentication, DTOs, cancellation propagation and centralize
 - Replace `/grocery-list`; add `/grocery-list/history` under the existing shell. Document titles use existing conventions; preserve menu ordering and all deferred stubs.
 - Put new UI under `apps/web/src/features/grocery-list/`, with typed services, Zod boundary schemas and dedicated hooks. Reuse shared API client, errors, title-case helper, dropdowns, pagination and responsive layout.
 - Desktop grouping/list and mobile cards expose the same essential actions. Use the existing 700 px breakpoint and shared spacing; do not create a second global stylesheet or monolithic component.
+- Mobile department/group headings use the same muted background and text colour tokens as desktop group headings, with padded section headers to distinguish groups.
+- Department/group headings are keyboard-accessible accordion toggles on desktop and mobile. Start expanded and allow multiple groups open independently; preserve the open/closed state when switching between desktop and mobile layouts.
 - Fixed choices use native selects; Ingredient typeahead uses shared `LookupTypeahead`. Accessible labels, focus management, keyboard actions, and error/status announcements.
 - Default group by selected store's department and then title-cased name, with stable item-ID tie-break. Persist selected seeded store locally; no additional store-management screen.
 - Resolve current linked mappings for display. Unmapped/ad-hoc-without-mapping items show "Uncategorised"; not stocked remains explicitly visible as "Not stocked here", not silently hidden or purchased.

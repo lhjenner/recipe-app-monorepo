@@ -60,6 +60,73 @@ test('manual entry suggests Ingredients while typing and links only a chosen sug
 });
 
 test.describe('Grocery list reads', () => {
+  test('toggles departments independently and preserves expansion across desktop and mobile', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockGroceryApi(page);
+    await page.setViewportSize({ width: 1280, height: 844 });
+    await page.goto('/grocery-list');
+    await page.getByLabel('Group for store').selectOption(selectedStoreId);
+
+    const table = page.getByRole('table', { name: 'Outstanding grocery items' });
+    const produce = table.getByRole('button', { name: 'Produce', exact: true });
+    const pantry = table.getByRole('button', { name: 'Pantry', exact: true });
+    await expect(produce).toHaveAttribute('aria-expanded', 'true');
+    await expect(pantry).toHaveAttribute('aria-expanded', 'true');
+    await produce.click();
+    await expect(produce).toHaveAttribute('aria-expanded', 'false');
+    await expect(table.getByRole('row', { name: /Green Apples/ })).toHaveCount(0);
+    await expect(table.getByRole('row', { name: /Rolled Oats/ })).toBeVisible();
+    await pantry.focus();
+    await pantry.press('Enter');
+    await expect(pantry).toHaveAttribute('aria-expanded', 'false');
+    await expect(table.getByRole('row', { name: /Rolled Oats/ })).toHaveCount(0);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileProduce = page.getByRole('heading', { name: 'Produce', exact: true }).getByRole('button');
+    const mobilePantry = page.getByRole('heading', { name: 'Pantry', exact: true }).getByRole('button');
+    await expect(mobileProduce).toHaveAttribute('aria-expanded', 'false');
+    await expect(mobilePantry).toHaveAttribute('aria-expanded', 'false');
+    await mobileProduce.click();
+    await expect(page.getByRole('heading', { name: 'Green Apples', exact: true })).toBeVisible();
+    await expect(mobilePantry).toHaveAttribute('aria-expanded', 'false');
+    await mobilePantry.focus();
+    await mobilePantry.press('Space');
+    await expect(page.getByRole('heading', { name: 'Rolled Oats', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Green Apples', exact: true })).toBeVisible();
+
+    await page.setViewportSize({ width: 1280, height: 844 });
+    await expect(produce).toHaveAttribute('aria-expanded', 'true');
+    await expect(pantry).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('matches mobile department heading colours to desktop in both themes', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockGroceryApi(page);
+    await page.goto('/grocery-list');
+    await page.getByLabel('Group for store').selectOption(selectedStoreId);
+
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      await page.setViewportSize({ width: 1280, height: 844 });
+      const desktopHeading = page.getByRole('table', { name: 'Outstanding grocery items' })
+        .getByRole('row', { name: 'Produce', exact: true }).locator('th');
+      const colours = await desktopHeading.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { background: style.backgroundColor, text: style.color };
+      });
+
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        for (const name of ['Produce', 'Pantry', 'Uncategorised', 'Not stocked here']) {
+          const heading = page.getByRole('heading', { name, exact: true });
+          await expect(heading).toBeVisible();
+          await expect(heading).toHaveCSS('background-color', colours.background);
+          await expect(heading).toHaveCSS('color', colours.text);
+        }
+      }
+    }
+  });
+
   test('groups desktop items by selected-store department and persists the store', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockGroceryApi(page);

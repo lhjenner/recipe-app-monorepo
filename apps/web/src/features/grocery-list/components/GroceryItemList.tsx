@@ -1,3 +1,4 @@
+import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toTitleCase } from '../../../shared/utils/titleCase';
 import type { GroceryItem } from '../services/groceryListApi';
@@ -10,6 +11,21 @@ interface GroceryItemListProps {
 }
 
 function GroceryItemList({ groups, onEdit, onRemove }: GroceryItemListProps) {
+  const id = useId();
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+
+  function toggleGroup(name: string) {
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }
+
   if (groups.length === 0) {
     return null;
   }
@@ -29,10 +45,17 @@ function GroceryItemList({ groups, onEdit, onRemove }: GroceryItemListProps) {
           {groups.map((group) => (
             <tbody key={group.name}>
               <tr className="grocery-group-heading">
-                <th scope="rowgroup" colSpan={4}>{group.name}</th>
+                <th scope="rowgroup" colSpan={4}>
+                  <GroupToggle
+                    name={group.name}
+                    expanded={!collapsedGroups.has(group.name)}
+                    controls={group.items.map((item) => `${id}-row-${item.id}`).join(' ')}
+                    onToggle={() => toggleGroup(group.name)}
+                  />
+                </th>
               </tr>
               {group.items.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} id={`${id}-row-${item.id}`} hidden={collapsedGroups.has(group.name)}>
                   <th scope="row">{toTitleCase(item.name)}</th>
                   <td><RequirementDetails item={item} /></td>
                   <td>{formatAmount(item.outstandingPurchaseQuantity)} {item.purchaseUnit}</td>
@@ -58,33 +81,66 @@ function GroceryItemList({ groups, onEdit, onRemove }: GroceryItemListProps) {
         </table>
       </div>
       <div className="grocery-item-cards" aria-label="Outstanding grocery items">
-        {groups.map((group) => (
+        {groups.map((group, index) => (
           <section className="grocery-item-card-group" key={group.name} aria-labelledby={`group-${slug(group.name)}`}>
-            <h2 id={`group-${slug(group.name)}`}>{group.name}</h2>
-            {group.items.map((item) => (
-              <article className="grocery-item-card" key={item.id}>
-                <h3>{toTitleCase(item.name)}</h3>
-                <p><strong>To buy:</strong> {formatAmount(item.outstandingPurchaseQuantity)} {item.purchaseUnit}</p>
-                <RequirementDetails item={item} />
-                <div className="grocery-item-actions">
-                  <button className="btn btn-secondary" type="button" onClick={() => onEdit(item)}>
-                    Edit
-                  </button>
-                  <button
-                    className="btn btn-danger-secondary"
-                    type="button"
-                    aria-label={`Remove ${item.name} from Grocery List`}
-                    onClick={() => onRemove(item)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </article>
-            ))}
+            <h2 id={`group-${slug(group.name)}`}>
+              <GroupToggle
+                name={group.name}
+                expanded={!collapsedGroups.has(group.name)}
+                controls={`${id}-cards-${index}`}
+                onToggle={() => toggleGroup(group.name)}
+              />
+            </h2>
+            <div className="grocery-group-items" id={`${id}-cards-${index}`} hidden={collapsedGroups.has(group.name)}>
+              {group.items.map((item) => (
+                <article className="grocery-item-card" key={item.id}>
+                  <h3>{toTitleCase(item.name)}</h3>
+                  <p><strong>To buy:</strong> {formatAmount(item.outstandingPurchaseQuantity)} {item.purchaseUnit}</p>
+                  <RequirementDetails item={item} />
+                  <div className="grocery-item-actions">
+                    <button className="btn btn-secondary" type="button" onClick={() => onEdit(item)}>
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-danger-secondary"
+                      type="button"
+                      aria-label={`Remove ${item.name} from Grocery List`}
+                      onClick={() => onRemove(item)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
           </section>
         ))}
       </div>
     </>
+  );
+}
+
+interface GroupToggleProps {
+  name: string;
+  expanded: boolean;
+  controls: string;
+  onToggle: () => void;
+}
+
+function GroupToggle({ name, expanded, controls, onToggle }: GroupToggleProps) {
+  return (
+    <button
+      className="grocery-group-toggle"
+      type="button"
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onToggle}
+    >
+      <svg className="grocery-group-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="m3 6 5 5 5-5" />
+      </svg>
+      {name}
+    </button>
   );
 }
 
