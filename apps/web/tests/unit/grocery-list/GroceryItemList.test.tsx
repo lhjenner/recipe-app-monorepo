@@ -51,6 +51,8 @@ test.each([
         groups={[{ name: 'Uncategorised', items: [item] }]}
         onEdit={() => {}}
         onRemove={() => {}}
+        onQuantityChange={() => {}}
+        disabled={false}
       />
     </MemoryRouter>,
   );

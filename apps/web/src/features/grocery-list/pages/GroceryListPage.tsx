@@ -8,6 +8,7 @@ import GroceryItemEditDialog from '../components/GroceryItemEditDialog';
 import GroceryManualEntryModal from '../components/GroceryManualEntryModal';
 import { groupGroceryItems } from '../models/groceryGrouping';
 import { useGroceryList } from '../hooks/useGroceryList';
+import { useGroceryQuantityUpdate } from '../hooks/useGroceryQuantityUpdate';
 import {
   cancelGroceryItem,
   GroceryListApiError,
@@ -22,6 +23,7 @@ interface RemovalCommand {
 
 function GroceryListPage() {
   const grocery = useGroceryList();
+  const quantityUpdate = useGroceryQuantityUpdate(grocery);
   const supermarkets = useSupermarkets();
   const [storePreference, setStorePreference] = useState(readStorePreference);
   const [isAddingItems, setIsAddingItems] = useState(false);
@@ -110,7 +112,7 @@ function GroceryListPage() {
                 className="btn btn-primary"
                 type="button"
                 onClick={() => setIsAddingItems(true)}
-                disabled={!grocery.data || grocery.isStale}
+                disabled={!grocery.data || quantityUpdate.disabled}
               >
                 Add items
               </button>
@@ -144,6 +146,16 @@ function GroceryListPage() {
 
           {storePreference.error && <p className="grocery-inline-error" role="status">{storePreference.error}</p>}
           {mutationError && <p className="grocery-inline-error" role="alert">{mutationError}</p>}
+          {quantityUpdate.error && (
+            <p className="grocery-inline-error" role="alert">
+              {quantityUpdate.error}
+              {quantityUpdate.canRetry && (
+                <button className="btn btn-secondary" type="button" onClick={quantityUpdate.retry}>
+                  Retry quantity update
+                </button>
+              )}
+            </p>
+          )}
           {grocery.updated && <p className="grocery-update-notice" role="status">Grocery list updated.</p>}
           {grocery.lastSuccessfulAt && (
             <p className="grocery-last-check">
@@ -186,6 +198,8 @@ function GroceryListPage() {
               groups={groups}
               onEdit={setEditingItem}
               onRemove={(item) => void removeItem(item)}
+              onQuantityChange={quantityUpdate.changeQuantity}
+              disabled={quantityUpdate.disabled || isAddingItems || editingItem !== null}
             />
           )}
         </section>

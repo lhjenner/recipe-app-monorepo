@@ -3,14 +3,17 @@ import { Link } from 'react-router-dom';
 import { toTitleCase } from '../../../shared/utils/titleCase';
 import type { GroceryItem } from '../services/groceryListApi';
 import type { GroceryItemGroup } from '../models/groceryGrouping';
+import GroceryQuantityStepper from './GroceryQuantityStepper';
 
 interface GroceryItemListProps {
   groups: GroceryItemGroup[];
   onEdit: (item: GroceryItem) => void;
   onRemove: (item: GroceryItem) => void;
+  onQuantityChange: (item: GroceryItem, quantity: number) => void;
+  disabled: boolean;
 }
 
-function GroceryItemList({ groups, onEdit, onRemove }: GroceryItemListProps) {
+function GroceryItemList({ groups, onEdit, onRemove, onQuantityChange, disabled }: GroceryItemListProps) {
   const id = useId();
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
 
@@ -58,15 +61,24 @@ function GroceryItemList({ groups, onEdit, onRemove }: GroceryItemListProps) {
                 <tr key={item.id} id={`${id}-row-${item.id}`} hidden={collapsedGroups.has(group.name)}>
                   <th scope="row">{toTitleCase(item.name)}</th>
                   <td><RequirementDetails item={item} /></td>
-                  <td>{formatAmount(item.outstandingPurchaseQuantity)} {item.purchaseUnit}</td>
+                  <td>
+                    <GroceryQuantityStepper
+                      value={String(item.outstandingPurchaseQuantity)}
+                      itemName={toTitleCase(item.name)}
+                      disabled={disabled}
+                      readOnly
+                      onChange={(value) => onQuantityChange(item, Number(value))}
+                    />
+                  </td>
                   <td>
                     <div className="grocery-item-actions">
-                      <button className="btn btn-secondary" type="button" onClick={() => onEdit(item)}>
+                      <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onEdit(item)}>
                         Edit
                       </button>
                       <button
                         className="btn btn-danger-secondary"
                         type="button"
+                        disabled={disabled}
                         aria-label={`Remove ${item.name} from Grocery List`}
                         onClick={() => onRemove(item)}
                       >
@@ -95,20 +107,29 @@ function GroceryItemList({ groups, onEdit, onRemove }: GroceryItemListProps) {
               {group.items.map((item) => (
                 <article className="grocery-item-card" key={item.id}>
                   <h3>{toTitleCase(item.name)}</h3>
-                  <p><strong>To buy:</strong> {formatAmount(item.outstandingPurchaseQuantity)} {item.purchaseUnit}</p>
                   <RequirementDetails item={item} />
-                  <div className="grocery-item-actions">
-                    <button className="btn btn-secondary" type="button" onClick={() => onEdit(item)}>
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger-secondary"
-                      type="button"
-                      aria-label={`Remove ${item.name} from Grocery List`}
-                      onClick={() => onRemove(item)}
-                    >
-                      Remove
-                    </button>
+                  <div className="grocery-item-card-controls">
+                    <GroceryQuantityStepper
+                      value={String(item.outstandingPurchaseQuantity)}
+                      itemName={toTitleCase(item.name)}
+                      disabled={disabled}
+                      readOnly
+                      onChange={(value) => onQuantityChange(item, Number(value))}
+                    />
+                    <div className="grocery-item-actions">
+                      <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onEdit(item)}>
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger-secondary"
+                        type="button"
+                        disabled={disabled}
+                        aria-label={`Remove ${item.name} from Grocery List`}
+                        onClick={() => onRemove(item)}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 </article>
               ))}

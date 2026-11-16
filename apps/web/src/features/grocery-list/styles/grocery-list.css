@@ -111,7 +111,8 @@
 }
 
 .grocery-form-field input,
-.grocery-form-field select {
+.grocery-form-field select,
+.grocery-quantity-stepper input {
   min-height: 42px;
   width: 100%;
   padding: 8px 12px;
@@ -144,6 +145,20 @@
 
 .grocery-quantity-stepper .btn {
   padding: 8px;
+}
+
+.grocery-items-table .grocery-quantity-stepper,
+.grocery-item-card .grocery-quantity-stepper {
+  width: 160px;
+  max-width: 100%;
+}
+
+.grocery-item-card-controls {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .grocery-quantity-stepper input {
@@ -404,6 +419,35 @@
     min-width: 0;
   }
 
+  .grocery-item-card-controls {
+    gap: 6px;
+  }
+
+  .grocery-item-card-controls .grocery-quantity-stepper {
+    width: 132px;
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+  }
+
+  .grocery-item-card-controls .btn,
+  .grocery-item-card-controls .grocery-quantity-stepper input {
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .grocery-item-card-controls .grocery-item-actions {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .grocery-item-card-controls .btn {
+    padding: 8px 6px;
+    font-size: var(--font-size-sm);
+  }
+
+  .grocery-item-card-controls .grocery-item-actions .btn-secondary {
+    min-width: 40px;
+  }
+
   .grocery-items-table-wrap,
   .grocery-history-table-wrap {
     display: none;
@@ -460,5 +504,19 @@
 
   .grocery-history-card dd {
     margin: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .grocery-item-card {
+    padding-inline: 4px;
+  }
+
+  .grocery-item-card-controls {
+    gap: 4px;
+  }
+
+  .grocery-item-card-controls .grocery-item-actions .btn {
+    padding-inline: 3px;
   }
 }
