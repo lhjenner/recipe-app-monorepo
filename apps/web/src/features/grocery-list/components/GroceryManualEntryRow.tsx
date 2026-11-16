@@ -45,6 +45,8 @@ function GroceryManualEntryRow({
   const ingredientId = useId();
   const categoryId = useId();
   const ingredientOptions = useGroceryIngredientOptions(value.name);
+  const quantity = Number(value.purchaseQuantity);
+  const canStepQuantity = Number.isInteger(quantity) && quantity >= 1 && quantity <= 9999;
 
   function update(changes: Partial<GroceryManualEntryDraft>) {
     onChange({ ...value, ...changes });
@@ -109,30 +111,52 @@ function GroceryManualEntryRow({
           </button>
         </p>
       )}
-      <label className="grocery-form-field" htmlFor={quantityId}>
-        <span>Quantity</span>
-        <input
-          id={quantityId}
-          type="number"
-          inputMode="numeric"
-          min="1"
-          max="9999"
-          step="1"
-          value={value.purchaseQuantity}
-          disabled={disabled}
-          onChange={(event) => update({ purchaseQuantity: event.currentTarget.value })}
-        />
-      </label>
-      <label className="grocery-form-field" htmlFor={noteId}>
-        <span>Note (optional)</span>
-        <input
-          id={noteId}
-          value={value.note}
-          maxLength={250}
-          disabled={disabled}
-          onChange={(event) => update({ note: event.currentTarget.value })}
-        />
-      </label>
+      <div className="grocery-entry-quantity-note">
+        <div className="grocery-form-field">
+          <label htmlFor={quantityId}>Quantity</label>
+          <div className="grocery-quantity-stepper">
+            <button
+              className="btn btn-secondary"
+              type="button"
+              aria-label="Decrease quantity"
+              disabled={disabled || !canStepQuantity || quantity <= 1}
+              onClick={() => update({ purchaseQuantity: String(quantity - 1) })}
+            >
+              -
+            </button>
+            <input
+              id={quantityId}
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max="9999"
+              step="1"
+              value={value.purchaseQuantity}
+              disabled={disabled}
+              onChange={(event) => update({ purchaseQuantity: event.currentTarget.value })}
+            />
+            <button
+              className="btn btn-secondary"
+              type="button"
+              aria-label="Increase quantity"
+              disabled={disabled || !canStepQuantity || quantity >= 9999}
+              onClick={() => update({ purchaseQuantity: String(quantity + 1) })}
+            >
+              +
+            </button>
+          </div>
+        </div>
+        <label className="grocery-form-field" htmlFor={noteId}>
+          <span>Note (optional)</span>
+          <input
+            id={noteId}
+            value={value.note}
+            maxLength={250}
+            disabled={disabled}
+            onChange={(event) => update({ note: event.currentTarget.value })}
+          />
+        </label>
+      </div>
       {!value.ingredientId && (
         <label className="grocery-checkbox">
           <input

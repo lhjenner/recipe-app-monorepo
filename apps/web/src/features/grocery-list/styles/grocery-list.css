@@ -129,6 +129,37 @@
   min-height: 42px;
 }
 
+.grocery-entry-quantity-note {
+  display: grid;
+  grid-template-columns: clamp(140px, 30vw, 180px) minmax(0, 1fr);
+  align-items: end;
+  gap: 14px;
+}
+
+.grocery-quantity-stepper {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 4px;
+}
+
+.grocery-quantity-stepper .btn {
+  padding: 8px;
+}
+
+.grocery-quantity-stepper input {
+  min-width: 0;
+  padding-inline: 4px;
+  text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.grocery-quantity-stepper input::-webkit-inner-spin-button,
+.grocery-quantity-stepper input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
 .grocery-checkbox input {
   width: 18px;
   height: 18px;
