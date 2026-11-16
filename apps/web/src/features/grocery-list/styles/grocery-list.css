@@ -175,11 +175,29 @@
   gap: 8px;
 }
 
+.grocery-entry-name {
+  position: relative;
+}
+
+.grocery-entry-name .ingredient-lookup-field {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.grocery-entry-name.is-linked .combobox-input {
+  padding-right: 72px;
+}
+
 .grocery-linked-ingredient {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
+  position: absolute;
+  right: 40px;
+  bottom: 11px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-brand-highlight);
+  color: var(--color-primary);
 }
 
 .grocery-store-select {
@@ -262,6 +280,10 @@
   padding: 12px;
   border-bottom: 1px solid var(--color-border-subtle);
   vertical-align: top;
+}
+
+.grocery-items-table > tbody:last-child > tr:last-child > :is(th, td) {
+  border-bottom: 0;
 }
 
 .grocery-items-table thead th,

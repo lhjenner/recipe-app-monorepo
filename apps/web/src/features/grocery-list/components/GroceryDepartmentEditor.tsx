@@ -1,3 +1,4 @@
+import { toTitleCase } from '../../../shared/utils/titleCase';
 import type { LookupValue } from '../../ingredients/services/ingredientsApi';
 
 interface GroceryDepartmentEditorProps {
@@ -38,7 +39,7 @@ function GroceryDepartmentEditor({
         >
           <option value="">Uncategorised</option>
           {departments.map((department) => (
-            <option value={department.id} key={department.id}>{department.name}</option>
+            <option value={department.id} key={department.id}>{toTitleCase(department.name)}</option>
           ))}
         </select>
       </label>

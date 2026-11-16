@@ -54,40 +54,41 @@ function GroceryManualEntryRow({
   return (
     <fieldset className="grocery-entry-row">
       <legend>Item {index + 1}</legend>
-      <div className="grocery-form-field">
-        <LookupTypeahead
-          label="Name"
-          accessibleLabel="Name"
-          options={ingredientOptions.items}
-          value={value.name}
-          selectedId={value.ingredientId}
-          maxLength={200}
-          disabled={disabled}
-          onChange={(ingredientId, name) => update({
-            name,
-            ingredientId,
-            ...(ingredientId ? {
-              saveAsIngredient: false,
-              categoryId: '',
-              storeDepartments: {},
-            } : {}),
-          })}
-        />
+      <div className={`grocery-entry-name${value.ingredientId ? ' is-linked' : ''}`}>
+        <div className="grocery-form-field">
+          <LookupTypeahead
+            label="Name"
+            accessibleLabel="Name"
+            options={ingredientOptions.items}
+            value={value.name}
+            selectedId={value.ingredientId}
+            maxLength={200}
+            disabled={disabled}
+            onChange={(ingredientId, name) => update({
+              name,
+              ingredientId,
+              ...(ingredientId ? {
+                saveAsIngredient: false,
+                categoryId: '',
+                storeDepartments: {},
+              } : {}),
+            })}
+          />
+        </div>
+        {value.ingredientId && (
+          <span
+            className="grocery-linked-ingredient"
+            role="img"
+            aria-label="Linked to existing Ingredient"
+            title="Linked to existing Ingredient"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+              <path d="m5 12 4 4L19 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        )}
       </div>
       {ingredientOptions.error && <p className="grocery-inline-error" role="alert">{ingredientOptions.error}</p>}
-      {value.ingredientId && (
-        <p className="grocery-linked-ingredient" role="status">
-          Linked to an existing Ingredient.
-          <button
-            className="btn btn-secondary"
-            type="button"
-            disabled={disabled}
-            onClick={() => update({ ingredientId: null })}
-          >
-            Use as an ad-hoc item
-          </button>
-        </p>
-      )}
       <div className="grocery-entry-quantity-note">
         <div className="grocery-form-field">
           <label htmlFor={quantityId}>Quantity</label>

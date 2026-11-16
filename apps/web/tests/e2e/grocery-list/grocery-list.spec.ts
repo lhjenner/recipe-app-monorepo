@@ -27,19 +27,50 @@ test('manual entry suggests Ingredients while typing and links only a chosen sug
   await dialog.getByRole('option', { name: 'Crumpets', exact: true }).click();
   await expect(name).toHaveValue('Crumpets');
   await expect(dialog.getByRole('listbox')).toHaveCount(0);
-  await expect(dialog.getByRole('status')).toContainText('Linked to an existing Ingredient.');
+  const badge = dialog.getByRole('img', { name: 'Linked to existing Ingredient' });
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveAttribute('title', 'Linked to existing Ingredient');
+  await expect(badge).toHaveCSS('border-radius', '50%');
+  await expect(dialog.getByRole('button', { name: 'Use as an ad-hoc item' })).toHaveCount(0);
+
+  for (const width of [320, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const nameBox = await name.boundingBox();
+    const badgeBox = await badge.boundingBox();
+    const arrowBox = await dialog.getByRole('button', { name: 'Show Name options' }).boundingBox();
+    expect(nameBox).not.toBeNull();
+    expect(badgeBox).not.toBeNull();
+    expect(arrowBox).not.toBeNull();
+    expect(badgeBox!.x).toBeGreaterThan(nameBox!.x);
+    expect(badgeBox!.y).toBeGreaterThan(nameBox!.y);
+    expect(badgeBox!.y + badgeBox!.height).toBeLessThan(nameBox!.y + nameBox!.height);
+    expect(badgeBox!.x + badgeBox!.width).toBeLessThanOrEqual(arrowBox!.x);
+    expect(badgeBox!.width).toBeLessThanOrEqual(24);
+    expect(badgeBox!.height).toBe(badgeBox!.width);
+  }
 
   await name.fill('crumpets');
   await dialog.getByRole('spinbutton', { name: 'Quantity' }).focus();
   await expect(name).toHaveValue('Crumpets');
-  await expect(dialog.getByRole('status')).toHaveCount(0);
+  await expect(badge).toHaveCount(0);
   await expect(dialog.getByRole('checkbox', { name: 'Save to master Ingredient list' })).toBeVisible();
+  await name.fill('crum');
+  await dialog.getByRole('option', { name: 'Crumpets', exact: true }).click();
+  await expect(badge).toBeVisible();
 });
 
 test.describe('Grocery list reads', () => {
   test('groups desktop items by selected-store department and persists the store', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockGroceryApi(page);
+    await page.route('**/api/grocery-list', (route) => route.fulfill({
+      json: {
+        ...groceryList,
+        items: groceryList.items.map((item, index) => index === 0
+          ? { ...item, note: 'A shopping note that wraps over several lines in the requirements column. '.repeat(3) }
+          : item),
+      },
+    }));
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/grocery-list');
 
@@ -51,6 +82,15 @@ test.describe('Grocery list reads', () => {
     await expect(table.getByText('Not stocked here', { exact: true })).toBeVisible();
     await expect(table.getByText('Pantry', { exact: true })).toBeVisible();
     await expect(table.getByRole('row', { name: /Green Apples/ })).toBeVisible();
+    const itemRow = table.getByRole('row', { name: /Green Apples/ });
+    const rowBox = await itemRow.boundingBox();
+    const actionBox = await itemRow.getByRole('cell').last().boundingBox();
+    expect(rowBox).not.toBeNull();
+    expect(actionBox).not.toBeNull();
+    expect(Math.abs(actionBox!.y + actionBox!.height - rowBox!.y - rowBox!.height)).toBeLessThanOrEqual(1);
+    for (const cell of await table.locator('tbody:last-child > tr:last-child > *').all()) {
+      await expect(cell).toHaveCSS('border-bottom-width', '0px');
+    }
     await page.reload();
     await expect(page.getByLabel('Group for store')).toHaveValue(selectedStoreId);
   });

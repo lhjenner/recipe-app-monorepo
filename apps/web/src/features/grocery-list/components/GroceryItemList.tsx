@@ -36,18 +36,20 @@ function GroceryItemList({ groups, onEdit, onRemove }: GroceryItemListProps) {
                   <th scope="row">{toTitleCase(item.name)}</th>
                   <td><RequirementDetails item={item} /></td>
                   <td>{formatAmount(item.outstandingPurchaseQuantity)} {item.purchaseUnit}</td>
-                  <td className="grocery-item-actions">
-                    <button className="btn btn-secondary" type="button" onClick={() => onEdit(item)}>
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger-secondary"
-                      type="button"
-                      aria-label={`Remove ${item.name} from Grocery List`}
-                      onClick={() => onRemove(item)}
-                    >
-                      Remove
-                    </button>
+                  <td>
+                    <div className="grocery-item-actions">
+                      <button className="btn btn-secondary" type="button" onClick={() => onEdit(item)}>
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger-secondary"
+                        type="button"
+                        aria-label={`Remove ${item.name} from Grocery List`}
+                        onClick={() => onRemove(item)}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -154,7 +154,10 @@ test('selects an Ingredient suggestion without creating a master Ingredient', as
   fireEvent.click(screen.getByRole('option', { name: 'Crumpets' }));
   expect(name).toHaveValue('Crumpets');
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-  expect(screen.getByRole('status')).toHaveTextContent('Linked to an existing Ingredient.');
+  expect(screen.getByRole('img', { name: 'Linked to existing Ingredient' }))
+    .toHaveAttribute('title', 'Linked to existing Ingredient');
+  expect(screen.queryByRole('button', { name: 'Use as an ad-hoc item' })).not.toBeInTheDocument();
+  expect(screen.queryByText('Linked to an existing Ingredient.')).not.toBeInTheDocument();
   fireEvent.blur(name);
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
   await waitFor(() => expect(mocks.addGroceryItems).toHaveBeenCalledTimes(1));
@@ -163,7 +166,7 @@ test('selects an Ingredient suggestion without creating a master Ingredient', as
   });
 });
 
-test.each(['typed', 'edited', 'unlinked'])('keeps an exact %s name ad-hoc until explicitly selected', async (mode) => {
+test.each(['typed', 'edited'])('keeps an exact %s name ad-hoc until explicitly selected', async (mode) => {
   mocks.useGroceryIngredientOptions.mockReturnValue({
     items: [{ id: 'crumpets', name: 'crumpets' }], error: null,
   });
@@ -172,17 +175,14 @@ test.each(['typed', 'edited', 'unlinked'])('keeps an exact %s name ad-hoc until 
   );
   const name = screen.getByRole('combobox', { name: 'Name' });
   fireEvent.change(name, { target: { value: 'crumpets' } });
-  if (mode !== 'typed') {
+  if (mode === 'edited') {
     fireEvent.click(screen.getByRole('option', { name: 'Crumpets' }));
-    if (mode === 'edited') {
-      fireEvent.change(name, { target: { value: 'crumpets' } });
-    } else {
-      fireEvent.click(screen.getByRole('button', { name: 'Use as an ad-hoc item' }));
-    }
+    expect(screen.getByRole('img', { name: 'Linked to existing Ingredient' })).toBeVisible();
+    fireEvent.change(name, { target: { value: 'crumpets' } });
   }
   fireEvent.blur(name);
   expect(name).toHaveValue('Crumpets');
-  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(screen.queryByRole('img', { name: 'Linked to existing Ingredient' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
   await waitFor(() => expect(mocks.addGroceryItems).toHaveBeenCalledTimes(1));
   expect(mocks.addGroceryItems.mock.calls[0][0].items[0].ingredientId).toBeNull();
@@ -203,6 +203,6 @@ test('dismisses suggestions with Escape and selects them using arrows and Enter'
   fireEvent.keyDown(name, { key: 'ArrowDown' });
   fireEvent.keyDown(name, { key: 'Enter' });
   expect(name).toHaveValue('Crumpets');
-  expect(screen.getByRole('status')).toHaveTextContent('Linked to an existing Ingredient.');
+  expect(screen.getByRole('img', { name: 'Linked to existing Ingredient' })).toBeVisible();
   expect(mocks.addGroceryItems).not.toHaveBeenCalled();
 });
