@@ -113,3 +113,96 @@ test('disables quantity buttons while saving', async () => {
   finishSaving();
   await waitFor(() => expect(screen.getByRole('button', { name: 'Increase quantity' })).toBeEnabled());
 });
+
+test('opens matching suggestions as results arrive and narrows them while typing', () => {
+  const props = { expectedListVersion: 3, onClose: vi.fn(), onAdded: vi.fn() };
+  const { rerender } = render(<GroceryManualEntryModal {...props} />);
+  const name = screen.getByRole('combobox', { name: 'Name' });
+  fireEvent.change(name, { target: { value: 'cru' } });
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+  mocks.useGroceryIngredientOptions.mockReturnValue({
+    items: [{ id: 'crumpets', name: 'crumpets' }, { id: 'chilli', name: 'crushed chilli' }],
+    error: null,
+  });
+  rerender(<GroceryManualEntryModal {...props} />);
+  expect(screen.getByRole('option', { name: 'Crumpets' })).toBeVisible();
+  expect(screen.getByRole('option', { name: 'Crushed Chilli' })).toBeVisible();
+  expect(name).toHaveAttribute('aria-expanded', 'true');
+  expect(name).toHaveAttribute('maxlength', '200');
+  expect(screen.queryByText('Link an existing Ingredient (optional)')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Create / })).not.toBeInTheDocument();
+
+  fireEvent.change(name, { target: { value: 'crum' } });
+  expect(screen.getByRole('option', { name: 'Crumpets' })).toBeVisible();
+  expect(screen.queryByRole('option', { name: 'Crushed Chilli' })).not.toBeInTheDocument();
+  expect(name).toHaveValue('crum');
+  fireEvent.change(name, { target: { value: 'unmatched item' } });
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+});
+
+test('selects an Ingredient suggestion without creating a master Ingredient', async () => {
+  mocks.useGroceryIngredientOptions.mockReturnValue({
+    items: [{ id: 'crumpets', name: 'crumpets' }], error: null,
+  });
+  render(
+    <GroceryManualEntryModal expectedListVersion={3} onClose={vi.fn()} onAdded={vi.fn()} />,
+  );
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Save to master Ingredient list' }));
+  const name = screen.getByRole('combobox', { name: 'Name' });
+  fireEvent.change(name, { target: { value: 'cru' } });
+  fireEvent.click(screen.getByRole('option', { name: 'Crumpets' }));
+  expect(name).toHaveValue('Crumpets');
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('Linked to an existing Ingredient.');
+  fireEvent.blur(name);
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  await waitFor(() => expect(mocks.addGroceryItems).toHaveBeenCalledTimes(1));
+  expect(mocks.addGroceryItems.mock.calls[0][0].items[0]).toMatchObject({
+    name: 'Crumpets', ingredientId: 'crumpets', saveAsIngredient: false,
+  });
+});
+
+test.each(['typed', 'edited', 'unlinked'])('keeps an exact %s name ad-hoc until explicitly selected', async (mode) => {
+  mocks.useGroceryIngredientOptions.mockReturnValue({
+    items: [{ id: 'crumpets', name: 'crumpets' }], error: null,
+  });
+  render(
+    <GroceryManualEntryModal expectedListVersion={3} onClose={vi.fn()} onAdded={vi.fn()} />,
+  );
+  const name = screen.getByRole('combobox', { name: 'Name' });
+  fireEvent.change(name, { target: { value: 'crumpets' } });
+  if (mode !== 'typed') {
+    fireEvent.click(screen.getByRole('option', { name: 'Crumpets' }));
+    if (mode === 'edited') {
+      fireEvent.change(name, { target: { value: 'crumpets' } });
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: 'Use as an ad-hoc item' }));
+    }
+  }
+  fireEvent.blur(name);
+  expect(name).toHaveValue('Crumpets');
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  await waitFor(() => expect(mocks.addGroceryItems).toHaveBeenCalledTimes(1));
+  expect(mocks.addGroceryItems.mock.calls[0][0].items[0].ingredientId).toBeNull();
+});
+
+test('dismisses suggestions with Escape and selects them using arrows and Enter', () => {
+  mocks.useGroceryIngredientOptions.mockReturnValue({
+    items: [{ id: 'crumpets', name: 'crumpets' }], error: null,
+  });
+  render(
+    <GroceryManualEntryModal expectedListVersion={3} onClose={vi.fn()} onAdded={vi.fn()} />,
+  );
+  const name = screen.getByRole('combobox', { name: 'Name' });
+  fireEvent.change(name, { target: { value: 'cru' } });
+  fireEvent.keyDown(name, { key: 'Escape' });
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  fireEvent.keyDown(name, { key: 'ArrowDown' });
+  fireEvent.keyDown(name, { key: 'ArrowDown' });
+  fireEvent.keyDown(name, { key: 'Enter' });
+  expect(name).toHaveValue('Crumpets');
+  expect(screen.getByRole('status')).toHaveTextContent('Linked to an existing Ingredient.');
+  expect(mocks.addGroceryItems).not.toHaveBeenCalled();
+});

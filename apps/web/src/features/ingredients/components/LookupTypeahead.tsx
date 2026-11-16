@@ -7,9 +7,12 @@ interface LookupTypeaheadProps {
   accessibleLabel: string;
   options: LookupValue[];
   value: string;
+  // When controlled, only choosing an option selects it; typing clears the selection.
+  selectedId?: string | null;
+  maxLength?: number;
   disabled?: boolean;
   onChange: (id: string | null, name: string) => void;
-  onCreate: (name: string) => Promise<LookupValue>;
+  onCreate?: (name: string) => Promise<LookupValue>;
 }
 
 function normalize(value: string) {
@@ -21,6 +24,8 @@ function LookupTypeahead({
   accessibleLabel,
   options,
   value,
+  selectedId,
+  maxLength,
   disabled = false,
   onChange,
   onCreate,
@@ -34,7 +39,9 @@ function LookupTypeahead({
   const [showAll, setShowAll] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const query = normalize(value);
-  const selected = options.find((option) => normalize(option.name) === query);
+  const selected = options.find((option) => selectedId === undefined
+    ? normalize(option.name) === query
+    : option.id === selectedId);
   const visibleOptions = showAll || !query
     ? options
     : options.filter((option) => normalize(option.name).includes(query));
@@ -80,6 +87,9 @@ function LookupTypeahead({
   }
 
   async function createOption() {
+    if (!onCreate) {
+      return;
+    }
     setIsCreating(true);
     setError(null);
     try {
@@ -110,6 +120,7 @@ function LookupTypeahead({
             autoComplete="off"
             disabled={disabled}
             value={value}
+            maxLength={maxLength}
             onClick={() => {
               if (!isOpen) {
                 open();
@@ -118,7 +129,9 @@ function LookupTypeahead({
             onKeyDown={onKeyDown}
             onChange={(event) => {
               const nextValue = event.currentTarget.value;
-              const match = options.find((option) => normalize(option.name) === normalize(nextValue));
+              const match = selectedId === undefined
+                ? options.find((option) => normalize(option.name) === normalize(nextValue))
+                : undefined;
               onChange(match?.id ?? null, nextValue);
               setShowAll(false);
               setActiveIndex(-1);
@@ -168,7 +181,7 @@ function LookupTypeahead({
           )}
         </div>
       </div>
-      {!disabled && !selected && value.trim() && (
+      {onCreate && !disabled && !selected && value.trim() && (
         <button type="button" onClick={() => void createOption()} disabled={isCreating}>
           {isCreating ? 'Creating…' : `Create '${value.trim()}'`}
         </button>

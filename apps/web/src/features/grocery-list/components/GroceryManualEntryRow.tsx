@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { toTitleCase } from '../../../shared/utils/titleCase';
+import LookupTypeahead from '../../ingredients/components/LookupTypeahead';
 import type {
   LookupValue,
   SupermarketChain,
@@ -39,10 +40,8 @@ function GroceryManualEntryRow({
   onRemove,
   canRemove,
 }: GroceryManualEntryRowProps) {
-  const nameId = useId();
   const quantityId = useId();
   const noteId = useId();
-  const ingredientId = useId();
   const categoryId = useId();
   const ingredientOptions = useGroceryIngredientOptions(value.name);
   const quantity = Number(value.purchaseQuantity);
@@ -55,48 +54,26 @@ function GroceryManualEntryRow({
   return (
     <fieldset className="grocery-entry-row">
       <legend>Item {index + 1}</legend>
-      <label className="grocery-form-field" htmlFor={nameId}>
-        <span>Name</span>
-        <input
-          id={nameId}
+      <div className="grocery-form-field">
+        <LookupTypeahead
+          label="Name"
+          accessibleLabel="Name"
+          options={ingredientOptions.items}
           value={value.name}
+          selectedId={value.ingredientId}
           maxLength={200}
-          autoComplete="off"
           disabled={disabled}
-          onChange={(event) => update({ name: event.currentTarget.value, ingredientId: null })}
-          onBlur={() => {
-            const name = toTitleCase(value.name);
-            if (name !== value.name) {
-              update({ name });
-            }
-          }}
+          onChange={(ingredientId, name) => update({
+            name,
+            ingredientId,
+            ...(ingredientId ? {
+              saveAsIngredient: false,
+              categoryId: '',
+              storeDepartments: {},
+            } : {}),
+          })}
         />
-      </label>
-      {ingredientOptions.items.length > 0 && (
-        <label className="grocery-form-field" htmlFor={ingredientId}>
-          <span>Link an existing Ingredient (optional)</span>
-          <select
-            id={ingredientId}
-            value={value.ingredientId ?? ''}
-            disabled={disabled}
-            onChange={(event) => {
-              const selected = ingredientOptions.items.find((item) => item.id === event.currentTarget.value);
-              update({
-                ingredientId: selected?.id ?? null,
-                name: selected?.name ?? value.name,
-                saveAsIngredient: false,
-                categoryId: '',
-                storeDepartments: {},
-              });
-            }}
-          >
-            <option value="">Keep as a separate grocery item</option>
-            {ingredientOptions.items.map((ingredient) => (
-              <option value={ingredient.id} key={ingredient.id}>{toTitleCase(ingredient.name)}</option>
-            ))}
-          </select>
-        </label>
-      )}
+      </div>
       {ingredientOptions.error && <p className="grocery-inline-error" role="alert">{ingredientOptions.error}</p>}
       {value.ingredientId && (
         <p className="grocery-linked-ingredient" role="status">

@@ -1,6 +1,40 @@
 import { expect, test } from '@playwright/test';
 import { mockAuthApi } from '../support/mockAuthApi.ts';
 import { groceryList, mockGroceryApi, selectedStoreId } from '../support/mockGroceryApi.ts';
+import { ingredient, mockIngredientApi } from '../support/mockIngredientListApi.ts';
+
+test('manual entry suggests Ingredients while typing and links only a chosen suggestion', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  const searches = await mockIngredientApi(page, [
+    ingredient('crumpets'), ingredient('crushed chilli'),
+  ]);
+  for (const lookup of ['categories', 'departments']) {
+    await page.route(`**/api/${lookup}`, (route) => route.fulfill({ json: [] }));
+  }
+  await page.goto('/grocery-list');
+  await page.getByRole('button', { name: 'Add items', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add items to Grocery List' });
+  const name = dialog.getByRole('combobox', { name: 'Name', exact: true });
+  await name.fill('cru');
+  await expect(dialog.getByRole('option')).toHaveText(['Crumpets', 'Crushed Chilli']);
+  await expect(dialog.getByRole('button', { name: /^Create / })).toHaveCount(0);
+
+  await name.fill('crum');
+  await expect(dialog.getByRole('option')).toHaveText(['Crumpets']);
+  await expect.poll(() => searches.some((search) =>
+    new URLSearchParams(search).get('search') === 'crum')).toBe(true);
+  await dialog.getByRole('option', { name: 'Crumpets', exact: true }).click();
+  await expect(name).toHaveValue('Crumpets');
+  await expect(dialog.getByRole('listbox')).toHaveCount(0);
+  await expect(dialog.getByRole('status')).toContainText('Linked to an existing Ingredient.');
+
+  await name.fill('crumpets');
+  await dialog.getByRole('spinbutton', { name: 'Quantity' }).focus();
+  await expect(name).toHaveValue('Crumpets');
+  await expect(dialog.getByRole('status')).toHaveCount(0);
+  await expect(dialog.getByRole('checkbox', { name: 'Save to master Ingredient list' })).toBeVisible();
+});
 
 test.describe('Grocery list reads', () => {
   test('groups desktop items by selected-store department and persists the store', async ({ page }) => {
