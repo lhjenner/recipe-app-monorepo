@@ -5,9 +5,11 @@ import type { GroceryItemGroup } from '../models/groceryGrouping';
 
 interface GroceryItemListProps {
   groups: GroceryItemGroup[];
+  onEdit: (item: GroceryItem) => void;
+  onRemove: (item: GroceryItem) => void;
 }
 
-function GroceryItemList({ groups }: GroceryItemListProps) {
+function GroceryItemList({ groups, onEdit, onRemove }: GroceryItemListProps) {
   if (groups.length === 0) {
     return null;
   }
@@ -21,18 +23,32 @@ function GroceryItemList({ groups }: GroceryItemListProps) {
               <th scope="col">Item</th>
               <th scope="col">Requirements and sources</th>
               <th scope="col">To buy</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           {groups.map((group) => (
             <tbody key={group.name}>
               <tr className="grocery-group-heading">
-                <th scope="rowgroup" colSpan={3}>{group.name}</th>
+                <th scope="rowgroup" colSpan={4}>{group.name}</th>
               </tr>
               {group.items.map((item) => (
                 <tr key={item.id}>
                   <th scope="row">{toTitleCase(item.name)}</th>
                   <td><RequirementDetails item={item} /></td>
                   <td>{formatAmount(item.outstandingPurchaseQuantity)} {item.purchaseUnit}</td>
+                  <td className="grocery-item-actions">
+                    <button className="btn btn-secondary" type="button" onClick={() => onEdit(item)}>
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-danger-secondary"
+                      type="button"
+                      aria-label={`Remove ${item.name} from Grocery List`}
+                      onClick={() => onRemove(item)}
+                    >
+                      Remove
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -48,6 +64,19 @@ function GroceryItemList({ groups }: GroceryItemListProps) {
                 <h3>{toTitleCase(item.name)}</h3>
                 <p><strong>To buy:</strong> {formatAmount(item.outstandingPurchaseQuantity)} {item.purchaseUnit}</p>
                 <RequirementDetails item={item} />
+                <div className="grocery-item-actions">
+                  <button className="btn btn-secondary" type="button" onClick={() => onEdit(item)}>
+                    Edit
+                  </button>
+                  <button
+                    className="btn btn-danger-secondary"
+                    type="button"
+                    aria-label={`Remove ${item.name} from Grocery List`}
+                    onClick={() => onRemove(item)}
+                  >
+                    Remove
+                  </button>
+                </div>
               </article>
             ))}
           </section>

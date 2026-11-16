@@ -12,15 +12,16 @@ export const groceryList: GroceryList = {
   completedItemCount: 0,
   items: [
     groceryItem('00000000-0000-7000-8000-000000000301', 'green apples', ingredientId, [
-      { storeId: selectedStoreId, state: 'mapped', departmentName: 'produce' },
+      { storeId: selectedStoreId, state: 'mapped', departmentId: null, departmentName: 'produce' },
     ]),
     groceryItem('00000000-0000-7000-8000-000000000302', 'kale', ingredientId, [
-      { storeId: selectedStoreId, state: 'notStocked', departmentName: null },
+      { storeId: selectedStoreId, state: 'notStocked', departmentId: null, departmentName: null },
     ]),
     groceryItem('00000000-0000-7000-8000-000000000303', 'table salt'),
     {
       ...groceryItem('00000000-0000-7000-8000-000000000304', 'rolled oats'),
       adHocStoreId: selectedStoreId,
+      adHocDepartmentId: null,
       adHocDepartmentName: 'pantry',
     },
   ],
@@ -80,7 +81,9 @@ function groceryItem(
     requirementUnit: null,
     outstandingPurchaseQuantity: 2,
     purchaseUnit: 'item',
+    ingredientVersion: linkedIngredientId ? 1 : null,
     adHocStoreId: null,
+    adHocDepartmentId: null,
     adHocDepartmentName: null,
     storeMappings,
     contributions: [],

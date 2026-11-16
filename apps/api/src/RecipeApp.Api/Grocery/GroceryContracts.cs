@@ -18,7 +18,9 @@ public sealed record GroceryItemResponse(
     string? RequirementUnit,
     decimal OutstandingPurchaseQuantity,
     string PurchaseUnit,
+    uint? IngredientVersion,
     Guid? AdHocStoreId,
+    Guid? AdHocDepartmentId,
     string? AdHocDepartmentName,
     IReadOnlyList<GroceryStoreMappingResponse> StoreMappings,
     IReadOnlyList<GroceryContributionResponse> Contributions);
@@ -26,6 +28,7 @@ public sealed record GroceryItemResponse(
 public sealed record GroceryStoreMappingResponse(
     Guid StoreId,
     string State,
+    Guid? DepartmentId,
     string? DepartmentName);
 
 public sealed record GroceryContributionResponse(

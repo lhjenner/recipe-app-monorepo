@@ -1,18 +1,33 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageTitle from '../../../shared/components/PageTitle';
 import { useSupermarkets } from '../../ingredients/hooks/useSupermarkets';
 import type { SupermarketStore } from '../../ingredients/services/ingredientsApi';
 import GroceryItemList from '../components/GroceryItemList';
+import GroceryItemEditDialog from '../components/GroceryItemEditDialog';
+import GroceryManualEntryModal from '../components/GroceryManualEntryModal';
 import { groupGroceryItems } from '../models/groceryGrouping';
 import { useGroceryList } from '../hooks/useGroceryList';
+import {
+  cancelGroceryItem,
+  GroceryListApiError,
+  type GroceryItem,
+} from '../services/groceryListApi';
 
 const STORE_PREFERENCE_KEY = 'recipe-app:grocery-list:selected-store';
+interface RemovalCommand {
+  commandId: string;
+  expectedListVersion: number;
+}
 
 function GroceryListPage() {
   const grocery = useGroceryList();
   const supermarkets = useSupermarkets();
   const [storePreference, setStorePreference] = useState(readStorePreference);
+  const [isAddingItems, setIsAddingItems] = useState(false);
+  const [editingItem, setEditingItem] = useState<GroceryItem | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const removalCommands = useRef(new Map<string, RemovalCommand>());
   const stores = useMemo(
     () => supermarkets.data?.flatMap((chain) => chain.stores) ?? [],
     [supermarkets.data],
@@ -43,7 +58,42 @@ function GroceryListPage() {
     }
   }
 
+  async function removeItem(item: GroceryItem) {
+    if (!grocery.data) {
+      return;
+    }
+
+    setMutationError(null);
+    const previousCommand = removalCommands.current.get(item.id);
+    const command = previousCommand
+      ?? { commandId: crypto.randomUUID(), expectedListVersion: grocery.data.version };
+    removalCommands.current.set(item.id, command);
+    try {
+      await cancelGroceryItem(item.id, command.commandId, command.expectedListVersion);
+      removalCommands.current.delete(item.id);
+      grocery.reload();
+    } catch (requestError: unknown) {
+      if (requestError instanceof GroceryListApiError
+        && requestError.status >= 400
+        && requestError.status < 500) {
+        removalCommands.current.delete(item.id);
+        if (requestError.status === 404 || requestError.status === 409) {
+          grocery.reload();
+        }
+      }
+
+      setMutationError(requestError instanceof GroceryListApiError
+        ? requestError.message
+        : requestError instanceof Error
+          ? requestError.message
+          : 'Unable to remove this grocery item.');
+    }
+  }
+
   const outstandingItems = grocery.data?.items.filter((item) => item.state === 'outstanding') ?? [];
+  const currentEditingItem = editingItem
+    ? grocery.data?.items.find((item) => item.id === editingItem.id) ?? editingItem
+    : null;
 
   return (
     <>
@@ -55,7 +105,17 @@ function GroceryListPage() {
               <h1 id="grocery-list-heading">Grocery List</h1>
               <p>Outstanding items are grouped by their selected store and department.</p>
             </div>
-            <Link className="btn btn-secondary" to="/grocery-list/history">Purchase history</Link>
+            <div className="grocery-page-actions">
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => setIsAddingItems(true)}
+                disabled={!grocery.data || grocery.isStale}
+              >
+                Add items
+              </button>
+              <Link className="btn btn-secondary" to="/grocery-list/history">Purchase history</Link>
+            </div>
           </header>
 
           <div className="grocery-list-controls">
@@ -83,6 +143,7 @@ function GroceryListPage() {
           </div>
 
           {storePreference.error && <p className="grocery-inline-error" role="status">{storePreference.error}</p>}
+          {mutationError && <p className="grocery-inline-error" role="alert">{mutationError}</p>}
           {grocery.updated && <p className="grocery-update-notice" role="status">Grocery list updated.</p>}
           {grocery.lastSuccessfulAt && (
             <p className="grocery-last-check">
@@ -121,10 +182,31 @@ function GroceryListPage() {
             </div>
           )}
           {grocery.data && outstandingItems.length > 0 && (
-            <GroceryItemList groups={groups} />
+            <GroceryItemList
+              groups={groups}
+              onEdit={setEditingItem}
+              onRemove={(item) => void removeItem(item)}
+            />
           )}
         </section>
       </main>
+      {isAddingItems && grocery.data && (
+        <GroceryManualEntryModal
+          expectedListVersion={grocery.data.version}
+          onClose={() => setIsAddingItems(false)}
+          onAdded={grocery.reload}
+        />
+      )}
+      {currentEditingItem && grocery.data && (
+        <GroceryItemEditDialog
+          item={currentEditingItem}
+          listVersion={grocery.data.version}
+          selectedStoreId={selectedStoreId}
+          stores={stores}
+          onClose={() => setEditingItem(null)}
+          onSaved={grocery.reload}
+        />
+      )}
     </>
   );
 }

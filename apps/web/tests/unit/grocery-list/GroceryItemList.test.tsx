@@ -20,7 +20,9 @@ test.each([
     requirementUnit: 'onion',
     outstandingPurchaseQuantity: origins.length * 2,
     purchaseUnit: 'onion',
+    ingredientVersion: null,
     adHocStoreId: null,
+    adHocDepartmentId: null,
     adHocDepartmentName: null,
     storeMappings: [],
     contributions: origins.map((origin) => ({
@@ -41,7 +43,11 @@ test.each([
   };
   render(
     <MemoryRouter>
-      <GroceryItemList groups={[{ name: 'Uncategorised', items: [item] }]} />
+      <GroceryItemList
+        groups={[{ name: 'Uncategorised', items: [item] }]}
+        onEdit={() => {}}
+        onRemove={() => {}}
+      />
     </MemoryRouter>,
   );
 

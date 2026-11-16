@@ -21,8 +21,10 @@ function item(
     requirementUnit: null,
     outstandingPurchaseQuantity: 1,
     purchaseUnit: 'item',
+    ingredientVersion: null,
     storeMappings,
     adHocStoreId: null,
+    adHocDepartmentId: null,
     adHocDepartmentName: null,
     contributions: [],
   };
@@ -31,10 +33,10 @@ function item(
 test('groups mapped, not-stocked, and unmapped items for the selected store', () => {
   const grouped = groupGroceryItems([
     item('00000000-0000-7000-8000-000000000003', 'zucchini', [
-      { storeId, state: 'mapped', departmentName: 'Produce' },
+      { storeId, state: 'mapped', departmentId: null, departmentName: 'Produce' },
     ]),
     item('00000000-0000-7000-8000-000000000002', 'pear', [
-      { storeId, state: 'notStocked', departmentName: null },
+      { storeId, state: 'notStocked', departmentId: null, departmentName: null },
     ]),
     item('00000000-0000-7000-8000-000000000001', 'apples'),
   ], storeId);

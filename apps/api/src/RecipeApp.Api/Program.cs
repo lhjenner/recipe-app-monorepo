@@ -51,6 +51,10 @@ builder.Services.AddScoped<IIngredientReadService, IngredientReadService>();
 builder.Services.AddScoped<IIngredientWriteService, IngredientWriteService>();
 builder.Services.AddScoped<IRecipeReadService, RecipeReadService>();
 builder.Services.AddScoped<IGroceryReadService, GroceryReadService>();
+builder.Services.AddScoped<GroceryManualEntryService>();
+builder.Services.AddScoped<GroceryItemMutationService>();
+builder.Services.AddScoped<GroceryItemCancellationService>();
+builder.Services.AddScoped<IGroceryWriteService, GroceryWriteService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ITicketStore, PostgresTicketStore>();
 builder.Services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
