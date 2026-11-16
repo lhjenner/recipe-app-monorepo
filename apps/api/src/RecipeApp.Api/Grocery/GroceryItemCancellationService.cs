@@ -36,7 +36,7 @@ public sealed class GroceryItemCancellationService(
 
         var list = await database.GroceryLists
             .SingleAsync(value => value.Id == item.GroceryListId && value.OwnerUserId == ownerId, cancellationToken);
-        var fingerprint = GroceryCommandFingerprint.Compute(CommandType, command);
+        var fingerprint = GroceryCommandFingerprint.Compute(CommandType, new { itemId, command });
         var receipt = await database.GroceryCommandReceipts
             .AsNoTracking()
             .SingleOrDefaultAsync(value => value.OwnerUserId == ownerId

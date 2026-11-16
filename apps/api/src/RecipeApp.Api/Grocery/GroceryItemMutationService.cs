@@ -29,7 +29,7 @@ public sealed class GroceryItemMutationService(
 
         var list = await database.GroceryLists
             .SingleAsync(value => value.Id == item.GroceryListId && value.OwnerUserId == ownerId, cancellationToken);
-        var fingerprint = GroceryCommandFingerprint.Compute(CommandType, request);
+        var fingerprint = GroceryCommandFingerprint.Compute(CommandType, new { itemId, request });
         var replay = await FindReplayAsync(
             database, list, ownerId, request.CommandId, fingerprint, cancellationToken);
         if (replay is not null)
@@ -66,6 +66,15 @@ public sealed class GroceryItemMutationService(
         }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
+        if (item.IngredientId is not null
+            && (request.AdHocStoreId is not null || request.AdHocDepartmentId is not null))
+        {
+            return Invalid(new Dictionary<string, string[]>
+            {
+                ["adHocDepartmentId"] = ["Linked Ingredients use the selected store's master department."]
+            });
+        }
+
         if (request.DepartmentUpdate is not null)
         {
             var departmentError = await GroceryItemUpdateRules.ApplyDepartmentUpdateAsync(
@@ -94,14 +103,6 @@ public sealed class GroceryItemMutationService(
             item.StoreId = request.AdHocStoreId;
             item.DepartmentId = request.AdHocDepartmentId;
         }
-        else if (request.AdHocStoreId is not null || request.AdHocDepartmentId is not null)
-        {
-            return Invalid(new Dictionary<string, string[]>
-            {
-                ["adHocDepartmentId"] = ["Linked Ingredients use the selected store's master department."]
-            });
-        }
-
         GroceryItemUpdateRules.AdjustManualDemand(
             item, request.OutstandingPurchaseQuantity - recipeFloor, now);
         item.OutstandingPurchaseQuantity = request.OutstandingPurchaseQuantity;

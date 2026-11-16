@@ -42,28 +42,26 @@
   min-width: 150px;
 }
 
-.grocery-modal-backdrop {
-  position: fixed;
-  z-index: 20;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  overflow: auto;
-  padding: 20px;
+.grocery-entry-dialog::backdrop {
   background: var(--color-overlay);
 }
 
 .grocery-entry-dialog {
-  display: grid;
-  gap: 18px;
-  width: min(100%, 760px);
+  width: min(calc(100% - 40px), 760px);
   max-height: min(90vh, 900px);
+  margin: auto;
   overflow: auto;
   padding: 24px;
   border: 1px solid var(--color-border-subtle);
   border-radius: 8px;
   background: var(--color-surface);
+  color: var(--color-text);
   box-shadow: 0 12px 40px var(--color-card-shadow);
+}
+
+.grocery-entry-dialog[open] {
+  display: grid;
+  gap: 18px;
 }
 
 .grocery-entry-heading {
@@ -395,12 +393,8 @@
     min-width: 0;
   }
 
-  .grocery-modal-backdrop {
-    align-items: start;
-    padding: 8px;
-  }
-
   .grocery-entry-dialog {
+    width: calc(100% - 16px);
     max-height: calc(100vh - 16px);
     padding: 16px;
   }

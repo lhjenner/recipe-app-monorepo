@@ -96,6 +96,12 @@ internal static class GroceryManualEntryPreparation
                 continue;
             }
 
+            if (ingredient?.ExcludeFromGroceryList == true)
+            {
+                Add(errors, $"items[{index}].ingredientId", "Ingredients excluded from grocery lists cannot be added.");
+                continue;
+            }
+
             var cleanName = IngredientWriteValidator.Clean(ingredient?.Name ?? input.Name ?? string.Empty);
             if (ingredient is not null
                 && !string.Equals(
@@ -163,7 +169,7 @@ internal sealed record PreparedManualEntries(
         new([], [], errors);
 
     public static PreparedManualEntries NotFound() =>
-        new([], [], []);
+        new([], [], [], IsNotFound: true);
 
     public static PreparedManualEntries Conflict(string detail) =>
         new([], [], [], ConflictDetail: detail);

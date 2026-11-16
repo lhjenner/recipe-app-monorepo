@@ -41,7 +41,7 @@ function GroceryEditDialogStatus({
       {latestListNeedsReview && (
         <p className="grocery-stale-notice" role="alert">
           The list changed while this draft was open.
-          <button className="btn btn-secondary" type="button" onClick={onReviewLatest}>
+          <button className="btn btn-secondary" type="button" onClick={onReviewLatest} disabled={isSaving}>
             Review latest list
           </button>
         </p>
@@ -49,7 +49,7 @@ function GroceryEditDialogStatus({
       {storeSelectionNeedsReview && (
         <p className="grocery-stale-notice" role="alert">
           The selected supermarket changed. Review the new store before editing its department.
-          <button className="btn btn-secondary" type="button" onClick={onReviewStore}>
+          <button className="btn btn-secondary" type="button" onClick={onReviewStore} disabled={isSaving}>
             Review {selectedStoreName ?? 'selected store'}
           </button>
         </p>
@@ -57,7 +57,7 @@ function GroceryEditDialogStatus({
       {ingredientNeedsReview && (
         <p className="grocery-stale-notice" role="alert">
           The linked Ingredient changed while this draft was open.
-          <button className="btn btn-secondary" type="button" onClick={onReviewLatest}>
+          <button className="btn btn-secondary" type="button" onClick={onReviewLatest} disabled={isSaving}>
             Review latest Ingredient
           </button>
         </p>

@@ -3,6 +3,75 @@ import { mockAuthApi } from '../support/mockAuthApi.ts';
 import { groceryList, mockGroceryApi, selectedStoreId } from '../support/mockGroceryApi.ts';
 import { ingredient, mockIngredientApi } from '../support/mockIngredientListApi.ts';
 
+test('requires confirmation before removing an item and allows cancellation with Escape', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  let removals = 0;
+  await page.route('**/api/grocery-list/items/*', async (route) => {
+    expect(route.request().method()).toBe('DELETE');
+    removals++;
+    await route.fulfill({ status: 204 });
+  });
+  await page.goto('/grocery-list');
+  const remove = page.getByRole('button', { name: 'Remove green apples from Grocery List' });
+  await remove.click();
+  const dialog = page.getByRole('dialog', { name: 'Remove grocery item?' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  expect(removals).toBe(0);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  expect(removals).toBe(0);
+  await expect(remove).toBeFocused();
+  await remove.click();
+  await dialog.getByRole('button', { name: 'Remove item', exact: true }).click();
+  await expect.poll(() => removals).toBe(1);
+});
+
+test('grocery dialogs contain focus, close with Escape and restore the trigger', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await mockIngredientApi(page, []);
+  for (const lookup of ['categories', 'departments']) {
+    await page.route(`**/api/${lookup}`, (route) => route.fulfill({ json: [] }));
+  }
+  await page.goto('/grocery-list');
+  for (const trigger of [
+    page.getByRole('button', { name: 'Add items', exact: true }),
+    page.getByRole('row', { name: /Green Apples/ }).getByRole('button', { name: 'Edit', exact: true }),
+  ]) {
+    await trigger.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('input').first()).toBeFocused();
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      await expect(dialog).toHaveCSS('color', await page.locator('body').evaluate((element) =>
+        getComputedStyle(element).color));
+    }
+    await page.getByLabel('Group for store').evaluate((element: HTMLSelectElement) => element.focus());
+    await expect(dialog.locator('input').first()).toBeFocused();
+    for (let index = 0; index < 15; index++) {
+      await page.keyboard.press('Tab');
+      const focus = await dialog.evaluate((element) => ({
+        inside: element.contains(document.activeElement),
+        activeTag: document.activeElement?.tagName,
+        modal: element.matches(':modal'),
+        documentFocused: document.hasFocus(),
+      }));
+      expect(focus.modal).toBe(true);
+      expect(focus.inside || (!focus.documentFocused && focus.activeTag === 'BODY'),
+        JSON.stringify(focus)).toBe(true);
+    }
+    await page.keyboard.press('Shift+Tab');
+    await expect.poll(() => dialog.evaluate((element) =>
+      element.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  }
+});
+
 test('manual entry suggests Ingredients while typing and links only a chosen suggestion', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
   await mockGroceryApi(page);

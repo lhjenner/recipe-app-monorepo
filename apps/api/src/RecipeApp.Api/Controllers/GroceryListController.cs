@@ -16,6 +16,7 @@ public sealed class GroceryListController(
     [EndpointDescription("Atomically adds one or more manual items and any explicitly selected Ingredients.")]
     [ProducesResponseType<GroceryCommandReceiptResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<GroceryCommandReceiptResponse>> AddItems(
         GroceryManualEntryCommand command,

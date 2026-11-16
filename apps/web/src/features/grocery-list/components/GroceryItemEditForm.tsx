@@ -10,6 +10,7 @@ interface GroceryItemEditFormProps {
   departmentId: string;
   departments: LookupValue[];
   isSaving: boolean;
+  locked: boolean;
   showConfirmation: boolean;
   canApprove: boolean;
   needsReview: boolean;
@@ -31,6 +32,7 @@ function GroceryItemEditForm({
   departmentId,
   departments,
   isSaving,
+  locked,
   showConfirmation,
   canApprove,
   needsReview,
@@ -61,7 +63,7 @@ function GroceryItemEditForm({
           max="9999"
           step={item.purchaseUnit === 'item' || item.dimension === 'count' ? '1' : 'any'}
           value={quantity}
-          disabled={isSaving}
+          disabled={locked}
           onChange={(event) => onQuantityChange(event.currentTarget.value)}
         />
       </label>
@@ -70,7 +72,7 @@ function GroceryItemEditForm({
         <input
           value={note}
           maxLength={250}
-          disabled={isSaving}
+          disabled={locked}
           onChange={(event) => onNoteChange(event.currentTarget.value)}
         />
       </label>
@@ -79,9 +81,9 @@ function GroceryItemEditForm({
           storeName={selectedStore.name}
           departmentId={departmentId}
           departments={departments}
-          disabled={isSaving}
+          disabled={locked}
           showConfirmation={showConfirmation}
-          isSaving={isSaving}
+          isSaving={locked}
           canApprove={canApprove}
           onDepartmentChange={onDepartmentChange}
           onApprove={onApprove}
@@ -94,11 +96,11 @@ function GroceryItemEditForm({
           <button
             className="btn btn-primary"
             type="submit"
-            disabled={isSaving || needsReview}
+            disabled={locked || needsReview}
           >
             {isSaving ? 'Saving…' : 'Save changes'}
           </button>
-          <button className="btn btn-secondary" type="button" onClick={onClose} disabled={isSaving}>
+          <button className="btn btn-secondary" type="button" onClick={onClose} disabled={locked}>
             Cancel
           </button>
         </div>

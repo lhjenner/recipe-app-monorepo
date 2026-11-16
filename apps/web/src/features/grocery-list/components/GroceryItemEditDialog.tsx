@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { getDepartments, type LookupValue, type SupermarketStore } from '../../ingredients/services/ingredientsApi';
 import {
-  GroceryListApiError,
   updateGroceryItem,
   type GroceryItem,
+  type GroceryItemUpdateRequest,
 } from '../services/groceryListApi';
+import { useGroceryCommand } from '../hooks/useGroceryCommand';
+import GroceryDialog from './GroceryDialog';
 import GroceryEditDialogStatus from './GroceryEditDialogStatus';
 import GroceryItemEditForm from './GroceryItemEditForm';
 
@@ -49,10 +51,15 @@ function GroceryItemEditDialog({
   const [departments, setDepartments] = useState<LookupValue[]>([]);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const commandId = useRef(crypto.randomUUID());
+  const mutation = useGroceryCommand(
+    (request: GroceryItemUpdateRequest) => updateGroceryItem(item.id, request),
+    () => {
+      onSaved();
+      onClose();
+    },
+  );
   const latestListNeedsReview = expectedListVersion !== listVersion;
   const storeSelectionNeedsReview = reviewedStoreId !== selectedStoreId;
   const ingredientNeedsReview = item.ingredientVersion !== expectedIngredientVersion;
@@ -60,6 +67,7 @@ function GroceryItemEditDialog({
   const initialDepartment = reviewedStoreId ? originalDepartments[reviewedStoreId] ?? '' : '';
   const departmentChanged = currentDepartment !== initialDepartment;
   const selectedStore = stores.find((store) => store.id === reviewedStoreId);
+  const needsReview = latestListNeedsReview || storeSelectionNeedsReview || ingredientNeedsReview;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -76,33 +84,44 @@ function GroceryItemEditDialog({
   }, []);
 
   function updateDraft(action: () => void) {
+    if (mutation.locked) {
+      return;
+    }
     action();
     commandId.current = crypto.randomUUID();
     setShowConfirmation(false);
     setError(null);
-    setFieldErrors({});
+    mutation.clearError();
   }
 
   function reviewSelectedStore() {
-    if (!selectedStoreId) {
+    if (mutation.locked) {
       return;
     }
-    const departmentId = getDepartmentId(item, selectedStoreId);
     setReviewedStoreId(selectedStoreId);
-    setDepartmentDrafts((current) => ({
-      ...current,
-      [selectedStoreId]: current[selectedStoreId] ?? departmentId,
-    }));
-    setOriginalDepartments((current) => ({
-      ...current,
-      [selectedStoreId]: departmentId,
-    }));
+    if (selectedStoreId) {
+      const departmentId = getDepartmentId(item, selectedStoreId);
+      setDepartmentDrafts((current) => ({
+        ...current,
+        [selectedStoreId]: current[selectedStoreId] ?? departmentId,
+      }));
+      setOriginalDepartments((current) => ({
+        ...current,
+        [selectedStoreId]: departmentId,
+      }));
+    }
     setExpectedListVersion(listVersion);
     setExpectedIngredientVersion(item.ingredientVersion);
     commandId.current = crypto.randomUUID();
+    setShowConfirmation(false);
+    setError(null);
+    mutation.clearError();
   }
 
   function reviewLatestList() {
+    if (mutation.locked) {
+      return;
+    }
     setExpectedListVersion(listVersion);
     setExpectedIngredientVersion(item.ingredientVersion);
     if (reviewedStoreId) {
@@ -119,55 +138,45 @@ function GroceryItemEditDialog({
       }));
     }
     setError(null);
+    setShowConfirmation(false);
+    mutation.clearError();
+    commandId.current = crypto.randomUUID();
   }
 
-  async function save(approveDepartmentChange = false, discardDepartmentChange = false) {
-    setError(null);
-    setFieldErrors({});
-    setIsSaving(true);
-    try {
-      await updateGroceryItem(item.id, {
-        commandId: commandId.current,
-        expectedListVersion,
-        outstandingPurchaseQuantity: Number(quantity),
-        purchaseUnit: item.purchaseUnit,
-        note: note || null,
-        departmentUpdate: approveDepartmentChange && reviewedStoreId && expectedIngredientVersion !== null
-          ? {
-            storeId: reviewedStoreId,
-            departmentId: currentDepartment || null,
-            expectedIngredientVersion,
-          }
-          : null,
-        adHocStoreId: item.ingredientId
-          ? null
-          : reviewedStoreId ?? item.adHocStoreId,
-        adHocDepartmentId: item.ingredientId
-          ? null
-          : discardDepartmentChange
-            ? item.adHocDepartmentId
-            : reviewedStoreId
-              ? currentDepartment || null
-              : item.adHocDepartmentId,
-      });
-      onSaved();
-      onClose();
-    } catch (requestError: unknown) {
-      if (requestError instanceof GroceryListApiError) {
-        setError(requestError.message);
-        setFieldErrors(requestError.fieldErrors);
-      } else {
-        setError(requestError instanceof Error
-          ? requestError.message
-          : 'Unable to save this grocery item.');
-      }
-    } finally {
-      setIsSaving(false);
+  function save(approveDepartmentChange = false, discardDepartmentChange = false) {
+    if (mutation.locked) {
+      return;
     }
+    if (needsReview) {
+      setError('Review the latest list, Ingredient, and selected supermarket before saving this draft.');
+      return;
+    }
+    setError(null);
+    const changeAdHocDepartment = !item.ingredientId && departmentChanged
+      && !discardDepartmentChange && reviewedStoreId !== null;
+    mutation.submit({
+      commandId: commandId.current,
+      expectedListVersion,
+      outstandingPurchaseQuantity: Number(quantity),
+      purchaseUnit: item.purchaseUnit,
+      note: note || null,
+      departmentUpdate: approveDepartmentChange && reviewedStoreId && expectedIngredientVersion !== null
+        ? {
+          storeId: reviewedStoreId,
+          departmentId: currentDepartment || null,
+          expectedIngredientVersion,
+        }
+        : null,
+      adHocStoreId: item.ingredientId ? null
+        : changeAdHocDepartment ? reviewedStoreId : item.adHocStoreId,
+      adHocDepartmentId: item.ingredientId
+        ? null
+        : changeAdHocDepartment ? currentDepartment || null : item.adHocDepartmentId,
+    });
   }
 
   function submit() {
-    if (latestListNeedsReview || storeSelectionNeedsReview || ingredientNeedsReview) {
+    if (needsReview) {
       setError('Review the latest list, Ingredient, and selected supermarket before saving this draft.');
       return;
     }
@@ -179,54 +188,54 @@ function GroceryItemEditDialog({
   }
 
   return (
-    <div className="grocery-modal-backdrop">
-      <section
-        className="grocery-entry-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="grocery-edit-heading"
-      >
-        <GroceryEditDialogStatus
-          itemName={item.name}
-          isSaving={isSaving}
-          latestListNeedsReview={latestListNeedsReview}
-          storeSelectionNeedsReview={storeSelectionNeedsReview}
-          ingredientNeedsReview={ingredientNeedsReview}
-          selectedStoreName={stores.find((store) => store.id === selectedStoreId)?.name ?? null}
-          lookupError={lookupError}
-          error={error}
-          fieldErrors={fieldErrors}
-          onClose={onClose}
-          onReviewLatest={reviewLatestList}
-          onReviewStore={reviewSelectedStore}
-        />
+    <GroceryDialog labelledBy="grocery-edit-heading" locked={mutation.locked} onClose={onClose}>
+      <GroceryEditDialogStatus
+        itemName={item.name}
+        isSaving={mutation.locked}
+        latestListNeedsReview={latestListNeedsReview}
+        storeSelectionNeedsReview={storeSelectionNeedsReview}
+        ingredientNeedsReview={ingredientNeedsReview}
+        selectedStoreName={stores.find((store) => store.id === selectedStoreId)?.name ?? null}
+        lookupError={lookupError}
+        error={error ?? mutation.error?.message ?? null}
+        fieldErrors={mutation.error?.fieldErrors ?? {}}
+        onClose={onClose}
+        onReviewLatest={reviewLatestList}
+        onReviewStore={reviewSelectedStore}
+      />
+      {mutation.canRetry && (
+        <p role="status">
+          The outcome is unknown. Retry the original request before reviewing or changing this draft.
+          <button className="btn btn-secondary" type="button" onClick={mutation.retry}>Retry edit</button>
+        </p>
+      )}
 
-        <GroceryItemEditForm
-          item={item}
-          quantity={quantity}
-          note={note}
-          selectedStore={selectedStore}
-          departmentId={currentDepartment}
-          departments={departments}
-          isSaving={isSaving}
-          showConfirmation={showConfirmation}
-          canApprove={expectedIngredientVersion !== null}
-          needsReview={latestListNeedsReview || storeSelectionNeedsReview || ingredientNeedsReview}
-          onSubmit={submit}
-          onQuantityChange={(value) => updateDraft(() => setQuantity(value))}
-          onNoteChange={(value) => updateDraft(() => setNote(value))}
-          onDepartmentChange={(departmentId) => updateDraft(() =>
-            setDepartmentDrafts((current) => ({
-              ...current,
-              [reviewedStoreId!]: departmentId,
-            })))}
-          onApprove={() => void save(true)}
-          onDiscard={() => void save(false, true)}
-          onCancelConfirmation={() => setShowConfirmation(false)}
-          onClose={onClose}
-        />
-      </section>
-    </div>
+      <GroceryItemEditForm
+        item={item}
+        quantity={quantity}
+        note={note}
+        selectedStore={selectedStore}
+        departmentId={currentDepartment}
+        departments={departments}
+        isSaving={mutation.isSaving}
+        locked={mutation.locked}
+        showConfirmation={showConfirmation}
+        canApprove={expectedIngredientVersion !== null}
+        needsReview={needsReview}
+        onSubmit={submit}
+        onQuantityChange={(value) => updateDraft(() => setQuantity(value))}
+        onNoteChange={(value) => updateDraft(() => setNote(value))}
+        onDepartmentChange={(departmentId) => updateDraft(() =>
+          setDepartmentDrafts((current) => ({
+            ...current,
+            [reviewedStoreId!]: departmentId,
+          })))}
+        onApprove={() => save(true)}
+        onDiscard={() => save(false, true)}
+        onCancelConfirmation={() => setShowConfirmation(false)}
+        onClose={onClose}
+      />
+    </GroceryDialog>
   );
 }
 

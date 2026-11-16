@@ -97,13 +97,39 @@ test('retries a removal with the same command after an ambiguous network failure
   const removeButtons = screen.getAllByRole('button', { name: 'Remove onions from Grocery List' });
 
   fireEvent.click(removeButtons[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove item' }));
   await waitFor(() => expect(mocks.cancelGroceryItem).toHaveBeenCalledTimes(1));
   fireEvent.click(removeButtons[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove item' }));
 
   await waitFor(() => expect(mocks.cancelGroceryItem).toHaveBeenCalledTimes(2));
   expect(mocks.cancelGroceryItem.mock.calls[1][0]).toBe('item-id');
   expect(mocks.cancelGroceryItem.mock.calls[1][1]).toBe(mocks.cancelGroceryItem.mock.calls[0][1]);
   expect(mocks.cancelGroceryItem.mock.calls[1][2]).toBe(12);
+});
+
+test('cancelling removal confirmation leaves the grocery item unchanged', () => {
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Remove onions from Grocery List' })[0]);
+  expect(mocks.cancelGroceryItem).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(mocks.cancelGroceryItem).not.toHaveBeenCalled();
+});
+
+test('removal confirms the reviewed version and prevents repeated submissions', async () => {
+  let finish: () => void = () => {};
+  mocks.cancelGroceryItem.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve; }));
+  const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  const state = mocks.useGroceryList.mock.results[0].value;
+  fireEvent.click(screen.getAllByRole('button', { name: 'Remove onions from Grocery List' })[0]);
+  mocks.useGroceryList.mockReturnValue({ ...state, data: { ...state.data, version: 13 } });
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove item' }));
+  expect(mocks.cancelGroceryItem.mock.calls[0][2]).toBe(12);
+  expect(screen.getAllByRole('button', { name: 'Remove onions from Grocery List' })[0]).toBeDisabled();
+  finish();
+  await waitFor(() => expect(state.reload).toHaveBeenCalledOnce());
 });
 
 test('saves an inline quantity change and waits for the refreshed version before enabling controls', async () => {

@@ -61,3 +61,36 @@ Feature: Atomic manual grocery entry
     And the owner has an active Ingredient named "Coriander"
     When I submit one manual item "Coriander" with quantity "1" "jar" and save it as an Ingredient
     Then the grocery API requires an existing Ingredient selection without partial writes
+
+  Scenario Outline: Item command replays cannot change their target
+    Given a logged in user
+    When I replay a grocery "<operation>" command against another item
+    Then the changed-target grocery command is rejected without changing the second item
+    Examples:
+      | operation |
+      | update    |
+      | cancel    |
+
+  Scenario Outline: Invalid linked Ingredients reject the entire batch
+    Given a logged in user
+    When I submit a grocery batch with a valid row and a "<eligibility>" Ingredient
+    Then the invalid Ingredient batch returns <status> without creating a list or receipt
+    Examples:
+      | eligibility | status |
+      | missing     | 404    |
+      | other-owner | 404    |
+      | excluded    | 400    |
+
+  Scenario Outline: Shopping edits reject forbidden catalogue properties
+    Given a logged in user
+    And the owner has a linked grocery item and a new department
+    When I submit a linked department edit containing "<field>"
+    Then the invalid department edit returns 400 without writes
+    Examples:
+      | field                   |
+      | name                    |
+      | categoryId              |
+      | storeMappings           |
+      | nested storeMappings    |
+      | adHocStoreId            |
+      | adHocDepartmentId       |

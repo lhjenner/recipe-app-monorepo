@@ -19,6 +19,7 @@ public sealed class GroceryDepartmentUpdateSteps(ApiAuthContext context)
     private Guid _itemId;
     private Guid _ingredientId;
     private Guid _departmentId;
+    private string? _beforeInvalidEdit;
 
     [Given("the owner has a linked grocery item and a new department")]
     public async Task SeedLinkedGroceryItemAsync()
@@ -130,5 +131,60 @@ public sealed class GroceryDepartmentUpdateSteps(ApiAuthContext context)
         item.GetProperty("storeMappings").EnumerateArray()
             .Single(mapping => mapping.GetProperty("storeId").GetGuid() == StoreId)
             .GetProperty("departmentId").GetGuid().Should().Be(_departmentId);
+    }
+
+    [When("I submit a linked department edit containing {string}")]
+    public async Task SubmitInvalidEditAsync(string field)
+    {
+        using var response = await context.Client.GetAsync("/api/grocery-list");
+        _beforeInvalidEdit = await response.Content.ReadAsStringAsync();
+        using var list = JsonDocument.Parse(_beforeInvalidEdit);
+        var item = list.RootElement.GetProperty("items").EnumerateArray()
+            .Single(value => value.GetProperty("id").GetGuid() == _itemId);
+        var departmentUpdate = new Dictionary<string, object?>
+        {
+            ["storeId"] = StoreId,
+            ["departmentId"] = _departmentId,
+            ["expectedIngredientVersion"] = item.GetProperty("ingredientVersion").GetUInt32()
+        };
+        var request = new Dictionary<string, object?>
+        {
+            ["commandId"] = Guid.NewGuid(),
+            ["expectedListVersion"] = list.RootElement.GetProperty("version").GetUInt32(),
+            ["outstandingPurchaseQuantity"] = 2,
+            ["purchaseUnit"] = "piece",
+            ["note"] = "Must not save",
+            ["departmentUpdate"] = departmentUpdate
+        };
+        if (field == "nested storeMappings")
+        {
+            departmentUpdate["storeMappings"] = Array.Empty<object>();
+        }
+        else
+        {
+            request[field] = field switch
+            {
+                "name" => "Replaced",
+                "storeMappings" => Array.Empty<object>(),
+                "adHocStoreId" => StoreId,
+                _ => _departmentId
+            };
+        }
+
+        context.Response?.Dispose();
+        context.Response = await context.Client.PutAsJsonAsync($"/api/grocery-list/items/{_itemId}", request);
+    }
+
+    [Then("the invalid department edit returns 400 without writes")]
+    public async Task AssertInvalidEditAsync()
+    {
+        context.Response!.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using var response = await context.Client.GetAsync("/api/grocery-list");
+        (await response.Content.ReadAsStringAsync()).Should().Be(_beforeInvalidEdit);
+        await using var scope = context.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var listId = await db.GroceryItems.Where(value => value.Id == _itemId)
+            .Select(value => value.GroceryListId).SingleAsync();
+        (await db.GroceryCommandReceipts.AnyAsync(value => value.GroceryListId == listId)).Should().BeFalse();
     }
 }

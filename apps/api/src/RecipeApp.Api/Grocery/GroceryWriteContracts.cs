@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using RecipeApp.Api.Ingredients;
 
 namespace RecipeApp.Api.Grocery;
@@ -30,6 +31,7 @@ public sealed record GroceryDuplicateReview(
     string ItemName,
     string PurchaseUnit);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record GroceryItemUpdateRequest(
     Guid CommandId,
     uint ExpectedListVersion,
@@ -40,6 +42,7 @@ public sealed record GroceryItemUpdateRequest(
     Guid? AdHocStoreId,
     Guid? AdHocDepartmentId);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record GroceryDepartmentUpdate(
     Guid StoreId,
     Guid? DepartmentId,

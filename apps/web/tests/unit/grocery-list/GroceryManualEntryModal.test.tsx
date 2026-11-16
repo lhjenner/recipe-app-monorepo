@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, test, vi } from 'vitest';
 import GroceryManualEntryModal from '../../../src/features/grocery-list/components/GroceryManualEntryModal';
+import { GroceryListApiError } from '../../../src/features/grocery-list/services/groceryListApi';
 
 const mocks = vi.hoisted(() => ({
   addGroceryItems: vi.fn(),
@@ -16,9 +17,9 @@ vi.mock('../../../src/features/grocery-list/hooks/useGroceryIngredientOptions', 
   useGroceryIngredientOptions: mocks.useGroceryIngredientOptions,
 }));
 
-vi.mock('../../../src/features/grocery-list/services/groceryListApi', () => ({
+vi.mock('../../../src/features/grocery-list/services/groceryListApi', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../../src/features/grocery-list/services/groceryListApi')>(),
   addGroceryItems: mocks.addGroceryItems,
-  GroceryListApiError: class GroceryListApiError extends Error {},
 }));
 
 beforeEach(() => {
@@ -205,4 +206,44 @@ test('dismisses suggestions with Escape and selects them using arrows and Enter'
   expect(name).toHaveValue('Crumpets');
   expect(screen.getByRole('img', { name: 'Linked to existing Ingredient' })).toBeVisible();
   expect(mocks.addGroceryItems).not.toHaveBeenCalled();
+});
+
+const duplicateReview = {
+  entryIndex: 0, targetItemId: 'existing', targetEntryIndex: null,
+  existingQuantity: 1, increment: 1, resultingQuantity: 2, itemName: 'Oats', purchaseUnit: 'item',
+};
+
+test('cancels duplicate review without closing or losing the draft', async () => {
+  mocks.addGroceryItems.mockRejectedValueOnce(
+    new GroceryListApiError('Review duplicates', 409, {}, [duplicateReview]),
+  );
+  const onClose = vi.fn();
+  render(<GroceryManualEntryModal expectedListVersion={3} onClose={onClose} onAdded={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Cancel review' }));
+  expect(screen.getByLabelText('Name')).toHaveValue('Oats');
+  expect(screen.queryByText('Review matching grocery items')).not.toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled();
+  expect(mocks.addGroceryItems).toHaveBeenCalledOnce();
+});
+
+test('retries the exact reviewed batch after polling advances the list version', async () => {
+  mocks.addGroceryItems
+    .mockRejectedValueOnce(new GroceryListApiError('Review duplicates', 409, {}, [duplicateReview]))
+    .mockRejectedValueOnce(new Error('Response lost'))
+    .mockResolvedValueOnce({});
+  const initial = { expectedListVersion: 3, onClose: vi.fn(), onAdded: vi.fn() };
+  const { rerender } = render(<GroceryManualEntryModal {...initial} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Confirm reviewed increments' }));
+  await screen.findByText('Response lost');
+  rerender(<GroceryManualEntryModal {...initial} expectedListVersion={4} />);
+  expect(screen.getByLabelText('Name')).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Cancel review' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry addition' }));
+  await waitFor(() => expect(mocks.addGroceryItems).toHaveBeenCalledTimes(3));
+  expect(mocks.addGroceryItems.mock.calls[2]).toEqual(mocks.addGroceryItems.mock.calls[1]);
+  expect(mocks.addGroceryItems.mock.calls[2][0].reviewedDuplicates).toEqual([duplicateReview]);
 });
