@@ -91,11 +91,11 @@ function GroceryItemList({ groups, onEdit, onRemove }: GroceryItemListProps) {
 function RequirementDetails({ item }: { item: GroceryItem }) {
   return (
     <div className="grocery-requirement-details">
-      {item.requirementAmount !== null && item.requirementUnit !== null
-        ? <p><strong>Requirement:</strong> {formatAmount(item.requirementAmount)} {item.requirementUnit}</p>
-        : <p><strong>Requirement:</strong> No numeric total</p>}
+      {item.requirementAmount !== null && item.requirementUnit !== null && (
+        <p><strong>Requirement:</strong> {formatAmount(item.requirementAmount)} {item.requirementUnit}</p>
+      )}
       {item.note && <p><strong>Note:</strong> {item.note}</p>}
-      {item.contributions.length > 0 && (
+      {item.contributions.some((contribution) => contribution.origin === 'recipe') && (
         <details>
           <summary>Sources ({item.contributions.length})</summary>
           <ul>
