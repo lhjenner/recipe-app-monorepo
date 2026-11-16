@@ -11,6 +11,7 @@ const quantityDimensionSchema = z.enum(['count', 'mass', 'volume']).nullable();
 const storeMappingSchema = z.object({
   storeId: z.uuid(),
   state: z.enum(['mapped', 'notStocked', 'unmapped']),
+  departmentId: z.uuid().nullable(),
   departmentName: z.string().nullable(),
 });
 
@@ -42,7 +43,9 @@ const groceryItemSchema = z.object({
   requirementUnit: z.string().nullable(),
   outstandingPurchaseQuantity: z.number(),
   purchaseUnit: z.string(),
+  ingredientVersion: z.number().int().nonnegative().nullable(),
   adHocStoreId: z.uuid().nullable(),
+  adHocDepartmentId: z.uuid().nullable(),
   adHocDepartmentName: z.string().nullable(),
   storeMappings: z.array(storeMappingSchema),
   contributions: z.array(contributionSchema),
@@ -82,22 +85,82 @@ const problemDetailsSchema = z.object({
   title: z.string().optional(),
   detail: z.string().optional(),
   errors: z.record(z.string(), z.array(z.string())).optional(),
+  duplicateReviews: z.array(z.object({
+    entryIndex: z.number().int().nonnegative(),
+    targetItemId: z.uuid().nullable(),
+    targetEntryIndex: z.number().int().nonnegative().nullable(),
+    existingQuantity: z.number(),
+    increment: z.number(),
+    resultingQuantity: z.number(),
+    itemName: z.string(),
+    purchaseUnit: z.string(),
+  })).optional(),
+});
+const commandReceiptSchema = z.object({
+  commandId: z.uuid(),
+  resultListVersion: z.number().int().nonnegative(),
+  resultIds: z.array(z.uuid()),
 });
 
 export type GroceryItem = z.infer<typeof groceryItemSchema>;
 export type GroceryList = z.infer<typeof groceryListSchema>;
 export type GroceryHistory = z.infer<typeof groceryHistorySchema>;
 export type GroceryHistoryEvent = z.infer<typeof historyEventSchema>;
+export type GroceryDuplicateReview =
+  NonNullable<z.infer<typeof problemDetailsSchema>['duplicateReviews']>[number];
+export type GroceryCommandReceipt = z.infer<typeof commandReceiptSchema>;
+
+export interface GroceryManualEntryCommand {
+  commandId: string;
+  expectedListVersion: number;
+  items: Array<{
+    name: string;
+    note: string | null;
+    purchaseQuantity: number;
+    purchaseUnit: string;
+    ingredientId: string | null;
+    saveAsIngredient: boolean;
+    categoryId: string | null;
+    storeMappings: Array<{
+      storeId: string;
+      departmentId: string;
+        isNotStocked: boolean;
+    }>;
+  }>;
+  reviewedDuplicates: GroceryDuplicateReview[];
+}
+
+export interface GroceryItemUpdateRequest {
+  commandId: string;
+  expectedListVersion: number;
+  outstandingPurchaseQuantity: number;
+  purchaseUnit: string;
+  note: string | null;
+  departmentUpdate: {
+    storeId: string;
+    departmentId: string | null;
+    expectedIngredientVersion: number;
+  } | null;
+  adHocStoreId: string | null;
+  adHocDepartmentId: string | null;
+}
 
 export class GroceryListApiError extends Error {
   readonly status: number;
   readonly fieldErrors: Record<string, string[]>;
+  readonly duplicateReviews: GroceryDuplicateReview[];
 
-  constructor(message: string, status: number, fieldErrors: Record<string, string[]> = {}) {
+  constructor(
+    message: string,
+    status: number,
+    fieldErrors: Record<string, string[]> = {},
+    duplicateReviews: GroceryDuplicateReview[] = [],
+  ) {
     super(message);
     this.name = 'GroceryListApiError';
     this.status = status;
     this.fieldErrors = fieldErrors;
+    this.duplicateReviews = duplicateReviews;
   }
 }
 
@@ -135,6 +198,93 @@ async function getJson<T>(
 
 export function getGroceryList(signal?: AbortSignal): Promise<GroceryList> {
   return getJson('/api/grocery-list', groceryListSchema, signal);
+}
+
+async function writeJson<T>(
+  path: string,
+  method: 'POST' | 'PUT',
+  body: unknown,
+  schema: z.ZodType<T>,
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await apiFetch(path, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      requiresSession: true,
+    });
+  } catch {
+    throw new GroceryListApiError('Unable to reach the grocery service. Please try again.', 0);
+  }
+
+  if (!response.ok) {
+    const parsedProblem = problemDetailsSchema.safeParse(await response.json().catch(() => null));
+    const problem = parsedProblem.success ? parsedProblem.data : undefined;
+    throw new GroceryListApiError(
+      problem?.detail ?? problem?.title ?? 'The grocery request failed. Please try again.',
+      response.status,
+      problem?.errors,
+      problem?.duplicateReviews,
+    );
+  }
+
+  const parsedResponse = schema.safeParse(await response.json() as unknown);
+  if (!parsedResponse.success) {
+    throw new GroceryListApiError('The server returned an invalid grocery response.', response.status);
+  }
+  return parsedResponse.data;
+}
+
+export function addGroceryItems(
+  command: GroceryManualEntryCommand,
+): Promise<GroceryCommandReceipt> {
+  return writeJson('/api/grocery-list/items', 'POST', command, commandReceiptSchema);
+}
+
+export function updateGroceryItem(
+  itemId: string,
+  request: GroceryItemUpdateRequest,
+): Promise<GroceryCommandReceipt> {
+  return writeJson(
+    `/api/grocery-list/items/${encodeURIComponent(itemId)}`,
+    'PUT',
+    request,
+    commandReceiptSchema,
+  );
+}
+
+export async function cancelGroceryItem(
+  itemId: string,
+  commandId: string,
+  expectedListVersion: number,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await apiFetch(`/api/grocery-list/items/${encodeURIComponent(itemId)}`, {
+      method: 'DELETE',
+      headers: {
+        'X-Command-Id': commandId,
+        'X-Expected-List-Version': String(expectedListVersion),
+      },
+      requiresSession: true,
+    });
+  } catch {
+    throw new GroceryListApiError('Unable to reach the grocery service. Please try again.', 0);
+  }
+
+  if (response.status === 204) {
+    return;
+  }
+
+  const parsedProblem = problemDetailsSchema.safeParse(await response.json().catch(() => null));
+  const problem = parsedProblem.success ? parsedProblem.data : undefined;
+  throw new GroceryListApiError(
+    problem?.detail ?? problem?.title ?? 'The grocery request failed. Please try again.',
+    response.status,
+    problem?.errors,
+    problem?.duplicateReviews,
+  );
 }
 
 export interface GroceryHistoryQuery {

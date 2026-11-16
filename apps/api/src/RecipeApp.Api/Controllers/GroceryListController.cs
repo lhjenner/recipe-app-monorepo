@@ -7,8 +7,71 @@ namespace RecipeApp.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/grocery-list")]
-public sealed class GroceryListController(IGroceryReadService groceryReads) : ControllerBase
+public sealed class GroceryListController(
+    IGroceryReadService groceryReads,
+    IGroceryWriteService groceryWrites) : ControllerBase
 {
+    [HttpPost("items")]
+    [EndpointSummary("Add grocery items")]
+    [EndpointDescription("Atomically adds one or more manual items and any explicitly selected Ingredients.")]
+    [ProducesResponseType<GroceryCommandReceiptResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<GroceryCommandReceiptResponse>> AddItems(
+        GroceryManualEntryCommand command,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await groceryWrites.AddManualItemsAsync(command, cancellationToken);
+        return ToWriteResult(outcome);
+    }
+
+    [HttpPut("items/{id:guid}")]
+    [EndpointSummary("Update a grocery item")]
+    [ProducesResponseType<GroceryCommandReceiptResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GroceryCommandReceiptResponse>> UpdateItem(
+        Guid id,
+        GroceryItemUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await groceryWrites.UpdateItemAsync(id, request, cancellationToken);
+        return ToWriteResult(outcome);
+    }
+
+    [HttpDelete("items/{id:guid}")]
+    [EndpointSummary("Remove an outstanding grocery item")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelItem(
+        Guid id,
+        [FromHeader(Name = "X-Command-Id")] Guid commandId,
+        [FromHeader(Name = "X-Expected-List-Version")] uint expectedListVersion,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await groceryWrites.CancelItemAsync(
+            id,
+            new GroceryCommandMetadata(commandId, expectedListVersion),
+            cancellationToken);
+        if (outcome.StatusCode == StatusCodes.Status204NoContent)
+        {
+            return NoContent();
+        }
+
+        if (outcome.StatusCode == StatusCodes.Status404NotFound)
+        {
+            return NotFound();
+        }
+
+        return Problem(
+            statusCode: outcome.StatusCode,
+            title: outcome.Title,
+            detail: outcome.Detail);
+    }
+
     [HttpGet]
     [EndpointSummary("Read the grocery list")]
     [EndpointDescription("Returns the authenticated user's outstanding items without creating a list.")]
@@ -85,5 +148,38 @@ public sealed class GroceryListController(IGroceryReadService groceryReads) : Co
         }
 
         return ModelState.IsValid;
+    }
+
+    private ActionResult<GroceryCommandReceiptResponse> ToWriteResult(GroceryWriteOutcome outcome)
+    {
+        if (outcome.Errors is not null)
+        {
+            return BadRequest(new ValidationProblemDetails(outcome.Errors));
+        }
+
+        if (outcome.StatusCode == StatusCodes.Status404NotFound)
+        {
+            return NotFound();
+        }
+
+        if (outcome.StatusCode == StatusCodes.Status409Conflict)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = outcome.StatusCode,
+                Title = outcome.Title,
+                Detail = outcome.Detail
+            };
+            if (outcome.DuplicateReviews is not null)
+            {
+                problem.Extensions["duplicateReviews"] = outcome.DuplicateReviews;
+            }
+
+            return new ObjectResult(problem) { StatusCode = outcome.StatusCode };
+        }
+
+        return outcome.StatusCode == StatusCodes.Status201Created
+            ? CreatedAtAction(nameof(GetList), value: outcome.Receipt)
+            : Ok(outcome.Receipt);
     }
 }

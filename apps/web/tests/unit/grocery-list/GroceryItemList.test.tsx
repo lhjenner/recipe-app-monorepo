@@ -5,22 +5,28 @@ import GroceryItemList from '../../../src/features/grocery-list/components/Groce
 import type { GroceryItem } from '../../../src/features/grocery-list/services/groceryListApi';
 
 test.each([
-  { name: 'manual-only', origins: ['manual'] as const },
-  { name: 'mixed manual and Recipe', origins: ['manual', 'recipe'] as const },
-])('uses a neutral requirement label for $name demand on desktop and mobile', ({ origins }) => {
+  { name: 'manual-only', origins: ['manual'] as const, amount: 2, unit: 'onion' },
+  { name: 'Recipe-only', origins: ['recipe'] as const, amount: 2, unit: 'onion' },
+  { name: 'mixed manual and Recipe', origins: ['manual', 'recipe'] as const, amount: 4, unit: 'onion' },
+  { name: 'manual without amount', origins: ['manual'] as const, amount: null, unit: 'onion' },
+  { name: 'Recipe without unit', origins: ['recipe'] as const, amount: 2, unit: null },
+  { name: 'Recipe without a numeric total', origins: ['recipe'] as const, amount: null, unit: null },
+])('shows useful requirements and Recipe Sources for $name on desktop and mobile', ({ origins, amount, unit }) => {
   const item: GroceryItem = {
     id: 'item',
-    ingredientId: null,
+    ingredientId: 'ingredient',
     name: 'onions',
     state: 'outstanding',
-    note: null,
+    note: 'Choose firm onions.',
     dimension: 'count',
     countLabel: 'onion',
-    requirementAmount: origins.length * 2,
-    requirementUnit: 'onion',
+    requirementAmount: amount,
+    requirementUnit: unit,
     outstandingPurchaseQuantity: origins.length * 2,
     purchaseUnit: 'onion',
+    ingredientVersion: null,
     adHocStoreId: null,
+    adHocDepartmentId: null,
     adHocDepartmentName: null,
     storeMappings: [],
     contributions: origins.map((origin) => ({
@@ -41,15 +47,49 @@ test.each([
   };
   render(
     <MemoryRouter>
-      <GroceryItemList groups={[{ name: 'Uncategorised', items: [item] }]} />
+      <GroceryItemList
+        groups={[{ name: 'Uncategorised', items: [item] }]}
+        onEdit={() => {}}
+        onRemove={() => {}}
+        onQuantityChange={() => {}}
+        disabled={false}
+      />
     </MemoryRouter>,
   );
 
-  const requirements = screen.getAllByText('Requirement:');
-  expect(requirements).toHaveLength(2);
+  const requirements = screen.queryAllByText('Requirement:');
+  expect(requirements).toHaveLength(amount !== null && unit !== null ? 2 : 0);
   for (const requirement of requirements) {
-    expect(requirement.parentElement).toHaveTextContent(`Requirement: ${origins.length * 2} onion`);
+    expect(requirement.parentElement).toHaveTextContent(`Requirement: ${amount} ${unit}`);
   }
+  expect(screen.queryByText('No numeric total')).not.toBeInTheDocument();
+  expect(screen.getAllByText('Choose firm onions.')).toHaveLength(2);
   expect(screen.queryByText('Recipe requirement:')).not.toBeInTheDocument();
-  expect(screen.getAllByText(/Manual addition/)).toHaveLength(2);
+  const hasRecipe = origins.some((origin) => origin === 'recipe');
+  expect(screen.queryAllByText(`Sources (${origins.length})`)).toHaveLength(hasRecipe ? 2 : 0);
+  expect(screen.queryAllByText(/Manual addition/))
+    .toHaveLength(hasRecipe && origins.some((origin) => origin === 'manual') ? 2 : 0);
+  expect(screen.queryAllByText('Onion Soup')).toHaveLength(hasRecipe ? 2 : 0);
+});
+
+test('shows distinct outstanding manual addition notes without a Sources accordion', () => {
+  const manual = (id: string, note: string, state: 'outstanding' | 'cancelled' = 'outstanding') => ({
+    id, origin: 'manual' as const, state, originalAmountText: '1', originalUnitText: 'item',
+    originalNotesText: note, interpretedAmount: null, canonicalUnit: 'item', unresolvedReason: null,
+    recipeId: null, recipeStepId: null, recipeStepItemId: null, recipeNameSnapshot: null,
+  });
+  const item: GroceryItem = {
+    id: 'item', ingredientId: null, name: 'oats', state: 'outstanding', note: 'First note',
+    dimension: 'count', countLabel: 'item', requirementAmount: null, requirementUnit: null,
+    outstandingPurchaseQuantity: 2, purchaseUnit: 'item', ingredientVersion: null,
+    adHocStoreId: null, adHocDepartmentId: null, adHocDepartmentName: null, storeMappings: [],
+    contributions: [manual('1', 'First note'), manual('2', 'Second note'),
+      manual('3', 'Second note'), manual('4', 'Cancelled note', 'cancelled')],
+  };
+  render(<MemoryRouter><GroceryItemList groups={[{ name: 'Uncategorised', items: [item] }]}
+    onEdit={() => {}} onRemove={() => {}} onQuantityChange={() => {}} disabled={false} /></MemoryRouter>);
+  expect(screen.getAllByText('First note')).toHaveLength(2);
+  expect(screen.getAllByText('Second note')).toHaveLength(2);
+  expect(screen.queryByText('Cancelled note')).not.toBeInTheDocument();
+  expect(screen.queryByText(/Sources/)).not.toBeInTheDocument();
 });

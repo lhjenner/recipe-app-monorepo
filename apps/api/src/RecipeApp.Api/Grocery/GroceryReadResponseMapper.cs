@@ -30,6 +30,7 @@ internal static class GroceryReadResponseMapper
             .Select(mapping => new GroceryStoreMappingResponse(
                 mapping.StoreId,
                 GetMappingState(mapping),
+                mapping.DepartmentId,
                 mapping.Department?.Name))
             .ToArray() ?? [];
 
@@ -45,7 +46,9 @@ internal static class GroceryReadResponseMapper
             hasRequirement ? requirementUnit : null,
             item.OutstandingPurchaseQuantity,
             item.PurchaseUnit,
+            item.Ingredient?.Version,
             item.StoreId,
+            item.DepartmentId,
             item.Department?.Name,
             storeMappings,
             item.Contributions

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using RecipeApp.Api.Grocery;
 
@@ -5,6 +6,23 @@ namespace RecipeApp.Api.UnitTests.Grocery;
 
 public sealed class GroceryContractTests
 {
+    [Theory]
+    [InlineData("\"name\":\"Changed\"")]
+    [InlineData("\"categoryId\":null")]
+    [InlineData("\"storeMappings\":[]")]
+    [InlineData("\"departmentUpdate\":{\"storeMappings\":[]}")]
+    public void Shopping_edits_reject_unknown_catalogue_fields(string forbiddenProperty)
+    {
+        var json = "{\"commandId\":\"00000000-0000-7000-8000-000000000001\","
+            + "\"expectedListVersion\":1,\"outstandingPurchaseQuantity\":2,\"purchaseUnit\":\"item\","
+            + forbiddenProperty + "}";
+
+        var deserialize = () => JsonSerializer.Deserialize<GroceryItemUpdateRequest>(
+            json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        deserialize.Should().Throw<JsonException>();
+    }
+
     [Theory]
     [InlineData(9_999, "g", true)]
     [InlineData(0.125, "ml", true)]
