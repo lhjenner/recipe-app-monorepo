@@ -19,6 +19,23 @@ Currently, two official plugins are available:
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
 - [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
+## Modal containers
+
+[ModalContainer](src/shared/components/ModalContainer.tsx) is a mount-to-open native
+`<dialog>` shell used by the grocery Add/Edit forms. Owners conditionally render
+it, supply the accessible heading ID and CSS class, and choose an initial focus
+selector (keep it stable while mounted). It adds no content wrappers or styles.
+Native `showModal()` provides focus containment and background inertness; cleanup
+closes the dialog and restores focus to the connected opener. Escape requests
+owner dismissal only when `locked` is false; backdrop clicks do not dismiss.
+Grocery owners keep it locked while saving and while an ambiguous result awaits
+retry, and continue to disable their own close buttons and draft controls.
+
+[ConfirmDialog](src/shared/components/ConfirmDialog.tsx) intentionally remains
+separate: its `open` prop controls visibility, it focuses the non-destructive
+Cancel action, and it allows backdrop dismissal. Do not substitute the form
+container without accounting for those behavioral differences.
+
 ## React Compiler
 
 The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).

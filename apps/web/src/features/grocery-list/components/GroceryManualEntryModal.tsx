@@ -6,7 +6,7 @@ import {
   type GroceryManualEntryCommand,
 } from '../services/groceryListApi';
 import { useGroceryCommand } from '../hooks/useGroceryCommand';
-import GroceryDialog from './GroceryDialog';
+import ModalContainer from '../../../shared/components/ModalContainer';
 import GroceryDuplicateReviewPanel from './GroceryDuplicateReviewPanel';
 import GroceryManualEntryRow, { type GroceryManualEntryDraft } from './GroceryManualEntryRow';
 
@@ -105,7 +105,8 @@ function GroceryManualEntryModal({
   }
 
   return (
-    <GroceryDialog labelledBy="grocery-entry-heading" locked={mutation.locked} onClose={onClose}>
+    <ModalContainer labelledBy="grocery-entry-heading" className="grocery-entry-dialog"
+      initialFocusSelector="input" locked={mutation.locked} onClose={onClose}>
       <header className="grocery-entry-heading">
         <div>
           <h2 id="grocery-entry-heading">Add items to Grocery List</h2>
@@ -196,7 +197,7 @@ function GroceryManualEntryModal({
       </form>
 
       <GroceryDuplicateReviewPanel reviews={duplicateReviews} />
-    </GroceryDialog>
+    </ModalContainer>
   );
 }
 
