@@ -7,7 +7,7 @@ import {
 } from '../services/groceryListApi';
 import { useGroceryCommand } from '../hooks/useGroceryCommand';
 import { useGroceryEditDraft } from '../hooks/useGroceryEditDraft';
-import GroceryDialog from './GroceryDialog';
+import ModalContainer from '../../../shared/components/ModalContainer';
 import GroceryEditConflicts from './GroceryEditConflicts';
 import GroceryEditDialogStatus from './GroceryEditDialogStatus';
 import GroceryItemEditForm from './GroceryItemEditForm';
@@ -132,7 +132,8 @@ function GroceryItemEditDialog({
   }
 
   return (
-    <GroceryDialog labelledBy="grocery-edit-heading" locked={mutation.locked} onClose={onClose}>
+    <ModalContainer labelledBy="grocery-edit-heading" className="grocery-entry-dialog"
+      initialFocusSelector="input" locked={mutation.locked} onClose={onClose}>
       <GroceryEditDialogStatus
         itemName={item.name}
         isSaving={mutation.locked}
@@ -177,7 +178,7 @@ function GroceryItemEditDialog({
         onCancelConfirmation={() => setShowConfirmation(false)}
         onClose={onClose}
       />
-    </GroceryDialog>
+    </ModalContainer>
   );
 }
 

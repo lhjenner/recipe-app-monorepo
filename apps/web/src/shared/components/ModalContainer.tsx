@@ -1,32 +1,38 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
-interface GroceryDialogProps {
+interface ModalContainerProps {
   labelledBy: string;
+  className: string;
+  initialFocusSelector?: string;
   locked: boolean;
   onClose: () => void;
   children: ReactNode;
 }
 
-function GroceryDialog({ labelledBy, locked, onClose, children }: GroceryDialogProps) {
+function ModalContainer({
+  labelledBy, className, initialFocusSelector, locked, onClose, children,
+}: ModalContainerProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const dialog = dialogRef.current!;
     const previousFocus = document.activeElement;
     dialog.showModal();
-    dialog.querySelector<HTMLInputElement>('input')?.focus();
+    if (initialFocusSelector) {
+      dialog.querySelector<HTMLElement>(initialFocusSelector)?.focus();
+    }
     return () => {
       dialog.close();
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
         previousFocus.focus();
       }
     };
-  }, []);
+  }, [initialFocusSelector]);
 
   return (
     <dialog
       ref={dialogRef}
-      className="grocery-entry-dialog"
+      className={className}
       aria-modal="true"
       aria-labelledby={labelledBy}
       onCancel={(event) => {
@@ -41,4 +47,4 @@ function GroceryDialog({ labelledBy, locked, onClose, children }: GroceryDialogP
   );
 }
 
-export default GroceryDialog;
+export default ModalContainer;
