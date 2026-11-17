@@ -9,8 +9,54 @@ namespace RecipeApp.Api.Controllers;
 [Route("api/grocery-list")]
 public sealed class GroceryListController(
     IGroceryReadService groceryReads,
-    IGroceryWriteService groceryWrites) : ControllerBase
+    IGroceryWriteService groceryWrites,
+    GroceryRecipePreviewService groceryRecipePreviews,
+    GroceryRecipeAdditionService groceryRecipeAdditions,
+    GroceryRecipeRemovalService groceryRecipeRemovals) : ControllerBase
 {
+    [HttpGet("recipes/{recipeId:guid}/preview")]
+    [EndpointSummary("Preview Recipe grocery additions")]
+    [EndpointDescription("Reviews eligible Recipe Ingredients and current grocery-list versions without writing.")]
+    [ProducesResponseType<GroceryRecipePreviewResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GroceryRecipePreviewResponse>> PreviewRecipe(
+        Guid recipeId,
+        CancellationToken cancellationToken)
+    {
+        var preview = await groceryRecipePreviews.GetPreviewAsync(recipeId, cancellationToken);
+        return preview is null ? NotFound() : Ok(preview);
+    }
+
+    [HttpPost("recipes/{recipeId:guid}")]
+    [EndpointSummary("Add a Recipe to the grocery list")]
+    [ProducesResponseType<GroceryCommandReceiptResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<GroceryCommandReceiptResponse>> AddRecipe(
+        Guid recipeId,
+        GroceryRecipeAddCommand command,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await groceryRecipeAdditions.AddRecipeAsync(recipeId, command, cancellationToken);
+        return ToWriteResult(outcome);
+    }
+
+    [HttpDelete("recipes/{recipeId:guid}/contributions")]
+    [EndpointSummary("Remove outstanding requirements from a Recipe")]
+    [ProducesResponseType<GroceryCommandReceiptResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<GroceryCommandReceiptResponse>> RemoveRecipeContributions(
+        Guid recipeId,
+        GroceryRecipeRemovalCommand command,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await groceryRecipeRemovals.RemoveRecipeAsync(recipeId, command, cancellationToken);
+        return ToWriteResult(outcome);
+    }
+
     [HttpPost("items")]
     [EndpointSummary("Add grocery items")]
     [EndpointDescription("Atomically adds one or more manual items and any explicitly selected Ingredients.")]

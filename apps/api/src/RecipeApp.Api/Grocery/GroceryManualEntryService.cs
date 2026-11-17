@@ -91,6 +91,7 @@ public sealed class GroceryManualEntryService(
         }
 
         var activeItems = await database.GroceryItems
+            .Include(item => item.Contributions)
             .Where(item => item.OwnerUserId == ownerId
                 && item.GroceryListId == list.Id
                 && item.State == GroceryItemState.Outstanding)
