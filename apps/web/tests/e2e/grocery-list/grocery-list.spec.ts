@@ -129,6 +129,80 @@ test('manual entry suggests Ingredients while typing and links only a chosen sug
 });
 
 test.describe('Grocery list reads', () => {
+  test('expands recipe sources from the requirement without shifting desktop columns', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockGroceryApi(page);
+    const recipeName = 'Apple Crumble With Cinnamon, Maple Syrup and Toasted Walnuts';
+    await page.route('**/api/grocery-list', (route) => route.fulfill({
+      json: {
+        ...groceryList,
+        items: groceryList.items.map((item) => item.name === 'rolled oats' ? {
+          ...item,
+          name: 'maple syrup',
+          dimension: 'volume',
+          requirementAmount: 20,
+          requirementUnit: 'ml',
+          contributions: [1, 2].map((step) => ({
+            id: `00000000-0000-7000-8000-00000000050${step}`,
+            origin: 'recipe',
+            state: 'outstanding',
+            originalAmountText: '2',
+            originalUnitText: 'tsp',
+            originalNotesText: null,
+            interpretedAmount: 10,
+            canonicalUnit: 'ml',
+            unresolvedReason: null,
+            recipeId: '00000000-0000-7000-8000-000000000503',
+            recipeStepId: `00000000-0000-7000-8000-00000000051${step}`,
+            recipeStepItemId: null,
+            recipeNameSnapshot: recipeName,
+          })),
+        } : item),
+      },
+    }));
+    await page.setViewportSize({ width: 900, height: 844 });
+    await page.goto('/grocery-list');
+
+    const table = page.getByRole('table', { name: 'Outstanding grocery items' });
+    const requirement = table.getByText('Requirement: 20 ml', { exact: true });
+    const source = table.getByRole('link', { name: new RegExp(recipeName, 'i') });
+    const actions = table.getByRole('row', { name: /Maple Syrup/ }).getByRole('cell').last();
+    const edit = actions.getByRole('button', { name: 'Edit', exact: true });
+    const remove = actions.getByRole('button', { name: /Remove maple syrup/ });
+    await expect(requirement).toBeVisible();
+    await expect(source).toBeHidden();
+    const columnGeometry = () => table.getByRole('columnheader').evaluateAll((headers) =>
+      headers.map((header) => {
+        const { x, width } = header.getBoundingClientRect();
+        return { x, width };
+      }),
+    );
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    await requirement.scrollIntoViewIfNeeded();
+    const collapsedEdit = await edit.boundingBox();
+    const collapsedRemove = await remove.boundingBox();
+    const actionCell = await actions.boundingBox();
+    expect(collapsedEdit!.x + collapsedEdit!.width).toBeLessThan(collapsedRemove!.x);
+    expect(collapsedRemove!.y).toBeLessThan(collapsedEdit!.y + collapsedEdit!.height);
+    expect(collapsedEdit!.y).toBeLessThan(collapsedRemove!.y + collapsedRemove!.height);
+    expect(collapsedRemove!.x + collapsedRemove!.width).toBeLessThanOrEqual(actionCell!.x + actionCell!.width);
+    const collapsedColumns = await columnGeometry();
+    const collapsedRequirement = await requirement.boundingBox();
+    expect(collapsedRequirement).not.toBeNull();
+    const chevronPoint = { x: collapsedRequirement!.x + 7, y: collapsedRequirement!.y + 10 };
+    await page.mouse.click(chevronPoint.x, chevronPoint.y);
+    await expect(source).toBeVisible();
+    await expect(source).toHaveCount(1);
+    await expect(source.locator('..')).toHaveText(/ — 4 tsp$/);
+    expect(await columnGeometry()).toEqual(collapsedColumns);
+    expect(await requirement.boundingBox()).toEqual(collapsedRequirement);
+    expect(await edit.boundingBox()).toEqual(collapsedEdit);
+    expect(await remove.boundingBox()).toEqual(collapsedRemove);
+    await page.mouse.click(chevronPoint.x, chevronPoint.y);
+    await expect(source).toBeHidden();
+    expect(await columnGeometry()).toEqual(collapsedColumns);
+  });
+
   test('toggles departments independently and preserves expansion across desktop and mobile', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockGroceryApi(page);

@@ -11,7 +11,15 @@ test.each([
   { name: 'manual without amount', origins: ['manual'] as const, amount: null, unit: 'onion' },
   { name: 'Recipe without unit', origins: ['recipe'] as const, amount: 2, unit: null },
   { name: 'Recipe without a numeric total', origins: ['recipe'] as const, amount: null, unit: null },
-])('shows useful requirements and Recipe Sources for $name on desktop and mobile', ({ origins, amount, unit }) => {
+  { name: 'same-unit recipe steps and repeat additions', origins: ['recipe', 'recipe', 'recipe'] as const,
+    amount: 30, unit: 'ml', sourceUnits: ['tsp', 'tsp', 'tsp'], sourceTotal: '6 tsp' },
+  { name: 'two maple syrup steps using the existing API response', origins: ['recipe', 'recipe'] as const,
+    amount: 20, unit: 'ml', sourceUnits: ['tsp', 'tsp'], sourceTotal: '4 tsp' },
+  { name: 'fractional same-unit recipe steps', origins: ['recipe', 'recipe'] as const,
+    amount: 20, unit: 'ml', sourceUnits: ['tsp', 'tsp'], sourceAmounts: ['1/2', '3 1/2'], sourceTotal: '4 tsp' },
+  { name: 'mixed-unit recipe steps', origins: ['recipe', 'recipe'] as const,
+    amount: 40, unit: 'ml', sourceUnits: ['tsp', 'tbsp'], sourceTotal: '40 ml' },
+])('shows useful requirements and Recipe Sources for $name on desktop and mobile', ({ origins, amount, unit, sourceUnits, sourceTotal, sourceAmounts }) => {
   const item: GroceryItem = {
     id: 'item',
     ingredientId: 'ingredient',
@@ -29,15 +37,15 @@ test.each([
     adHocDepartmentId: null,
     adHocDepartmentName: null,
     storeMappings: [],
-    contributions: origins.map((origin) => ({
-      id: origin,
+    contributions: origins.map((origin, index) => ({
+      id: `${origin}-${index}`,
       origin,
       state: 'outstanding',
-      originalAmountText: '2',
-      originalUnitText: 'onion',
+      originalAmountText: sourceAmounts?.[index] ?? '2',
+      originalUnitText: sourceUnits?.[index] ?? 'onion',
       originalNotesText: null,
-      interpretedAmount: 2,
-      canonicalUnit: 'onion',
+      interpretedAmount: sourceUnits?.[index] === 'tbsp' ? 30 : sourceUnits ? 10 : 2,
+      canonicalUnit: sourceUnits ? 'ml' : 'onion',
       unresolvedReason: null,
       recipeId: origin === 'recipe' ? 'recipe' : null,
       recipeStepId: null,
@@ -66,10 +74,20 @@ test.each([
   expect(screen.getAllByText('Choose firm onions.')).toHaveLength(2);
   expect(screen.queryByText('Recipe requirement:')).not.toBeInTheDocument();
   const hasRecipe = origins.some((origin) => origin === 'recipe');
-  expect(screen.queryAllByText(`Sources (${origins.length})`)).toHaveLength(hasRecipe ? 2 : 0);
+  const hasTotal = amount !== null && unit !== null;
+  for (const requirement of requirements) {
+    expect(requirement.parentElement?.tagName).toBe(hasRecipe ? 'SUMMARY' : 'P');
+  }
+  expect(screen.queryAllByText(`Sources (${origins.length})`))
+    .toHaveLength(hasRecipe && !hasTotal ? 2 : 0);
   expect(screen.queryAllByText(/Manual addition/))
     .toHaveLength(hasRecipe && origins.some((origin) => origin === 'manual') ? 2 : 0);
   expect(screen.queryAllByText('Onion Soup')).toHaveLength(hasRecipe ? 2 : 0);
+  if (sourceTotal) {
+    for (const recipe of screen.getAllByText('Onion Soup')) {
+      expect(recipe.parentElement).toHaveTextContent(`Onion Soup — ${sourceTotal}`);
+    }
+  }
 });
 
 test('shows distinct outstanding manual addition notes without a Sources accordion', () => {

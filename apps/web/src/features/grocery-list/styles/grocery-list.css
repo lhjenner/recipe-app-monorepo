@@ -295,6 +295,36 @@
   vertical-align: top;
 }
 
+.grocery-items-table {
+  table-layout: fixed;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 701px) {
+  :root:has(.grocery-items-table-wrap) {
+    scrollbar-gutter: stable;
+  }
+}
+
+.grocery-items-table thead th:first-child {
+  width: 25%;
+}
+
+.grocery-items-table thead th:nth-child(3) {
+  box-sizing: border-box;
+  width: 184px;
+}
+
+.grocery-items-table thead th:last-child {
+  box-sizing: border-box;
+  width: 13rem;
+}
+
+.grocery-items-table .grocery-item-actions {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
 .grocery-items-table > tbody:last-child > tr:last-child > :is(th, td),
 .grocery-items-table > tbody:last-child > .grocery-group-heading:has([aria-expanded='false']) > th {
   border-bottom: 0;
@@ -347,6 +377,37 @@
 
 .grocery-requirement-details p {
   margin: 0;
+}
+
+.grocery-requirement-details {
+  overflow-wrap: anywhere;
+}
+
+.grocery-requirement-details summary {
+  position: relative;
+  display: block;
+  padding-inline-start: 1.15em;
+  cursor: pointer;
+}
+
+.grocery-requirement-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.grocery-requirement-details summary::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.55em;
+  inset-inline-start: 0.1em;
+  width: 0.4em;
+  height: 0.4em;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(-45deg);
+}
+
+.grocery-requirement-details details[open] > summary::before {
+  transform: rotate(45deg);
 }
 
 .grocery-history-table th span,

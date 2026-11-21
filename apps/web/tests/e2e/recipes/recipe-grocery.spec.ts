@@ -13,8 +13,20 @@ for (const width of [375, 1280]) {
     await mockRecipeGroceryApi(page, commands, false);
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`/recipes/${recipeId}`);
-    await page.getByRole('button', { name: 'Add to grocery list' }).click();
+    const addButton = page.getByRole('button', { name: 'Add to grocery list', exact: true, includeHidden: true });
+    const tags = page.getByRole('list', { name: 'Recipe tags', includeHidden: true });
+    await expect(addButton).toBeVisible();
+    await expect(tags).toBeVisible();
+    const buttonBounds = await addButton.boundingBox();
+    const tagBounds = await tags.boundingBox();
+    expect(tagBounds!.y - (buttonBounds!.y + buttonBounds!.height)).toBeGreaterThanOrEqual(8);
+
+    await addButton.click();
     await expect(page.getByRole('heading', { name: 'Review Recipe grocery items' })).toBeVisible();
+    const backgroundButtonBounds = await addButton.boundingBox();
+    const backgroundTagBounds = await tags.boundingBox();
+    expect(backgroundTagBounds!.y - (backgroundButtonBounds!.y + backgroundButtonBounds!.height))
+      .toBeCloseTo(tagBounds!.y - (buttonBounds!.y + buttonBounds!.height));
     await expect(page.getByRole('region', { name: 'Included Recipe Ingredients' })
       .getByText('Firm Tofu', { exact: true })).toBeVisible();
     await expect(page.getByText('archived Ingredient reference')).toHaveCount(0);

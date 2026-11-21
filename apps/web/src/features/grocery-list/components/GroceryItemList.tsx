@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { toTitleCase } from '../../../shared/utils/titleCase';
 import type { GroceryItem } from '../services/groceryListApi';
 import type { GroceryItemGroup } from '../models/groceryGrouping';
+import { formatSourceAmount, groupRecipeSources } from '../models/grocerySourceSummary';
 import GroceryQuantityStepper from './GroceryQuantityStepper';
 
 interface GroceryItemListProps {
@@ -166,25 +167,25 @@ function GroupToggle({ name, expanded, controls, onToggle }: GroupToggleProps) {
 }
 
 function RequirementDetails({ item }: { item: GroceryItem }) {
+  const hasRecipe = item.contributions.some((contribution) => contribution.origin === 'recipe');
+  const requirement = item.requirementAmount !== null && item.requirementUnit !== null
+    ? <><strong>Requirement:</strong> {formatAmount(item.requirementAmount)} {item.requirementUnit}</>
+    : null;
+  const sources = groupRecipeSources(item.contributions);
   const manualNotes = [...new Set(item.contributions
     .filter((contribution) => contribution.origin === 'manual' && contribution.state === 'outstanding')
     .map((contribution) => contribution.originalNotesText?.trim())
     .filter((note): note is string => Boolean(note) && note !== item.note?.trim()))];
   return (
     <div className="grocery-requirement-details">
-      {item.requirementAmount !== null && item.requirementUnit !== null && (
-        <p><strong>Requirement:</strong> {formatAmount(item.requirementAmount)} {item.requirementUnit}</p>
-      )}
-      {item.note && <p><strong>Note:</strong> {item.note}</p>}
-      {manualNotes.map((note) => <p key={note}><strong>Manual addition note:</strong> {note}</p>)}
-      {item.contributions.some((contribution) => contribution.origin === 'recipe') && (
+      {hasRecipe ? (
         <details>
-          <summary>Sources ({item.contributions.length})</summary>
+          <summary>{requirement ?? `Sources (${sources.length})`}</summary>
           <ul>
-            {item.contributions.map((contribution) => {
-              const original = [contribution.originalAmountText, contribution.originalUnitText]
-                .filter(Boolean)
-                .join(' ');
+            {sources.map(([contribution, ...rest]) => {
+              const entries = [contribution, ...rest];
+              const amount = formatSourceAmount(entries);
+              const notes = [...new Set(entries.map((entry) => entry.originalNotesText).filter(Boolean))];
               const sourceName = contribution.recipeNameSnapshot
                 ? toTitleCase(contribution.recipeNameSnapshot)
                 : 'Manual addition';
@@ -193,15 +194,17 @@ function RequirementDetails({ item }: { item: GroceryItem }) {
                   {contribution.recipeId
                     ? <Link to={`/recipes/${contribution.recipeId}`}>{sourceName}</Link>
                     : sourceName}
-                  {original && ` — ${original}`}
-                  {contribution.originalNotesText && ` (${contribution.originalNotesText})`}
+                  {amount && ` — ${amount}`}
+                  {notes.length > 0 && ` (${notes.join('; ')})`}
                   {contribution.unresolvedReason && ` — Needs review: ${contribution.unresolvedReason}`}
                 </li>
               );
             })}
           </ul>
         </details>
-      )}
+      ) : requirement && <p>{requirement}</p>}
+      {item.note && <p><strong>Note:</strong> {item.note}</p>}
+      {manualNotes.map((note) => <p key={note}><strong>Manual addition note:</strong> {note}</p>)}
     </div>
   );
 }
