@@ -27,8 +27,18 @@ for (const width of [375, 1280]) {
     const backgroundTagBounds = await tags.boundingBox();
     expect(backgroundTagBounds!.y - (backgroundButtonBounds!.y + backgroundButtonBounds!.height))
       .toBeCloseTo(tagBounds!.y - (buttonBounds!.y + buttonBounds!.height));
-    await expect(page.getByRole('region', { name: 'Included Recipe Ingredients' })
-      .getByText('Firm Tofu', { exact: true })).toBeVisible();
+    const included = page.getByRole('region', { name: 'Included Recipe Ingredients' });
+    const ingredient = included.getByText('Firm Tofu', { exact: true });
+    const toggle = included.locator('summary');
+    await expect(toggle).toHaveText('Included (1)');
+    await expect(ingredient).toBeHidden();
+    await toggle.click();
+    await expect(ingredient).toBeVisible();
+    await expect(included).not.toContainText('pressed');
+    await toggle.press('Enter');
+    await expect(ingredient).toBeHidden();
+    await toggle.press('Enter');
+    await expect(ingredient).toBeVisible();
     await expect(page.getByText('archived Ingredient reference')).toHaveCount(0);
     expect(await page.evaluate(() =>
       document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
@@ -59,6 +69,8 @@ test('requires explicit repeat confirmation and removes only outstanding Recipe 
   expect(commands.at(-1)?.body).toMatchObject({ confirmRepeat: true });
 
   await page.getByRole('button', { name: 'Add to grocery list' }).click();
+  await expect(page.getByRole('region', { name: 'Included Recipe Ingredients' })
+    .getByText('Firm Tofu', { exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Remove this Recipe’s outstanding requirements' }).click();
   await page.getByRole('button', { name: 'Confirm removal' }).click();
   await expect(page.getByRole('link', { name: 'View Grocery List' })).toBeVisible();

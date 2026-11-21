@@ -84,6 +84,7 @@ test('reviews eligible, archived, excluded and unresolved items before adding wi
 
   expect(await screen.findByText('Tomato')).toBeInTheDocument();
   expect(screen.queryByText(/Sliced tomato/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/finely sliced/)).not.toBeInTheDocument();
   expect(screen.getByText(/archived Ingredient reference/)).toBeInTheDocument();
   expect(screen.getByText(/Needs review: The quantity is not a complete supported number/)).toBeInTheDocument();
   expect(screen.getByText(/For serving — Headings and notes are not grocery items/)).toBeInTheDocument();
@@ -99,6 +100,32 @@ test('reviews eligible, archived, excluded and unresolved items before adding wi
   });
   expect(await screen.findByRole('link', { name: 'View Grocery List' }))
     .toHaveAttribute('href', '/grocery-list');
+});
+
+test.each(['cubed', '(cubed)'])('omits cooking notes "%s" from unitless ingredient review', async (notes) => {
+  previewMock.mockResolvedValue({
+    ...preview,
+    included: [{
+      ...preview.included[0],
+      ingredientName: 'apple',
+      ingredientIsArchived: false,
+      originalAmountText: '1',
+      originalUnitText: null,
+      originalNotesText: notes,
+      interpretationStatus: 'known',
+      interpretedAmount: 1,
+      dimension: 'count',
+      canonicalUnit: 'item',
+      countLabel: 'item',
+      unresolvedReason: null,
+    }],
+  });
+  renderActions();
+  fireEvent.click(screen.getByRole('button', { name: 'Add to grocery list' }));
+
+  const apple = await screen.findByText('Apple');
+  expect(apple.parentElement?.textContent).toBe('Apple — 1');
+  expect(screen.queryByText(/cubed/)).not.toBeInTheDocument();
 });
 
 test('requires a deliberate repeat action and removes only outstanding Recipe demand', async () => {

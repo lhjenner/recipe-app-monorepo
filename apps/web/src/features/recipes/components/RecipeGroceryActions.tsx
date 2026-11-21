@@ -85,21 +85,22 @@ function RecipeGroceryActions({ recipeId }: RecipeGroceryActionsProps) {
                 ? <p role="status">This Recipe has no eligible Ingredients. Nothing will be added.</p>
                 : (
                   <section aria-label="Included Recipe Ingredients">
-                    <h4>Included ({preview.included.length})</h4>
-                    <ul>
-                      {preview.included.map((entry) => (
-                        <li key={entry.recipeStepItemId}>
-                          <strong>{toTitleCase(entry.ingredientName)}</strong>
-                          {entry.originalAmountText || entry.originalUnitText
-                            ? ` — ${[entry.originalAmountText, entry.originalUnitText].filter(Boolean).join(' ')}`
-                            : ' — quantity not specified'}
-                          {entry.originalNotesText && ` (${entry.originalNotesText})`}
-                          {entry.ingredientIsArchived && ' — archived Ingredient reference'}
-                          {entry.interpretationStatus === 'unresolved'
-                            && ` — Needs review: ${entry.unresolvedReason}`}
-                        </li>
-                      ))}
-                    </ul>
+                    <details>
+                      <summary><strong>Included ({preview.included.length})</strong></summary>
+                      <ul>
+                        {preview.included.map((entry) => (
+                          <li key={entry.recipeStepItemId}>
+                            <strong>{toTitleCase(entry.ingredientName)}</strong>
+                            {entry.originalAmountText || entry.originalUnitText
+                              ? ` — ${[entry.originalAmountText, entry.originalUnitText].filter(Boolean).join(' ')}`
+                              : ' — quantity not specified'}
+                            {entry.ingredientIsArchived && ' — archived Ingredient reference'}
+                            {entry.interpretationStatus === 'unresolved'
+                              && ` — Needs review: ${entry.unresolvedReason}`}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
                   </section>
                 )}
               {preview.excluded.length > 0 && (
