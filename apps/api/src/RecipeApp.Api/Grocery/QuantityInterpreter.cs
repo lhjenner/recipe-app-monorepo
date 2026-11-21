@@ -4,6 +4,10 @@ namespace RecipeApp.Api.Grocery;
 
 public static partial class QuantityInterpreter
 {
+    public static QuantityInterpretation InterpretRecipe(string? amountText, string? unitText) =>
+        Interpret(amountText, string.IsNullOrWhiteSpace(unitText) ? "item" : unitText)
+            with { OriginalUnitText = unitText };
+
     public static QuantityInterpretation Interpret(string? amountText, string? unitText)
     {
         if (!QuantityUnitCatalog.TryGet(unitText, out var definition, out var unitError))

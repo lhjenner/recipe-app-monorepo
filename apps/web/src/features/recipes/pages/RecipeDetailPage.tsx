@@ -7,6 +7,7 @@ import { toTitleCase } from '../../../shared/utils/titleCase';
 import { RecipeMetadata, RecipeSource } from '../components/RecipeMetadata';
 import RecipeStep from '../components/RecipeStep';
 import { useRecipeStepCompletion } from '../hooks/useRecipeStepCompletion';
+import RecipeGroceryActions from '../components/RecipeGroceryActions';
 
 function RecipeImage({
   recipeName,
@@ -97,6 +98,7 @@ function RecipeDetailPage() {
                   <Link className="recipe-back-link" to={backToRecipes}>Back to recipes</Link>
                   <h1 id="recipe-detail-heading">{toTitleCase(details.name)}</h1>
                   <RecipeSource value={details.sourceUrl} />
+                  <RecipeGroceryActions recipeId={details.id} />
 
                   {details.tags.length > 0 && (
                     <ul className="recipe-tags" aria-label="Recipe tags">
