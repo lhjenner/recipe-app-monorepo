@@ -5,9 +5,11 @@ import { useRecipeGroceryActions } from '../hooks/useRecipeGroceryActions';
 
 interface RecipeGroceryActionsProps {
   recipeId: string;
+  hasOutstandingAddition?: boolean;
+  onChanged?: () => void;
 }
 
-function RecipeGroceryActions({ recipeId }: RecipeGroceryActionsProps) {
+function RecipeGroceryActions({ recipeId, hasOutstandingAddition = false, onChanged }: RecipeGroceryActionsProps) {
   const {
     isOpen,
     preview,
@@ -17,7 +19,7 @@ function RecipeGroceryActions({ recipeId }: RecipeGroceryActionsProps) {
     notice,
     canRetry,
     needsFreshReview,
-    confirmRemoval,
+    mode,
     locked,
     loadPreview,
     openReview,
@@ -25,15 +27,22 @@ function RecipeGroceryActions({ recipeId }: RecipeGroceryActionsProps) {
     removeRecipe,
     retryCommand,
     closeReview,
-    setConfirmRemoval,
-  } = useRecipeGroceryActions(recipeId);
+  } = useRecipeGroceryActions(recipeId, onChanged);
+  const isRemoval = mode === 'remove';
+  const isRepeat = !isRemoval && preview?.hasOutstandingAddition;
+  const showConfirmationActions = Boolean(preview && !isLoading && (isRemoval || isRepeat));
 
   return (
     <>
       <div className="recipe-grocery-actions">
-        <button className="btn btn-primary" type="button" onClick={openReview}>
-          Add to grocery list
+        <button className="btn btn-primary" type="button" onClick={() => openReview()} disabled={locked}>
+          Add to Grocery List
         </button>
+        {hasOutstandingAddition && (
+          <button className="btn btn-danger-secondary" type="button" onClick={() => openReview('remove')} disabled={locked}>
+            Remove from Grocery List
+          </button>
+        )}
         {notice && (
           <p role="status">
             {notice} <Link to="/grocery-list">View Grocery List</Link>
@@ -50,12 +59,16 @@ function RecipeGroceryActions({ recipeId }: RecipeGroceryActionsProps) {
         >
           <header className="grocery-entry-heading">
             <div>
-              <h2 id="recipe-grocery-review-heading">Review Recipe grocery items</h2>
+              <h2 id="recipe-grocery-review-heading">
+                {isRemoval ? 'Remove from Grocery List' : isRepeat ? 'Add Recipe again?' : 'Review Recipe grocery items'}
+              </h2>
               <p>Recipe content and cooking progress will not be changed.</p>
             </div>
-            <button className="btn btn-secondary" type="button" onClick={closeReview} disabled={locked}>
-              Close
-            </button>
+            {!showConfirmationActions && (
+              <button className="btn btn-secondary" type="button" onClick={closeReview} disabled={locked}>
+                {isRemoval ? 'Cancel' : 'Close'}
+              </button>
+            )}
           </header>
 
           {isLoading && <p role="status">Reviewing Recipe…</p>}
@@ -81,7 +94,7 @@ function RecipeGroceryActions({ recipeId }: RecipeGroceryActionsProps) {
           {preview && !isLoading && (
             <>
               <h3>{toTitleCase(preview.recipeName)}</h3>
-              {preview.included.length === 0
+              {!isRemoval && !isRepeat && (preview.included.length === 0
                 ? <p role="status">This Recipe has no eligible Ingredients. Nothing will be added.</p>
                 : (
                   <section aria-label="Included Recipe Ingredients">
@@ -102,8 +115,8 @@ function RecipeGroceryActions({ recipeId }: RecipeGroceryActionsProps) {
                       </ul>
                     </details>
                   </section>
-                )}
-              {preview.excluded.length > 0 && (
+                ))}
+              {!isRemoval && !isRepeat && preview.excluded.length > 0 && (
                 <section aria-label="Excluded Recipe items">
                   <h4>Not included ({preview.excluded.length})</h4>
                   <ul>
@@ -115,41 +128,38 @@ function RecipeGroceryActions({ recipeId }: RecipeGroceryActionsProps) {
                   </ul>
                 </section>
               )}
-              {preview.hasOutstandingAddition && (
+              {isRepeat && (
                 <p role="status">
-                  This Recipe already has outstanding grocery requirements. Confirm only if you intend to add another Recipe&apos;s worth.
+                  This Recipe is already on your Grocery List. Would you like to add another Recipe&apos;s worth?
                 </p>
               )}
-              {confirmRemoval && (
+              {isRemoval && (
                 <p role="alert">
-                  This cancels only outstanding Recipe demand. Manual additions and purchase history will remain.
+                  {preview.hasOutstandingAddition
+                    ? 'Remove this Recipe from your Grocery List? This cancels only outstanding Recipe demand. Manual additions and purchase history will remain.'
+                    : 'This Recipe no longer has outstanding grocery requirements. Nothing needs removing.'}
                 </p>
               )}
-              {!needsFreshReview && (
-                <div className="grocery-entry-actions">
-                  {!confirmRemoval && preview.included.length > 0 && (
+              {(!needsFreshReview || isRepeat || isRemoval) && (
+                <div className={`grocery-entry-actions${showConfirmationActions ? ' confirmation-actions' : ''}`}>
+                  {!needsFreshReview && !isRemoval && preview.included.length > 0 && (
                     <button className="btn btn-primary" type="button" onClick={addRecipe} disabled={locked}>
                       {isSubmitting
                         ? 'Adding…'
-                        : preview.hasOutstandingAddition
-                          ? 'Confirm and add another Recipe’s worth'
+                        : isRepeat
+                          ? 'Confirm'
                           : 'Add to Grocery List'}
                     </button>
                   )}
-                  {preview.hasOutstandingAddition && !confirmRemoval && (
-                    <button className="btn btn-danger-secondary" type="button" onClick={() => setConfirmRemoval(true)} disabled={locked}>
-                      Remove this Recipe’s outstanding requirements
+                  {!needsFreshReview && isRemoval && preview.hasOutstandingAddition && (
+                    <button className="btn btn-danger" type="button" onClick={removeRecipe} disabled={locked}>
+                      {isSubmitting ? 'Removing…' : 'Confirm'}
                     </button>
                   )}
-                  {confirmRemoval && (
-                    <>
-                      <button className="btn btn-danger" type="button" onClick={removeRecipe} disabled={locked}>
-                        {isSubmitting ? 'Removing…' : 'Confirm removal'}
-                      </button>
-                      <button className="btn btn-secondary" type="button" onClick={() => setConfirmRemoval(false)} disabled={locked}>
-                        Keep requirements
-                      </button>
-                    </>
+                  {(isRepeat || isRemoval) && (
+                    <button className="btn btn-danger-secondary" type="button" onClick={closeReview} disabled={locked} autoFocus>
+                      Cancel
+                    </button>
                   )}
                 </div>
               )}

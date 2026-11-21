@@ -28,7 +28,8 @@ public sealed record RecipeStepItemResponse(
     string? IngredientName,
     string? QuantityText,
     string? UnitText,
-    string? NotesText);
+    string? NotesText,
+    Guid? IngredientId);
 
 public sealed record RecipeStepResponse(
     int Position,

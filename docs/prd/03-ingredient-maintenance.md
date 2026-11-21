@@ -128,15 +128,15 @@ Each criterion is a Given/When/Then scenario. The **Test Type** column declares 
 | AC-32 | Any nutrition value changes | Saved | `NutritionUpdatedAtUtc` is set to the server time; it is unchanged if no nutrition value changed. The user may edit `NutritionSource` (free text, e.g. "woolworths", "manual") | Unit + BDD |
 | AC-33 | The "Exclude from grocery list" checkbox | Toggled and saved | `ExcludeFromGroceryList` is persisted and shown on reload | BDD + E2E |
 | AC-34 | Ingredient X loaded at version V, then changed elsewhere | X is saved with version V | `409` Problem Details; the form keeps the typed values and shows "This ingredient was changed elsewhere" with a "Reload latest" action | BDD + E2E |
-| AC-35 | The user has unsaved changes | They navigate away from the form | They are asked to confirm discarding changes | E2E |
+| AC-35 | The user has unsaved changes | They navigate away from the form | They are asked to confirm discarding changes, with Discard changes before Keep editing and Keep editing initially focused | E2E |
 | AC-73 | An ingredient whose name, category or departments are stored in lower case | The edit form loads, or the user leaves a Name, Category or Department field | The field shows the AC-72 title-case form, and suggestions are listed in title case. Loading alone does not count as an unsaved change; saving stores the title-cased values | E2E |
 
 ### Archive & restore
 
 | ID | Given | When | Then | Test Type |
 |---|---|---|---|---|
-| AC-36 | An active ingredient | The user selects Archive and confirms | `ArchivedAtUtc` is set, it disappears from the default list, and the archive endpoint returns `204` | BDD + E2E |
-| AC-37 | An archived ingredient | The user selects Restore | `ArchivedAtUtc` is cleared and it reappears in the default list | BDD + E2E |
+| AC-36 | An active ingredient | The user selects Archive and confirms | The confirmation shows Archive on the left and Cancel beside it, with Cancel initially focused; confirmation sets `ArchivedAtUtc`, removes it from the default list, and the archive endpoint returns `204` | BDD + E2E |
+| AC-37 | An archived ingredient | The user selects Restore | The confirmation places Restore before Cancel, with Cancel initially focused; confirming clears `ArchivedAtUtc` and it reappears in the default list | BDD + E2E |
 | AC-38 | An archived ingredient whose name now matches an active ingredient | Restore is attempted | `409` Problem Details; it stays archived | BDD |
 | AC-39 | Any ingredient | A client sends `DELETE` | No delete endpoint exists (`405`); there is no hard delete in this PRD | BDD |
 

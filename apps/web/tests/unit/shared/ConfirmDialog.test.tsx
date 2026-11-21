@@ -41,6 +41,8 @@ test('renders an accessible modal with the supplied title, message and button la
   expect(dialog).toHaveAccessibleDescription('Flour will be hidden from the active list.');
   expect(screen.getByRole('button', { name: 'Archive' })).toHaveClass('btn', 'btn-danger');
   expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  expect(screen.getByRole('button', { name: 'Cancel' }).nextElementSibling)
+    .toBe(screen.getByRole('button', { name: 'Archive' }));
 });
 
 test('resolves true when the user confirms and closes the dialog', async () => {
@@ -94,4 +96,23 @@ test('can be used directly as a controlled component', () => {
     />,
   );
   expectDialogClosed();
+});
+
+test('supports an opt-in confirm-first layout without changing the safe initial focus', () => {
+  render(
+    <ConfirmDialog
+      open
+      title="Archive ingredient?"
+      confirmLabel="Archive"
+      tone="danger"
+      confirmFirst
+      onConfirm={() => {}}
+      onCancel={() => {}}
+    />,
+  );
+  const confirm = screen.getByRole('button', { name: 'Archive' });
+  const cancel = screen.getByRole('button', { name: 'Cancel' });
+  expect(confirm.parentElement).toHaveClass('confirmation-actions');
+  expect(confirm.nextElementSibling).toBe(cancel);
+  expect(cancel).toHaveFocus();
 });

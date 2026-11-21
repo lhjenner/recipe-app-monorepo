@@ -13,7 +13,7 @@ type PendingCommand =
   | { kind: 'add'; command: GroceryRecipeAddCommand }
   | { kind: 'remove'; command: GroceryRecipeRemovalCommand };
 
-export function useRecipeGroceryActions(recipeId: string) {
+export function useRecipeGroceryActions(recipeId: string, onChanged?: () => void) {
   const [isOpen, setIsOpen] = useState(false);
   const [preview, setPreview] = useState<GroceryRecipePreview | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +23,7 @@ export function useRecipeGroceryActions(recipeId: string) {
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [canRetry, setCanRetry] = useState(false);
   const [needsFreshReview, setNeedsFreshReview] = useState(false);
-  const [confirmRemoval, setConfirmRemoval] = useState(false);
+  const [mode, setMode] = useState<'add' | 'remove'>('add');
   const locked = isSubmitting || canRetry;
 
   async function loadPreview() {
@@ -32,7 +32,6 @@ export function useRecipeGroceryActions(recipeId: string) {
     setNeedsFreshReview(false);
     setPendingCommand(null);
     setCanRetry(false);
-    setConfirmRemoval(false);
     try {
       setPreview(await getRecipeGroceryPreview(recipeId));
     } catch (requestError: unknown) {
@@ -45,7 +44,8 @@ export function useRecipeGroceryActions(recipeId: string) {
     }
   }
 
-  function openReview() {
+  function openReview(intent: 'add' | 'remove' = 'add') {
+    setMode(intent);
     setNotice(null);
     setPreview(null);
     setIsOpen(true);
@@ -67,6 +67,7 @@ export function useRecipeGroceryActions(recipeId: string) {
       setPendingCommand(null);
       setCanRetry(false);
       setIsOpen(false);
+      onChanged?.();
     } catch (requestError: unknown) {
       const status = requestError instanceof GroceryListApiError ? requestError.status : -1;
       setError(requestError instanceof Error
@@ -131,7 +132,7 @@ export function useRecipeGroceryActions(recipeId: string) {
     notice,
     canRetry,
     needsFreshReview,
-    confirmRemoval,
+    mode,
     locked,
     loadPreview,
     openReview,
@@ -139,6 +140,5 @@ export function useRecipeGroceryActions(recipeId: string) {
     removeRecipe,
     retryCommand,
     closeReview,
-    setConfirmRemoval,
   };
 }

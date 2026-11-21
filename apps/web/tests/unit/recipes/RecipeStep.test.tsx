@@ -18,6 +18,18 @@ const step = {
   instructions: 'Cook tofu.',
 };
 
+test('highlights every linked ingredient occurrence but not similarly named unlinked items', () => {
+  const linked = { ...step.items[0], ingredientId: 'ingredient' };
+  render(<RecipeStep {...step} items={[
+    linked, { ...linked, position: 1 }, { ...step.items[0], position: 2 },
+  ]} done={false} onToggle={() => {}} groceryIngredientIds={new Set(['ingredient'])} />);
+  expect(screen.getAllByText('On Grocery List')).toHaveLength(2);
+  const names = screen.getAllByText('Tofu');
+  expect(names[0].parentElement).toHaveClass('recipe-step-on-grocery-list');
+  expect(names[1].parentElement).toHaveClass('recipe-step-on-grocery-list');
+  expect(names[2].parentElement).not.toHaveClass('recipe-step-on-grocery-list');
+});
+
 function touch(type: string, time: number, x = 20, primary = true) {
   const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 20 });
   Object.defineProperties(event, {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, test, vi } from 'vitest';
 import RecipeGroceryActions from '../../../src/features/recipes/components/RecipeGroceryActions';
@@ -70,17 +70,17 @@ beforeEach(() => {
   });
 });
 
-function renderActions() {
+function renderActions(hasOutstandingAddition = false) {
   return render(
     <MemoryRouter>
-      <RecipeGroceryActions recipeId={preview.recipeId} />
+      <RecipeGroceryActions recipeId={preview.recipeId} hasOutstandingAddition={hasOutstandingAddition} />
     </MemoryRouter>,
   );
 }
 
 test('reviews eligible, archived, excluded and unresolved items before adding with reviewed versions', async () => {
   renderActions();
-  fireEvent.click(screen.getByRole('button', { name: 'Add to grocery list' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
 
   expect(await screen.findByText('Tomato')).toBeInTheDocument();
   expect(screen.queryByText(/Sliced tomato/)).not.toBeInTheDocument();
@@ -90,7 +90,7 @@ test('reviews eligible, archived, excluded and unresolved items before adding wi
   expect(screen.getByText(/For serving — Headings and notes are not grocery items/)).toBeInTheDocument();
   expect(addMock).not.toHaveBeenCalled();
 
-  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to Grocery List' }));
   await waitFor(() => expect(addMock).toHaveBeenCalledOnce());
   expect(addMock).toHaveBeenCalledWith(preview.recipeId, {
     commandId: expect.any(String),
@@ -121,7 +121,7 @@ test.each(['cubed', '(cubed)'])('omits cooking notes "%s" from unitless ingredie
     }],
   });
   renderActions();
-  fireEvent.click(screen.getByRole('button', { name: 'Add to grocery list' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
 
   const apple = await screen.findByText('Apple');
   expect(apple.parentElement?.textContent).toBe('Apple — 1');
@@ -130,9 +130,12 @@ test.each(['cubed', '(cubed)'])('omits cooking notes "%s" from unitless ingredie
 
 test('requires a deliberate repeat action and removes only outstanding Recipe demand', async () => {
   previewMock.mockResolvedValue({ ...preview, hasOutstandingAddition: true, listVersion: 8 });
-  renderActions();
-  fireEvent.click(screen.getByRole('button', { name: 'Add to grocery list' }));
-  fireEvent.click(await screen.findByRole('button', { name: /Confirm and add another Recipe/ }));
+  renderActions(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  expect(await screen.findByText(/already on your Grocery List/)).toBeInTheDocument();
+  expect(screen.queryByText(/Included \(/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Remove this Recipe’s outstanding requirements' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
   await waitFor(() => expect(addMock).toHaveBeenCalledOnce());
   expect(addMock.mock.calls[0]?.[1]).toMatchObject({
@@ -140,22 +143,60 @@ test('requires a deliberate repeat action and removes only outstanding Recipe de
     confirmRepeat: true,
   });
 
-  fireEvent.click(screen.getByRole('button', { name: 'Add to grocery list' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Remove this Recipe’s outstanding requirements' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove from Grocery List' }));
+  await screen.findByRole('button', { name: 'Confirm' });
+  const removalCancel = screen.getByRole('button', { name: 'Cancel' });
+  expect(removalCancel).toHaveClass('btn-danger-secondary');
+  expect(removalCancel.parentElement).toBe(screen.getByRole('button', { name: 'Confirm' }).parentElement);
   expect(screen.getByRole('alert')).toHaveTextContent('Manual additions and purchase history will remain.');
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm removal' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
   await waitFor(() => expect(removeMock).toHaveBeenCalledOnce());
   expect(removeMock).toHaveBeenCalledWith(preview.recipeId, {
     commandId: expect.any(String),
     expectedListVersion: 8,
   });
+
+});
+
+test('allows cancelling removal when preview fails or requires a fresh review', async () => {
+  previewMock.mockRejectedValueOnce(new Error('Preview unavailable.'));
+  renderActions(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove from Grocery List' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Preview unavailable.');
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(removeMock).not.toHaveBeenCalled();
+
+  previewMock.mockResolvedValue({ ...preview, hasOutstandingAddition: true });
+  removeMock.mockRejectedValueOnce(new GroceryListApiError('List changed.', 409));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove from Grocery List' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }));
+  expect(await screen.findByRole('button', { name: 'Review latest Recipe and Grocery List' })).toBeVisible();
+  const cancel = screen.getByRole('button', { name: 'Cancel' });
+  expect(cancel).toHaveClass('btn-danger-secondary');
+  fireEvent.click(cancel);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('does not offer removal without this recipe contribution and cancelling repeat makes no changes', async () => {
+  previewMock.mockResolvedValue({ ...preview, hasOutstandingAddition: true });
+  renderActions();
+  expect(screen.queryByRole('button', { name: 'Remove from Grocery List' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  const cancel = await screen.findByRole('button', { name: 'Cancel' });
+  expect(cancel).toHaveClass('btn-danger-secondary');
+  expect(cancel.parentElement).toBe(screen.getByRole('button', { name: 'Confirm' }).parentElement);
+  fireEvent.click(cancel);
+  expect(addMock).not.toHaveBeenCalled();
+  expect(removeMock).not.toHaveBeenCalled();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
 test('retries an ambiguous add with the exact same command payload', async () => {
   addMock.mockRejectedValueOnce(new GroceryListApiError('Response lost.', 0));
   renderActions();
-  fireEvent.click(screen.getByRole('button', { name: 'Add to grocery list' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  await screen.findByText('Tomato');
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to Grocery List' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Retry original command' }));
 
   await waitFor(() => expect(addMock).toHaveBeenCalledTimes(2));
@@ -170,12 +211,13 @@ test('a stale version requires a fresh preview before another command', async ()
     listVersion: 9,
   });
   renderActions();
-  fireEvent.click(screen.getByRole('button', { name: 'Add to grocery list' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  await screen.findByText('Tomato');
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to Grocery List' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Review latest Recipe and Grocery List' }));
 
   await waitFor(() => expect(previewMock).toHaveBeenCalledTimes(2));
-  fireEvent.click(await screen.findByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to Grocery List' }));
   await waitFor(() => expect(addMock).toHaveBeenCalledTimes(2));
   expect(addMock.mock.calls[1]?.[1]).toMatchObject({
     expectedRecipeVersion: 5,

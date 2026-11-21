@@ -17,6 +17,7 @@ test('requires confirmation before removing an item and allows cancellation with
   await remove.click();
   const dialog = page.getByRole('dialog', { name: 'Remove grocery item?' });
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button')).toHaveText(['Remove item', 'Cancel']);
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
   expect(removals).toBe(0);
   await page.keyboard.press('Escape');

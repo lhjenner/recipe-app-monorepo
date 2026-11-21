@@ -85,7 +85,8 @@ public sealed class RecipeReadService(
                         stepItem.Ingredient?.Name,
                         stepItem.QuantityText,
                         stepItem.UnitText,
-                        stepItem.NotesText))
+                        stepItem.NotesText,
+                        stepItem.IngredientId))
                     .ToArray(),
                 step.Instructions))
             .ToArray();

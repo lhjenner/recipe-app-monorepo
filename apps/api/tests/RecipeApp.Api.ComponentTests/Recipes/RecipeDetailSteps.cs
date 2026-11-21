@@ -14,6 +14,7 @@ namespace RecipeApp.Api.ComponentTests.Recipes;
 public sealed class RecipeDetailSteps(ApiAuthContext context)
 {
     private Guid _recipeId;
+    private Guid _ingredientId;
     private readonly List<Guid> _inaccessibleIds = [];
     private readonly List<HttpResponseMessage> _inaccessibleResponses = [];
 
@@ -35,6 +36,7 @@ public sealed class RecipeDetailSteps(ApiAuthContext context)
             UpdatedAtUtc = DateTime.UtcNow
         };
         var recipe = CreateRecipe(owner.Id, "Ordered Recipe", archived: false);
+        _ingredientId = ingredient.Id;
         recipe.SourceText = "Family recipe";
         recipe.SourceUrl = "https://example.test/recipe";
         recipe.ServingsText = "2-3";
@@ -185,6 +187,9 @@ public sealed class RecipeDetailSteps(ApiAuthContext context)
         items[0].GetProperty("text").GetString().Should().Be("For the base");
         items[1].GetProperty("text").GetString().Should().Be("Old Tomato Snapshot");
         items[1].GetProperty("ingredientName").GetString().Should().Be("Current Tomato");
+        items[1].GetProperty("ingredientId").GetGuid().Should().Be(_ingredientId);
+        items[0].GetProperty("ingredientId").ValueKind.Should().Be(JsonValueKind.Null);
+        items[2].GetProperty("ingredientId").ValueKind.Should().Be(JsonValueKind.Null);
         items[1].GetProperty("quantityText").GetString().Should().Be("1/2");
         items[1].GetProperty("unitText").GetString().Should().Be("cup");
         items[1].GetProperty("notesText").GetString().Should().Be("diced");

@@ -181,6 +181,7 @@ function GroceryListPage() {
         message={`Remove ${removal.item ? toTitleCase(removal.item.name) : 'this item'} and cancel its outstanding demand, including any Recipe contributions? Purchase history will be kept.`}
         confirmLabel="Remove item"
         tone="danger"
+        confirmFirst
         onCancel={removal.cancel}
         onConfirm={removal.confirm}
       />

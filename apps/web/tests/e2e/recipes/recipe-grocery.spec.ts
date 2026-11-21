@@ -7,13 +7,14 @@ test.beforeEach(async ({ page }) => {
   await mockRecipeApi(page);
 });
 
-for (const width of [375, 1280]) {
+for (const width of [320, 375, 1280]) {
   test(`reviews and adds Recipe requirements from the read-only Recipe view at ${width}px`, async ({ page }) => {
     const commands: Array<{ method: string; body: Record<string, unknown> }> = [];
     await mockRecipeGroceryApi(page, commands, false);
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`/recipes/${recipeId}`);
-    const addButton = page.getByRole('button', { name: 'Add to grocery list', exact: true, includeHidden: true });
+    const addButton = page.locator('.recipe-grocery-actions')
+      .getByRole('button', { name: 'Add to Grocery List', exact: true, includeHidden: true });
     const tags = page.getByRole('list', { name: 'Recipe tags', includeHidden: true });
     await expect(addButton).toBeVisible();
     await expect(tags).toBeVisible();
@@ -47,6 +48,8 @@ for (const width of [375, 1280]) {
       .getByRole('button', { name: 'Add to Grocery List', exact: true })
       .click();
     await expect(page.getByRole('link', { name: 'View Grocery List' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove from Grocery List', exact: true })).toBeVisible();
+    await expect(page.getByText('On Grocery List', { exact: true })).toBeVisible();
     const groceryCommand = commands.at(-1);
     expect(groceryCommand?.method).toBe('POST');
     expect(groceryCommand?.body).toMatchObject({
@@ -54,37 +57,120 @@ for (const width of [375, 1280]) {
       expectedRecipeVersion: 7,
       confirmRepeat: false,
     });
+
+    const removeButton = page.getByRole('button', { name: 'Remove from Grocery List', exact: true });
+    if (width <= 700) {
+      const addBounds = await addButton.boundingBox();
+      const removeBounds = await removeButton.boundingBox();
+      expect(removeBounds!.x).toBeCloseTo(addBounds!.x);
+      expect(removeBounds!.width).toBeCloseTo(addBounds!.width);
+      expect(removeBounds!.y - (addBounds!.y + addBounds!.height)).toBeGreaterThanOrEqual(8);
+    }
+
+    await addButton.click();
+    const dialog = page.getByRole('dialog');
+    const confirm = dialog.getByRole('button', { name: 'Confirm', exact: true });
+    const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
+    await expect(cancel).toBeVisible();
+    await expect(cancel).toHaveClass(/btn-danger-secondary/);
+    await expect(cancel).toBeFocused();
+    const confirmBounds = await confirm.boundingBox();
+    const cancelBounds = await cancel.boundingBox();
+    expect(cancelBounds!.x - (confirmBounds!.x + confirmBounds!.width)).toBeGreaterThanOrEqual(8);
+    expect(Math.abs(cancelBounds!.y - confirmBounds!.y)).toBeLessThan(2);
+    await cancel.click();
+    expect(commands).toHaveLength(1);
+
+    await removeButton.click();
+    await expect(confirm).toBeVisible();
+    await expect(cancel).toHaveClass(/btn-danger-secondary/);
+    await expect(cancel).toBeFocused();
+    const removeConfirmBounds = await confirm.boundingBox();
+    const removeCancelBounds = await cancel.boundingBox();
+    expect(removeCancelBounds!.x - (removeConfirmBounds!.x + removeConfirmBounds!.width)).toBeGreaterThanOrEqual(8);
+    expect(Math.abs(removeCancelBounds!.y - removeConfirmBounds!.y)).toBeLessThan(2);
+    await cancel.click();
+    expect(commands).toHaveLength(1);
   });
 }
 
 test('requires explicit repeat confirmation and removes only outstanding Recipe requirements', async ({ page }) => {
   const commands: Array<{ method: string; body: Record<string, unknown> }> = [];
-  await mockRecipeGroceryApi(page, commands, true);
+  await mockRecipeGroceryApi(page, commands, true, true);
   await page.goto(`/recipes/${recipeId}`);
 
-  await page.getByRole('button', { name: 'Add to grocery list' }).click();
-  await expect(page.getByRole('status')).toContainText('already has outstanding grocery requirements');
-  await page.getByRole('button', { name: /Confirm and add another Recipe/ }).click();
+  await page.getByRole('button', { name: 'Add to Grocery List', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('already on your Grocery List');
+  await expect(page.getByRole('region', { name: 'Included Recipe Ingredients' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(commands).toHaveLength(0);
+  await page.getByRole('button', { name: 'Add to Grocery List', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(page.getByRole('link', { name: 'View Grocery List' })).toBeVisible();
   expect(commands.at(-1)?.body).toMatchObject({ confirmRepeat: true });
 
-  await page.getByRole('button', { name: 'Add to grocery list' }).click();
-  await expect(page.getByRole('region', { name: 'Included Recipe Ingredients' })
-    .getByText('Firm Tofu', { exact: true })).toBeHidden();
-  await page.getByRole('button', { name: 'Remove this Recipe’s outstanding requirements' }).click();
-  await page.getByRole('button', { name: 'Confirm removal' }).click();
+  await page.getByRole('button', { name: 'Remove from Grocery List', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(commands).toHaveLength(1);
+  await page.getByRole('button', { name: 'Remove from Grocery List', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(page.getByRole('link', { name: 'View Grocery List' })).toBeVisible();
   expect(commands.at(-1)?.method).toBe('DELETE');
   expect(commands.at(-1)?.body).toMatchObject({ expectedListVersion: 9 });
+  await expect(page.getByRole('button', { name: 'Remove from Grocery List', exact: true })).toHaveCount(0);
+  await expect(page.getByText('On Grocery List', { exact: true })).toBeVisible();
+});
+
+test('highlights demand from other recipes and manual additions without offering recipe removal', async ({ page }) => {
+  const commands: Array<{ method: string; body: Record<string, unknown> }> = [];
+  await mockRecipeGroceryApi(page, commands, false, true);
+  await page.goto(`/recipes/${recipeId}`);
+  await expect(page.getByText('On Grocery List', { exact: true })).toBeVisible();
+  await expect(page.locator('.recipe-step-ingredient').filter({ hasText: 'Firm Tofu' }))
+    .toHaveClass(/recipe-step-on-grocery-list/);
+  await expect(page.getByRole('button', { name: 'Remove from Grocery List', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add to Grocery List', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Included Recipe Ingredients' })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Add to Grocery List', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Remove from Grocery List', exact: true })).toBeVisible();
 });
 
 async function mockRecipeGroceryApi(
   page: Page,
   commands: Array<{ method: string; body: Record<string, unknown> }>,
   initiallyOutstanding: boolean,
+  hasOtherDemand = false,
 ) {
   let hasOutstandingAddition = initiallyOutstanding;
   let listVersion = initiallyOutstanding ? 8 : 0;
+  await page.route('**/api/grocery-list', async (route) => {
+    const contribution = (id: string, sourceRecipeId: string | null) => ({
+      id, origin: sourceRecipeId ? 'recipe' : 'manual', state: 'outstanding',
+      originalAmountText: '1', originalUnitText: 'item', originalNotesText: null,
+      interpretedAmount: 1, canonicalUnit: 'item', unresolvedReason: null,
+      recipeId: sourceRecipeId, recipeStepId: null, recipeStepItemId: null,
+      recipeNameSnapshot: sourceRecipeId ? 'Recipe' : null,
+    });
+    const contributions = [
+      ...(hasOutstandingAddition ? [contribution('019a0000-0000-7000-8000-000000000021', recipeId)] : []),
+      ...(hasOtherDemand ? [
+        contribution('019a0000-0000-7000-8000-000000000022', '019a0000-0000-7000-8000-000000000002'),
+        contribution('019a0000-0000-7000-8000-000000000023', null),
+      ] : []),
+    ];
+    await route.fulfill({ json: {
+      id: '019a0000-0000-7000-8000-000000000010', version: listVersion, completedItemCount: 0,
+      items: contributions.length ? [{
+        id: '019a0000-0000-7000-8000-000000000020',
+        ingredientId: '019a0000-0000-7000-8000-000000000013',
+        name: 'Firm Tofu', state: 'outstanding', note: null,
+        dimension: 'count', countLabel: 'item', requirementAmount: contributions.length,
+        requirementUnit: 'item', outstandingPurchaseQuantity: contributions.length,
+        purchaseUnit: 'item', ingredientVersion: null, adHocStoreId: null,
+        adHocDepartmentId: null, adHocDepartmentName: null, storeMappings: [], contributions,
+      }] : [],
+    } });
+  });
   await page.route('**/api/grocery-list/recipes/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());

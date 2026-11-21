@@ -91,6 +91,7 @@ function IngredientEditorSession({
       title: 'Restore archived ingredient?',
       message: 'The archived ingredient with this name will return to your active list. Changes on this form will not be saved.',
       confirmLabel: 'Restore',
+      confirmFirst: true,
     })) {
       await session.restoreArchivedIngredient();
     }
@@ -147,6 +148,7 @@ function IngredientEditorSession({
         confirmLabel="Discard changes"
         cancelLabel="Keep editing"
         tone="danger"
+        confirmFirst
         onConfirm={() => blocker.proceed?.()}
         onCancel={() => blocker.reset?.()}
       />
