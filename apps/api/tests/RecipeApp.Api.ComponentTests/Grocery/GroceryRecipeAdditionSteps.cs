@@ -94,6 +94,42 @@ public sealed class GroceryRecipeAdditionSteps(ApiAuthContext context)
         _listVersion = preview.RootElement.GetProperty("listVersion").GetUInt32();
     }
 
+    [Given("an active Recipe with one unitless apple")]
+    public async Task SeedUnitlessAppleAsync()
+    {
+        await SeedOnionRecipeAsync();
+        await using var scope = context.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var ingredient = await db.Ingredients.SingleAsync(value => value.Id == _ingredientId);
+        ingredient.Name = "Apple";
+        ingredient.NormalizedName = "apple";
+        var source = await db.RecipeStepItems.SingleAsync(value => value.Id == _sourceItemIds[0]);
+        source.Text = "Apple";
+        source.QuantityText = "1";
+        source.UnitText = null;
+        source.NotesText = "(cubed)";
+        await db.SaveChangesAsync();
+    }
+
+    [Then("two apples are required without changing the original source text")]
+    public async Task AssertUnitlessAppleCountAsync()
+    {
+        context.Response!.StatusCode.Should().Be(HttpStatusCode.Created);
+        using var list = await GroceryRecipeTestData.ReadListAsync(context);
+        var item = list.RootElement.GetProperty("items").EnumerateArray().Single();
+        item.GetProperty("outstandingPurchaseQuantity").GetDecimal().Should().Be(2);
+        item.GetProperty("requirementAmount").GetDecimal().Should().Be(2);
+        var contributions = item.GetProperty("contributions").EnumerateArray().ToArray();
+        contributions.Should().HaveCount(2);
+        foreach (var contribution in contributions)
+        {
+            contribution.GetProperty("originalAmountText").GetString().Should().Be("1");
+            contribution.GetProperty("originalUnitText").ValueKind.Should().Be(JsonValueKind.Null);
+            contribution.GetProperty("originalNotesText").GetString().Should().Be("(cubed)");
+            contribution.GetProperty("unresolvedReason").ValueKind.Should().Be(JsonValueKind.Null);
+        }
+    }
+
     [Then("the preview includes only eligible source items and makes no writes")]
     public async Task AssertRecipePreviewAsync()
     {

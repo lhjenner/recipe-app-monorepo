@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { toTitleCase } from '../../../shared/utils/titleCase';
 import type { GroceryItem } from '../services/groceryListApi';
 import type { GroceryItemGroup } from '../models/groceryGrouping';
-import { formatSourceAmount, groupRecipeSources } from '../models/grocerySourceSummary';
+import { formatRequirementUnit, formatSourceAmount, groupRecipeSources } from '../models/grocerySourceSummary';
 import GroceryQuantityStepper from './GroceryQuantityStepper';
 
 interface GroceryItemListProps {
@@ -169,7 +169,7 @@ function GroupToggle({ name, expanded, controls, onToggle }: GroupToggleProps) {
 function RequirementDetails({ item }: { item: GroceryItem }) {
   const hasRecipe = item.contributions.some((contribution) => contribution.origin === 'recipe');
   const requirement = item.requirementAmount !== null && item.requirementUnit !== null
-    ? <><strong>Requirement:</strong> {formatAmount(item.requirementAmount)} {item.requirementUnit}</>
+    ? <><strong>Requirement:</strong> {formatAmount(item.requirementAmount)} {formatRequirementUnit(item.requirementUnit)}</>
     : null;
   const sources = groupRecipeSources(item.contributions);
   const manualNotes = [...new Set(item.contributions
@@ -185,7 +185,6 @@ function RequirementDetails({ item }: { item: GroceryItem }) {
             {sources.map(([contribution, ...rest]) => {
               const entries = [contribution, ...rest];
               const amount = formatSourceAmount(entries);
-              const notes = [...new Set(entries.map((entry) => entry.originalNotesText).filter(Boolean))];
               const sourceName = contribution.recipeNameSnapshot
                 ? toTitleCase(contribution.recipeNameSnapshot)
                 : 'Manual addition';
@@ -195,7 +194,6 @@ function RequirementDetails({ item }: { item: GroceryItem }) {
                     ? <Link to={`/recipes/${contribution.recipeId}`}>{sourceName}</Link>
                     : sourceName}
                   {amount && ` — ${amount}`}
-                  {notes.length > 0 && ` (${notes.join('; ')})`}
                   {contribution.unresolvedReason && ` — Needs review: ${contribution.unresolvedReason}`}
                 </li>
               );

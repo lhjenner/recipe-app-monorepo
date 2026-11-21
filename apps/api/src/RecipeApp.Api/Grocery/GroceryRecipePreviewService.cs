@@ -46,7 +46,7 @@ public sealed class GroceryRecipePreviewService(
                     continue;
                 }
 
-                var interpretation = QuantityInterpreter.Interpret(item.QuantityText, item.UnitText);
+                var interpretation = QuantityInterpreter.InterpretRecipe(item.QuantityText, item.UnitText);
                 included.Add(new GroceryRecipePreviewContribution(
                     step.Id,
                     step.Position,

@@ -6,6 +6,33 @@ namespace RecipeApp.Api.UnitTests.Grocery;
 public sealed class QuantityInterpreterTests
 {
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void Recipe_quantity_without_a_unit_is_a_generic_count(string? unit)
+    {
+        var result = QuantityInterpreter.InterpretRecipe("1", unit);
+
+        result.Status.Should().Be(QuantityInterpretationStatus.Known);
+        result.Amount.Should().Be(1);
+        result.Dimension.Should().Be(QuantityDimension.Count);
+        result.CountLabel.Should().Be("item");
+        result.OriginalUnitText.Should().Be(unit);
+        QuantityInterpreter.Interpret("1", unit).Status.Should().Be(QuantityInterpretationStatus.Unresolved);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("0")]
+    [InlineData("1-2")]
+    [InlineData("1/3")]
+    public void Unitless_recipe_quantities_still_require_a_supported_positive_number(string amount)
+    {
+        QuantityInterpreter.InterpretRecipe(amount, null).Status
+            .Should().Be(QuantityInterpretationStatus.Unresolved);
+    }
+
+    [Theory]
     [InlineData("1", "tbsp", 15)]
     [InlineData("2", "tsp", 10)]
     [InlineData("1 1/2", "tsp", 7.5)]

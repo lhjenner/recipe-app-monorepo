@@ -6,6 +6,13 @@ import type { GroceryItem } from '../../../src/features/grocery-list/services/gr
 
 test.each([
   { name: 'manual-only', origins: ['manual'] as const, amount: 2, unit: 'onion' },
+  { name: 'one generic item', origins: ['manual'] as const, amount: 1, unit: 'item' },
+  { name: 'unitless recipe counts', origins: ['recipe', 'recipe'] as const,
+    amount: 4, unit: 'item', sourceUnits: ['', ''], sourceTotal: '4 item(s)' },
+  { name: 'hidden parenthesized cooking notes', origins: ['recipe', 'recipe'] as const,
+    amount: 4, unit: 'item', sourceUnits: ['', ''], sourceNotes: '(cubed)', sourceTotal: '4 item(s)' },
+  { name: 'hidden plain cooking notes', origins: ['recipe', 'recipe'] as const,
+    amount: 4, unit: 'item', sourceUnits: ['', ''], sourceNotes: 'cubed', sourceTotal: '4 item(s)' },
   { name: 'Recipe-only', origins: ['recipe'] as const, amount: 2, unit: 'onion' },
   { name: 'mixed manual and Recipe', origins: ['manual', 'recipe'] as const, amount: 4, unit: 'onion' },
   { name: 'manual without amount', origins: ['manual'] as const, amount: null, unit: 'onion' },
@@ -19,7 +26,7 @@ test.each([
     amount: 20, unit: 'ml', sourceUnits: ['tsp', 'tsp'], sourceAmounts: ['1/2', '3 1/2'], sourceTotal: '4 tsp' },
   { name: 'mixed-unit recipe steps', origins: ['recipe', 'recipe'] as const,
     amount: 40, unit: 'ml', sourceUnits: ['tsp', 'tbsp'], sourceTotal: '40 ml' },
-])('shows useful requirements and Recipe Sources for $name on desktop and mobile', ({ origins, amount, unit, sourceUnits, sourceTotal, sourceAmounts }) => {
+])('shows useful requirements and Recipe Sources for $name on desktop and mobile', ({ origins, amount, unit, sourceUnits, sourceTotal, sourceAmounts, sourceNotes }) => {
   const item: GroceryItem = {
     id: 'item',
     ingredientId: 'ingredient',
@@ -43,9 +50,9 @@ test.each([
       state: 'outstanding',
       originalAmountText: sourceAmounts?.[index] ?? '2',
       originalUnitText: sourceUnits?.[index] ?? 'onion',
-      originalNotesText: null,
-      interpretedAmount: sourceUnits?.[index] === 'tbsp' ? 30 : sourceUnits ? 10 : 2,
-      canonicalUnit: sourceUnits ? 'ml' : 'onion',
+      originalNotesText: sourceNotes ?? null,
+      interpretedAmount: unit === 'item' ? 2 : sourceUnits?.[index] === 'tbsp' ? 30 : sourceUnits ? 10 : 2,
+      canonicalUnit: unit === 'item' ? 'item' : sourceUnits ? 'ml' : 'onion',
       unresolvedReason: null,
       recipeId: origin === 'recipe' ? 'recipe' : null,
       recipeStepId: null,
@@ -68,10 +75,13 @@ test.each([
   const requirements = screen.queryAllByText('Requirement:');
   expect(requirements).toHaveLength(amount !== null && unit !== null ? 2 : 0);
   for (const requirement of requirements) {
-    expect(requirement.parentElement).toHaveTextContent(`Requirement: ${amount} ${unit}`);
+    expect(requirement.parentElement).toHaveTextContent(`Requirement: ${amount} ${unit === 'item' ? 'item(s)' : unit}`);
   }
   expect(screen.queryByText('No numeric total')).not.toBeInTheDocument();
   expect(screen.getAllByText('Choose firm onions.')).toHaveLength(2);
+  if (sourceNotes) {
+    expect(screen.queryByText(/cubed/)).not.toBeInTheDocument();
+  }
   expect(screen.queryByText('Recipe requirement:')).not.toBeInTheDocument();
   const hasRecipe = origins.some((origin) => origin === 'recipe');
   const hasTotal = amount !== null && unit !== null;

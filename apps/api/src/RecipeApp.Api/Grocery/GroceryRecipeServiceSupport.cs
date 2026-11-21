@@ -86,7 +86,7 @@ internal static class GroceryRecipeServiceSupport
                 .Select(item => new EligibleRecipeItem(
                     step,
                     item,
-                    QuantityInterpreter.Interpret(item.QuantityText, item.UnitText))))
+                    QuantityInterpreter.InterpretRecipe(item.QuantityText, item.UnitText))))
             .ToList();
 
     public static string GetConsolidationKey(EligibleRecipeItem entry) =>

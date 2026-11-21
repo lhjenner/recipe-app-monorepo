@@ -31,6 +31,15 @@ Feature: Recipe grocery additions
     When I confirm adding another Recipe's worth
     Then a distinct Recipe addition is recorded
 
+  Scenario: Repeated unitless Recipe demand increases the purchase count
+    Given a logged in user
+    And an active Recipe with one unitless apple
+    When I preview the Recipe for grocery addition
+    And I add the reviewed Recipe
+    When I preview the Recipe for grocery addition
+    And I confirm adding another Recipe's worth
+    Then two apples are required without changing the original source text
+
   Scenario: Removing the last measured Recipe keeps manual generic item demand
     Given a logged in user
     And an active Recipe with measured flour demand to remove

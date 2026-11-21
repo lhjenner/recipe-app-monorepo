@@ -2,6 +2,10 @@ import type { GroceryItem } from '../services/groceryListApi';
 
 type Contribution = GroceryItem['contributions'][number];
 
+export function formatRequirementUnit(unit: string | null | undefined): string {
+  return unit?.trim().toLowerCase() === 'item' ? 'item(s)' : unit ?? '';
+}
+
 export function groupRecipeSources(contributions: Contribution[]): Contribution[][] {
   const sources = new Map<string, Contribution[]>();
   for (const contribution of contributions) {
@@ -24,7 +28,7 @@ export function groupRecipeSources(contributions: Contribution[]): Contribution[
 export function formatSourceAmount(entries: Contribution[]): string {
   const first = entries[0];
   if (entries.length === 1) {
-    return [first.originalAmountText, first.originalUnitText].filter(Boolean).join(' ');
+    return [first.originalAmountText, formatRequirementUnit(first.originalUnitText)].filter(Boolean).join(' ');
   }
   const originalUnit = first.originalUnitText?.trim();
   const sameUnit = Boolean(originalUnit) && entries.every((entry) =>
@@ -32,7 +36,7 @@ export function formatSourceAmount(entries: Contribution[]): string {
   const total = entries.reduce((sum, entry) =>
     sum + (sameUnit ? parseOriginalAmount(entry.originalAmountText)! : entry.interpretedAmount!), 0);
   return `${new Intl.NumberFormat('en-NZ', { maximumFractionDigits: 9 }).format(total)} ${
-    sameUnit ? originalUnit : first.canonicalUnit}`;
+    formatRequirementUnit(sameUnit ? originalUnit : first.canonicalUnit)}`;
 }
 
 function parseOriginalAmount(text: string | null): number | null {
