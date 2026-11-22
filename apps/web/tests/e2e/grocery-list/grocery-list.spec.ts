@@ -73,6 +73,37 @@ test('grocery dialogs contain focus, close with Escape and restore the trigger',
   }
 });
 
+test('cancels a manual entry from the form actions without submitting', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await mockIngredientApi(page, []);
+  for (const lookup of ['categories', 'departments']) {
+    await page.route(`**/api/${lookup}`, (route) => route.fulfill({ json: [] }));
+  }
+  let submissions = 0;
+  await page.route('**/api/grocery-list/items', async (route) => {
+    submissions++;
+    await route.abort();
+  });
+  await page.goto('/grocery-list');
+  const trigger = page.getByRole('button', { name: 'Add items', exact: true });
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Add items to Grocery List' });
+    await dialog.getByRole('combobox', { name: 'Name' }).fill('Oats');
+    const add = dialog.getByRole('button', { name: 'Add to Grocery List' });
+    const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
+    await expect(cancel).toHaveClass(/btn-danger-secondary/);
+    await expect(add.locator('..').getByRole('button')).toHaveText(['Add to Grocery List', 'Add row', 'Cancel']);
+    await expect(dialog.getByRole('button', { name: 'Close' })).toHaveCount(0);
+    await cancel.click();
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  }
+  expect(submissions).toBe(0);
+});
+
 test('manual entry suggests Ingredients while typing and links only a chosen suggestion', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
   await mockGroceryApi(page);
@@ -145,6 +176,15 @@ test('manual entry aligns name, quantity, note and remove controls responsively'
   const firstStepper = (await firstRow.getByRole('spinbutton', { name: 'Quantity' }).locator('..').boundingBox())!;
   expect(Math.abs(firstName.y - firstStepper.y)).toBeLessThanOrEqual(1);
   await dialog.getByRole('button', { name: 'Add row' }).click();
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+    const primaryColor = await dialog.getByRole('button', { name: 'Add to Grocery List' })
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
+    for (const item of ['Item 1', 'Item 2']) {
+      await expect(dialog.getByRole('group', { name: item })).toHaveCSS('border-top-color', primaryColor);
+    }
+  }
+  await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
   const row = dialog.getByRole('group', { name: 'Item 1' });
   const name = row.getByRole('combobox', { name: 'Name' });
   const quantity = row.getByRole('spinbutton', { name: 'Quantity' });

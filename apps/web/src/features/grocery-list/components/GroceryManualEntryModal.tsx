@@ -112,11 +112,6 @@ function GroceryManualEntryModal({
           <h2 id="grocery-entry-heading">Add items to Grocery List</h2>
           <p>Add one or more items. You can optionally save new rows as Ingredients.</p>
         </div>
-        {duplicateReviews.length === 0 && (
-          <button className="btn btn-secondary" type="button" onClick={onClose} disabled={mutation.locked}>
-            Close
-          </button>
-        )}
       </header>
 
       {lookups.error && <p className="grocery-inline-error" role="alert">{lookups.error}</p>}
@@ -164,14 +159,6 @@ function GroceryManualEntryModal({
           ))}
         </div>
         <div className="grocery-entry-actions">
-          <button
-            className="btn btn-secondary"
-            type="button"
-            disabled={mutation.locked || rows.length >= 10}
-            onClick={addRow}
-          >
-            Add row
-          </button>
           {!duplicateReviews.length ? (
             <button className="btn btn-primary" type="submit" disabled={mutation.locked}>
               {isSaving ? 'Adding…' : 'Add to Grocery List'}
@@ -186,16 +173,22 @@ function GroceryManualEntryModal({
               {isSaving ? 'Adding…' : 'Confirm reviewed increments'}
             </button>
           )}
-          {duplicateReviews.length > 0 && (
-            <button
-              className="btn btn-danger-secondary"
-              type="button"
-              disabled={mutation.locked}
-              onClick={onClose}
-            >
-              Cancel review
-            </button>
-          )}
+          <button
+            className="btn btn-secondary"
+            type="button"
+            disabled={mutation.locked || rows.length >= 10}
+            onClick={addRow}
+          >
+            Add row
+          </button>
+          <button
+            className="btn btn-danger-secondary"
+            type="button"
+            disabled={mutation.locked}
+            onClick={onClose}
+          >
+            {duplicateReviews.length > 0 ? 'Cancel review' : 'Cancel'}
+          </button>
         </div>
       </form>
 

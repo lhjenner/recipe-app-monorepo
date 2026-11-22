@@ -148,6 +148,10 @@
   border-radius: 6px;
 }
 
+.grocery-entry-row {
+  border-color: var(--color-primary);
+}
+
 .grocery-entry-row legend {
   padding: 0 6px;
   font-weight: var(--font-weight-semibold);

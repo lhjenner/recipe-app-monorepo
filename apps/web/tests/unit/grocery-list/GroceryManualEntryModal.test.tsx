@@ -51,6 +51,21 @@ test('omits Purchase Unit and submits a generic internal item unit', async () =>
   expect(mocks.addGroceryItems.mock.calls[0][0].items[0].purchaseUnit).toBe('item');
 });
 
+test('cancels the draft without submitting', () => {
+  const onClose = vi.fn();
+  render(<GroceryManualEntryModal expectedListVersion={3} onClose={onClose} onAdded={vi.fn()} />);
+  const cancel = screen.getByRole('button', { name: 'Cancel' });
+  expect(cancel).toHaveClass('btn-danger-secondary');
+  expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+  const actions = screen.getByRole('button', { name: 'Add to Grocery List' }).parentElement!;
+  expect(within(actions).getAllByRole('button').map((button) => button.textContent))
+    .toEqual(['Add to Grocery List', 'Add row', 'Cancel']);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
+  fireEvent.click(cancel);
+  expect(onClose).toHaveBeenCalledOnce();
+  expect(mocks.addGroceryItems).not.toHaveBeenCalled();
+});
+
 test('steps each row independently without submitting and disables decrement at one', () => {
   render(
     <GroceryManualEntryModal expectedListVersion={3} onClose={vi.fn()} onAdded={vi.fn()} />,
@@ -111,6 +126,7 @@ test('disables quantity buttons while saving', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
   expect(screen.getByRole('button', { name: 'Decrease quantity' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Increase quantity' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
   finishSaving();
   await waitFor(() => expect(screen.getByRole('button', { name: 'Increase quantity' })).toBeEnabled());
 });
@@ -219,11 +235,15 @@ test('presents duplicate review as a warning and cancels by closing the modal', 
   );
   const onClose = vi.fn();
   render(<GroceryManualEntryModal expectedListVersion={3} onClose={onClose} onAdded={vi.fn()} />);
-  expect(screen.getByRole('button', { name: 'Close' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeVisible();
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
   const cancel = await screen.findByRole('button', { name: 'Cancel review' });
   expect(cancel).toHaveClass('btn-danger-secondary');
+  const actions = screen.getByRole('button', { name: 'Confirm reviewed increments' }).parentElement!;
+  expect(within(actions).getAllByRole('button').map((button) => button.textContent))
+    .toEqual(['Confirm reviewed increments', 'Add row', 'Cancel review']);
+  expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
   expect(screen.getByRole('alert')).toHaveClass('grocery-update-notice');
   expect(screen.getByText('Oats: 1 item(s) + 1 item(s) = 2 item(s)')).toBeVisible();
