@@ -25,6 +25,7 @@ export interface RecipeDetail {
       kind: 'ingredient' | 'heading' | 'note';
       text: string;
       ingredientName: string | null;
+      ingredientId?: string | null;
       quantityText: string | null;
       unitText: string | null;
       notesText: string | null;
@@ -62,6 +63,7 @@ export const recipeDetail: RecipeDetail = {
           kind: 'ingredient',
           text: 'firm tofu',
           ingredientName: 'firm tofu',
+          ingredientId: '019a0000-0000-7000-8000-000000000013',
           quantityText: '1/2',
           unitText: 'block',
           notesText: 'pressed',
@@ -115,6 +117,10 @@ export async function mockRecipeApi(
   const summaries = options.summaries ?? [{ id: recipeId, name: recipeDetail.name }];
   const details = options.details ?? { [recipeId]: recipeDetail };
   const mock: RecipeApiMock = { listRequests: [], imageRequests: [] };
+
+  await page.route('**/api/grocery-list', async (route) => {
+    await route.fulfill({ json: { id: null, version: 0, completedItemCount: 0, items: [] } });
+  });
 
   await page.route('**/api/recipes**', async (route) => {
     const url = new URL(route.request().url());

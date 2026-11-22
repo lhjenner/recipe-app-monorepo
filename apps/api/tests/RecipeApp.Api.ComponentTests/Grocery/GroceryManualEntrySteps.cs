@@ -69,7 +69,7 @@ public sealed class GroceryManualEntrySteps(ApiAuthContext context)
         SubmitAsync(
         [
             new(name, null, 1, "tin"),
-            new(name, null, 2, "tin")
+            new($"  {name.ToUpperInvariant()}  ", null, 2, "tin")
         ]);
 
     [When("I replay the same grocery command")]
@@ -124,19 +124,13 @@ public sealed class GroceryManualEntrySteps(ApiAuthContext context)
         FindItem(list, "Kale").GetProperty("outstandingPurchaseQuantity").GetDecimal().Should().Be(1);
     }
 
-    [Then("the grocery API requests a review of the pending batch rows")]
-    public async Task AssertBatchReviewAsync()
+    [Then("the grocery API rejects matching draft rows without writing")]
+    public async Task AssertDuplicateBatchRejectedAsync()
     {
-        context.Response!.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        context.Response!.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         using var problem = JsonDocument.Parse(await context.Response.Content.ReadAsStringAsync());
-        _reviews = JsonSerializer.Deserialize<GroceryDuplicateReview[]>(
-            problem.RootElement.GetProperty("duplicateReviews").GetRawText(),
-            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-        _reviews.Should().ContainSingle(review =>
-            review.EntryIndex == 1
-            && review.TargetEntryIndex == 0
-            && review.ExistingQuantity == 1
-            && review.ResultingQuantity == 3);
+        problem.RootElement.GetProperty("errors").GetRawText()
+            .Should().Contain("same item");
 
         using var list = await ReadListAsync();
         list.RootElement.GetProperty("items").GetArrayLength().Should().Be(0);

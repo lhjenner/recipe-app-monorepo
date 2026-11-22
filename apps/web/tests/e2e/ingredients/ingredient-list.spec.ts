@@ -171,8 +171,10 @@ test.describe('Ingredient Maintenance list', () => {
     await expect(page.getByRole('button', { name: 'Restore Archived Ingredient' })).toBeVisible();
     expect(requests.some((query) => query.includes('archived=true'))).toBe(true);
     await page.getByRole('button', { name: 'Restore Archived Ingredient' }).click();
-    await page.getByRole('dialog', { name: 'Restore ingredient?' })
-      .getByRole('button', { name: 'Restore', exact: true }).click();
+    const restoreDialog = page.getByRole('dialog', { name: 'Restore ingredient?' });
+    await expect(restoreDialog.getByRole('button')).toHaveText(['Restore', 'Cancel']);
+    await expect(restoreDialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await restoreDialog.getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByText('No archived ingredients.')).toBeVisible();
     await page.getByRole('checkbox', { name: 'Show archived' }).uncheck();
     await expect(page.getByRole('table', { name: 'Ingredients' }).getByText('Archived Ingredient')).toBeVisible();
@@ -209,4 +211,28 @@ test.describe('Ingredient Maintenance list', () => {
     expect(requests.some((request) => request.endsWith('/archive'))).toBe(true);
     expect(nativePromptShown).toBe(false);
   });
+
+  for (const width of [320, 375, 1280]) {
+    test(`positions archive confirmation actions together at ${width}px`, async ({ page }) => {
+      await mockAuthApi(page, { hasSession: true });
+      await mockIngredientApi(page, [ingredient('Archive Me')]);
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto('/ingredient-maintenance');
+      await page.getByRole('button', { name: 'Archive Archive Me' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Archive ingredient?' });
+      const confirm = dialog.getByRole('button', { name: 'Archive', exact: true });
+      const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
+      await expect(cancel).toBeFocused();
+      await expect(cancel).toHaveClass(/btn-danger-secondary/);
+      await dialog.evaluate(async (element) => {
+        await Promise.all(element.getAnimations().map((animation) => animation.finished));
+      });
+      const confirmBounds = await confirm.boundingBox();
+      const cancelBounds = await cancel.boundingBox();
+      expect(cancelBounds!.x - (confirmBounds!.x + confirmBounds!.width)).toBeGreaterThanOrEqual(8);
+      expect(Math.abs(cancelBounds!.y - confirmBounds!.y)).toBeLessThan(2);
+      await cancel.click();
+      await expect(dialog).toBeHidden();
+    });
+  }
 });

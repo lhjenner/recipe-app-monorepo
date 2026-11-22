@@ -9,6 +9,7 @@ export interface ConfirmDialogProps {
   confirmLabel: string;
   cancelLabel?: string;
   tone?: ConfirmTone;
+  confirmFirst?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -20,6 +21,7 @@ function ConfirmDialog({
   confirmLabel,
   cancelLabel = 'Cancel',
   tone = 'primary',
+  confirmFirst = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -27,6 +29,16 @@ function ConfirmDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const messageId = useId();
+  const cancelButton = (
+    <button ref={cancelRef} className="btn btn-danger-secondary" type="button" onClick={onCancel}>
+      {cancelLabel}
+    </button>
+  );
+  const confirmButton = (
+    <button className={`btn btn-${tone}`} type="button" onClick={onConfirm}>
+      {confirmLabel}
+    </button>
+  );
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -62,13 +74,8 @@ function ConfirmDialog({
       <div className="confirm-dialog-body">
         <h2 id={titleId} className="confirm-dialog-title">{title}</h2>
         {message && <p id={messageId} className="confirm-dialog-message">{message}</p>}
-        <div className="confirm-dialog-actions">
-          <button ref={cancelRef} className="btn btn-danger-secondary" type="button" onClick={onCancel}>
-            {cancelLabel}
-          </button>
-          <button className={`btn btn-${tone}`} type="button" onClick={onConfirm}>
-            {confirmLabel}
-          </button>
+        <div className={`confirm-dialog-actions${confirmFirst ? ' confirmation-actions' : ''}`}>
+          {confirmFirst ? <>{confirmButton}{cancelButton}</> : <>{cancelButton}{confirmButton}</>}
         </div>
       </div>
     </dialog>

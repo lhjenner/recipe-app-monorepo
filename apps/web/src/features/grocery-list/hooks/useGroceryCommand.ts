@@ -45,11 +45,12 @@ export function useGroceryCommand<TCommand>(
 
   function submit(command: TCommand) {
     if (pending.current !== null) {
-      return;
+      return false;
     }
     pending.current = command;
     setHasPending(true);
     void execute(command);
+    return true;
   }
 
   return {

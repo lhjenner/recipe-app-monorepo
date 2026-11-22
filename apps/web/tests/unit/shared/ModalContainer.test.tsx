@@ -84,6 +84,19 @@ test('does not dismiss on backdrop or content clicks', () => {
   expect(onClose).not.toHaveBeenCalled();
 });
 
+test('only dismisses an opted-in backdrop when unlocked', () => {
+  const onClose = vi.fn();
+  const props = { labelledBy: 'modal-heading', className: 'editor-dialog', closeOnBackdrop: true, onClose };
+  const { rerender } = render(<ModalContainer {...props} locked>{content()}</ModalContainer>);
+  fireEvent.click(screen.getByRole('dialog'));
+  expect(onClose).not.toHaveBeenCalled();
+  rerender(<ModalContainer {...props} locked={false}>{content()}</ModalContainer>);
+  fireEvent.click(screen.getByRole('heading'));
+  expect(onClose).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('dialog'));
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
 test('does not try to restore focus to a removed trigger', () => {
   const { unmount: removeTrigger } = render(<button type="button">Open editor</button>);
   const trigger = screen.getByRole('button', { name: 'Open editor' });

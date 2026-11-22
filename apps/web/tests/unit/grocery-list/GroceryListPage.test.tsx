@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, test, vi } from 'vitest';
 import GroceryListPage from '../../../src/features/grocery-list/pages/GroceryListPage';
@@ -6,6 +6,7 @@ import { GroceryListApiError } from '../../../src/features/grocery-list/services
 
 const mocks = vi.hoisted(() => ({
   cancelGroceryItem: vi.fn(),
+  removeRecipeGroceryRequirements: vi.fn(),
   updateGroceryItem: vi.fn(),
   useGroceryList: vi.fn(),
   useSupermarkets: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('../../../src/features/ingredients/hooks/useSupermarkets', () => ({
 
 vi.mock('../../../src/features/grocery-list/services/groceryListApi', () => ({
   cancelGroceryItem: mocks.cancelGroceryItem,
+  removeRecipeGroceryRequirements: mocks.removeRecipeGroceryRequirements,
   updateGroceryItem: mocks.updateGroceryItem,
   GroceryListApiError: class GroceryListApiError extends Error {
     readonly status: number;
@@ -44,6 +46,7 @@ vi.mock('../../../src/features/grocery-list/components/GroceryManualEntryModal',
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.removeRecipeGroceryRequirements.mockReset();
   mocks.updateGroceryItem.mockResolvedValue({ resultListVersion: 13 });
   mocks.useGroceryList.mockReturnValue({
     data: {
@@ -83,6 +86,110 @@ beforeEach(() => {
     error: null,
     reload: vi.fn(),
   });
+});
+
+function addRecipeSources() {
+  const state = mocks.useGroceryList();
+  const item = state.data.items[0];
+  const source = (id: string, recipeId: string | null, state: 'outstanding' | 'completed' | 'cancelled' = 'outstanding') => ({
+    id, origin: 'recipe', state, recipeId, recipeNameSnapshot: recipeId === 'recipe-1' ? 'apple crumble' : 'pear tart',
+    originalAmountText: '1', originalUnitText: 'item', originalNotesText: null,
+    interpretedAmount: 1, canonicalUnit: 'item', unresolvedReason: null, recipeStepId: null, recipeStepItemId: null,
+  });
+  item.contributions = [
+    source('1', 'recipe-1'), source('2', 'recipe-1'), source('3', 'recipe-2'),
+    source('4', 'old-recipe', 'cancelled'), source('5', 'completed-recipe', 'completed'),
+  ];
+  state.data.items.push({ ...item, id: 'item-2', contributions: [source('6', 'recipe-1')] });
+  state.data.items.push({ ...item, id: 'item-3', state: 'completed', contributions: [source('7', 'completed-item')] });
+  return state;
+}
+
+test('lists distinct outstanding recipe sources and confirms removal with the reviewed list version', async () => {
+  const state = addRecipeSources();
+  mocks.removeRecipeGroceryRequirements.mockResolvedValue({ resultListVersion: 13 });
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  const summary = screen.getByText('Recipes on Grocery List');
+  expect(summary.closest('details')).not.toHaveAttribute('open');
+  fireEvent.click(summary);
+  const recipes = summary.closest('details')!;
+  expect(within(recipes).getAllByRole('link')).toHaveLength(2);
+  expect(within(recipes).getByRole('link', { name: 'Apple Crumble' })).toHaveAttribute('href', '/recipes/recipe-1');
+  expect(within(recipes).getByRole('link', { name: 'Pear Tart' })).toBeVisible();
+  fireEvent.click(within(recipes).getByRole('button', { name: 'Remove Apple Crumble from Grocery List' }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('Manual additions, other Recipes, and purchase history will remain');
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(mocks.removeRecipeGroceryRequirements).not.toHaveBeenCalled();
+  fireEvent.click(within(recipes).getByRole('button', { name: 'Remove Apple Crumble from Grocery List' }));
+  state.data.version = 13;
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Recipe' }));
+  await waitFor(() => expect(mocks.removeRecipeGroceryRequirements).toHaveBeenCalledWith('recipe-1', {
+    commandId: expect.any(String), expectedListVersion: 12,
+  }));
+  await waitFor(() => expect(state.reload).toHaveBeenCalled());
+});
+
+test('retains the exact failed recipe removal for retry and blocks other changes', async () => {
+  const state = addRecipeSources();
+  mocks.removeRecipeGroceryRequirements
+    .mockRejectedValueOnce(new GroceryListApiError('Connection lost', 0))
+    .mockResolvedValueOnce({ resultListVersion: 13 });
+  const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getByText('Recipes on Grocery List'));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Apple Crumble from Grocery List' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Recipe' }));
+  await waitFor(() => expect(mocks.removeRecipeGroceryRequirements).toHaveBeenCalledTimes(1));
+  await expect(mocks.removeRecipeGroceryRequirements.mock.results[0].value).rejects.toThrow('Connection lost');
+  const retry = await screen.findByRole('button', { name: 'Retry Recipe removal' });
+  expect(screen.getByRole('button', { name: 'Add items' })).toBeDisabled();
+  expect(screen.getAllByRole('button', { name: 'Increase quantity for Onions' })[0]).toBeDisabled();
+  mocks.useGroceryList.mockReturnValue({ ...state, data: { ...state.data, version: 13, items: [] } });
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  expect(screen.getByRole('button', { name: 'Add items' })).toBeDisabled();
+  fireEvent.click(retry);
+  await waitFor(() => expect(mocks.removeRecipeGroceryRequirements).toHaveBeenCalledTimes(2));
+  expect(mocks.removeRecipeGroceryRequirements.mock.calls[1]).toEqual(mocks.removeRecipeGroceryRequirements.mock.calls[0]);
+});
+
+test('refreshes after a conflict without offering a retry of the stale removal', async () => {
+  const state = addRecipeSources();
+  mocks.removeRecipeGroceryRequirements.mockRejectedValueOnce(new GroceryListApiError('Stale list', 409));
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getByText('Recipes on Grocery List'));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Apple Crumble from Grocery List' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Recipe' }));
+  expect(await screen.findByText('Stale list')).toBeInTheDocument();
+  expect(state.reload).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('button', { name: 'Retry Recipe removal' })).not.toBeInTheDocument();
+});
+
+test('waits for the removal receipt version before enabling further changes', async () => {
+  const state = addRecipeSources();
+  mocks.removeRecipeGroceryRequirements.mockResolvedValueOnce({ resultListVersion: 13 });
+  const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getByText('Recipes on Grocery List'));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Apple Crumble from Grocery List' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Recipe' }));
+  await waitFor(() => expect(state.reload).toHaveBeenCalledOnce());
+  expect(screen.getByRole('button', { name: 'Add items' })).toBeDisabled();
+  mocks.useGroceryList.mockReturnValue({ ...state, data: { ...state.data, version: 13 } });
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  expect(screen.getByRole('button', { name: 'Add items' })).toBeEnabled();
+});
+
+test('hides the recipe accordion when there are no outstanding recipe sources', () => {
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  expect(screen.queryByText('Recipes on Grocery List')).not.toBeInTheDocument();
+});
+
+test('surfaces missing recipe attribution rather than silently omitting it', () => {
+  const state = addRecipeSources();
+  state.data.items[0].contributions.push({
+    ...state.data.items[0].contributions[0], id: 'missing', recipeId: null,
+  });
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getByText('Recipes on Grocery List'));
+  expect(screen.getByText(/Some Recipe sources lack an identifier/)).toBeInTheDocument();
 });
 
 test('retries a removal with the same command after an ambiguous network failure', async () => {

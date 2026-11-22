@@ -11,6 +11,18 @@ internal static class GroceryManualEntryProcessor
         IReadOnlyList<GroceryItem> activeItems)
     {
         var targets = new Dictionary<string, DuplicateTarget>(StringComparer.Ordinal);
+        var measuredTargets = activeItems
+            .Where(IsMeasuredRecipeTarget)
+            .GroupBy(item => SuggestedTargetKey(item.IngredientId!.Value, item.PurchaseUnit), StringComparer.Ordinal)
+            .Where(group => group.Count() == 1)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var item = group.Single();
+                    return new DuplicateTarget(item.Id, null, item.OutstandingPurchaseQuantity, item.NameSnapshot);
+                },
+                StringComparer.Ordinal);
         foreach (var item in activeItems)
         {
             targets.Add(TargetKey(item.ConsolidationKey, item.PurchaseUnit),
@@ -21,6 +33,15 @@ internal static class GroceryManualEntryProcessor
         foreach (var entry in entries)
         {
             var targetKey = TargetKey(GetConsolidationKey(entry), entry.CanonicalUnit);
+            if (!targets.ContainsKey(targetKey)
+                && IsGenericItemTarget(entry)
+                && measuredTargets.TryGetValue(
+                    SuggestedTargetKey(entry.IngredientId!.Value, entry.CanonicalUnit),
+                    out var suggestedTarget))
+            {
+                targets.Add(targetKey, suggestedTarget);
+            }
+
             if (targets.TryGetValue(targetKey, out var existing))
             {
                 var resulting = existing.Quantity + entry.Input.PurchaseQuantity;
@@ -123,6 +144,22 @@ internal static class GroceryManualEntryProcessor
 
     private static string TargetKey(string consolidationKey, string purchaseUnit) =>
         $"{consolidationKey}:{IngredientWriteValidator.Normalize(purchaseUnit)}";
+
+    private static string SuggestedTargetKey(Guid ingredientId, string purchaseUnit) =>
+        $"{ingredientId:N}:{IngredientWriteValidator.Normalize(purchaseUnit)}";
+
+    private static bool IsGenericItemTarget(PreparedManualEntry entry) =>
+        entry.IngredientId is not null
+        && entry.Dimension == QuantityDimension.Count
+        && string.Equals(entry.CountLabel, "item", StringComparison.Ordinal)
+        && string.Equals(entry.CanonicalUnit, "item", StringComparison.Ordinal);
+
+    private static bool IsMeasuredRecipeTarget(GroceryItem item) =>
+        item.IngredientId is not null
+        && item.PurchaseUnit == "item"
+        && item.State == GroceryItemState.Outstanding
+        && item.Dimension is QuantityDimension.Mass or QuantityDimension.Volume or null
+        && item.Contributions.Any(contribution => contribution.Origin == GroceryContributionOrigin.Recipe);
 
     private static string? CleanOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

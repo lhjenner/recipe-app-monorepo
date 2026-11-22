@@ -8,10 +8,12 @@ import type { SupermarketStore } from '../../ingredients/services/ingredientsApi
 import GroceryItemList from '../components/GroceryItemList';
 import GroceryItemEditDialog from '../components/GroceryItemEditDialog';
 import GroceryManualEntryModal from '../components/GroceryManualEntryModal';
+import GroceryRecipeSources from '../components/GroceryRecipeSources';
 import { groupGroceryItems } from '../models/groceryGrouping';
 import { useGroceryList } from '../hooks/useGroceryList';
 import { useGroceryQuantityUpdate } from '../hooks/useGroceryQuantityUpdate';
 import { useGroceryItemRemoval } from '../hooks/useGroceryItemRemoval';
+import { useGroceryRecipeRemoval } from '../hooks/useGroceryRecipeRemoval';
 import type { GroceryItem } from '../services/groceryListApi';
 
 const STORE_PREFERENCE_KEY = 'recipe-app:grocery-list:selected-store';
@@ -19,6 +21,7 @@ function GroceryListPage() {
   const grocery = useGroceryList();
   const quantityUpdate = useGroceryQuantityUpdate(grocery);
   const removal = useGroceryItemRemoval(grocery);
+  const recipeRemoval = useGroceryRecipeRemoval(grocery);
   const supermarkets = useSupermarkets();
   const [storePreference, setStorePreference] = useState(readStorePreference);
   const [isAddingItems, setIsAddingItems] = useState(false);
@@ -73,7 +76,7 @@ function GroceryListPage() {
                 className="btn btn-primary"
                 type="button"
                 onClick={() => setIsAddingItems(true)}
-                disabled={!grocery.data || quantityUpdate.disabled || removal.disabled}
+                disabled={!grocery.data || quantityUpdate.disabled || removal.disabled || recipeRemoval.disabled}
               >
                 Add items
               </button>
@@ -105,6 +108,12 @@ function GroceryListPage() {
             )}
           </div>
 
+          {grocery.data && (
+            <GroceryRecipeSources items={grocery.data.items}
+              disabled={quantityUpdate.disabled || removal.disabled || recipeRemoval.disabled}
+              onRemove={recipeRemoval.request} />
+          )}
+
           {storePreference.error && <p className="grocery-inline-error" role="status">{storePreference.error}</p>}
           {removal.error && (
             <p className="grocery-inline-error" role="alert">
@@ -115,6 +124,17 @@ function GroceryListPage() {
                 </button>
               )}
               {removal.canRetry && removal.retryName && ` for ${toTitleCase(removal.retryName)}`}
+            </p>
+          )}
+          {recipeRemoval.error && (
+            <p className="grocery-inline-error" role="alert">
+              {recipeRemoval.error}
+              {recipeRemoval.canRetry && (
+                <button className="btn btn-secondary" type="button" onClick={recipeRemoval.retry}>
+                  Retry Recipe removal
+                </button>
+              )}
+              {recipeRemoval.canRetry && recipeRemoval.retryName && ` for ${toTitleCase(recipeRemoval.retryName)}`}
             </p>
           )}
           {quantityUpdate.error && (
@@ -170,17 +190,28 @@ function GroceryListPage() {
               onEdit={setEditingItem}
               onRemove={removal.request}
               onQuantityChange={quantityUpdate.changeQuantity}
-              disabled={quantityUpdate.disabled || removal.disabled}
+              disabled={quantityUpdate.disabled || removal.disabled || recipeRemoval.disabled}
             />
           )}
         </section>
       </main>
+      <ConfirmDialog
+        open={recipeRemoval.recipe !== null}
+        title="Remove Recipe from Grocery List?"
+        message={`Remove ${recipeRemoval.recipe ? toTitleCase(recipeRemoval.recipe.name) : 'this Recipe'} and its outstanding requirements? Manual additions, other Recipes, and purchase history will remain.`}
+        confirmLabel="Remove Recipe"
+        tone="danger"
+        confirmFirst
+        onCancel={recipeRemoval.cancel}
+        onConfirm={recipeRemoval.confirm}
+      />
       <ConfirmDialog
         open={removal.item !== null}
         title="Remove grocery item?"
         message={`Remove ${removal.item ? toTitleCase(removal.item.name) : 'this item'} and cancel its outstanding demand, including any Recipe contributions? Purchase history will be kept.`}
         confirmLabel="Remove item"
         tone="danger"
+        confirmFirst
         onCancel={removal.cancel}
         onConfirm={removal.confirm}
       />

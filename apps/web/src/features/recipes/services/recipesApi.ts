@@ -39,6 +39,7 @@ const recipeDetailSchema = z.object({
       kind: recipeStepItemKindSchema,
       text: z.string(),
       ingredientName: z.string().nullable(),
+      ingredientId: z.uuid().nullable().optional(),
       quantityText: z.string().nullable(),
       unitText: z.string().nullable(),
       notesText: z.string().nullable(),

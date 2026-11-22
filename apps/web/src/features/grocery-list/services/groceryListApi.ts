@@ -6,6 +6,7 @@ const contributionOriginSchema = z.enum(['manual', 'recipe']);
 const contributionStateSchema = z.enum(['outstanding', 'completed', 'cancelled']);
 const eventKindSchema = z.enum(['purchase', 'reversal']);
 const purchaseOriginSchema = z.enum(['manual', 'onlineCart']);
+const interpretationStatusSchema = z.enum(['known', 'unresolved']);
 const quantityDimensionSchema = z.enum(['count', 'mass', 'volume']).nullable();
 
 const storeMappingSchema = z.object({
@@ -101,6 +102,40 @@ const commandReceiptSchema = z.object({
   resultListVersion: z.number().int().nonnegative(),
   resultIds: z.array(z.uuid()),
 });
+const recipePreviewSchema = z.object({
+  recipeId: z.uuid(),
+  recipeName: z.string(),
+  recipeVersion: z.number().int().nonnegative(),
+  ingredientFingerprint: z.string().regex(/^[A-F0-9]{64}$/),
+  groceryListId: z.uuid().nullable(),
+  listVersion: z.number().int().nonnegative(),
+  hasOutstandingAddition: z.boolean(),
+  included: z.array(z.object({
+    recipeStepId: z.uuid(),
+    stepPosition: z.number().int().nonnegative(),
+    recipeStepItemId: z.uuid(),
+    itemPosition: z.number().int().nonnegative(),
+    ingredientId: z.uuid(),
+    ingredientName: z.string(),
+    ingredientIsArchived: z.boolean(),
+    originalNameText: z.string(),
+    originalAmountText: z.string().nullable(),
+    originalUnitText: z.string().nullable(),
+    originalNotesText: z.string().nullable(),
+    interpretationStatus: interpretationStatusSchema,
+    interpretedAmount: z.number().nullable(),
+    dimension: quantityDimensionSchema,
+    canonicalUnit: z.string().nullable(),
+    countLabel: z.string().nullable(),
+    unresolvedReason: z.string().nullable(),
+  })),
+  excluded: z.array(z.object({
+    stepPosition: z.number().int().nonnegative(),
+    itemPosition: z.number().int().nonnegative(),
+    text: z.string(),
+    reason: z.string(),
+  })),
+});
 
 export type GroceryItem = z.infer<typeof groceryItemSchema>;
 export type GroceryList = z.infer<typeof groceryListSchema>;
@@ -109,6 +144,20 @@ export type GroceryHistoryEvent = z.infer<typeof historyEventSchema>;
 export type GroceryDuplicateReview =
   NonNullable<z.infer<typeof problemDetailsSchema>['duplicateReviews']>[number];
 export type GroceryCommandReceipt = z.infer<typeof commandReceiptSchema>;
+export type GroceryRecipePreview = z.infer<typeof recipePreviewSchema>;
+
+export interface GroceryRecipeAddCommand {
+  commandId: string;
+  expectedListVersion: number;
+  expectedRecipeVersion: number;
+  expectedIngredientFingerprint: string;
+  confirmRepeat: boolean;
+}
+
+export interface GroceryRecipeRemovalCommand {
+  commandId: string;
+  expectedListVersion: number;
+}
 
 export interface GroceryManualEntryCommand {
   commandId: string;
@@ -202,7 +251,7 @@ export function getGroceryList(signal?: AbortSignal): Promise<GroceryList> {
 
 async function writeJson<T>(
   path: string,
-  method: 'POST' | 'PUT',
+  method: 'POST' | 'PUT' | 'DELETE',
   body: unknown,
   schema: z.ZodType<T>,
 ): Promise<T> {
@@ -240,6 +289,44 @@ export function addGroceryItems(
   command: GroceryManualEntryCommand,
 ): Promise<GroceryCommandReceipt> {
   return writeJson('/api/grocery-list/items', 'POST', command, commandReceiptSchema);
+}
+
+export function getRecipeGroceryPreview(
+  recipeId: string,
+  signal?: AbortSignal,
+): Promise<GroceryRecipePreview> {
+  if (!z.uuid().safeParse(recipeId).success) {
+    return Promise.reject(new GroceryListApiError('Recipe ID must be a UUID.', 0));
+  }
+  return getJson(
+    `/api/grocery-list/recipes/${encodeURIComponent(recipeId)}/preview`,
+    recipePreviewSchema,
+    signal,
+  );
+}
+
+export function addRecipeToGroceryList(
+  recipeId: string,
+  command: GroceryRecipeAddCommand,
+): Promise<GroceryCommandReceipt> {
+  return writeJson(
+    `/api/grocery-list/recipes/${encodeURIComponent(recipeId)}`,
+    'POST',
+    command,
+    commandReceiptSchema,
+  );
+}
+
+export function removeRecipeGroceryRequirements(
+  recipeId: string,
+  command: GroceryRecipeRemovalCommand,
+): Promise<GroceryCommandReceipt> {
+  return writeJson(
+    `/api/grocery-list/recipes/${encodeURIComponent(recipeId)}/contributions`,
+    'DELETE',
+    command,
+    commandReceiptSchema,
+  );
 }
 
 export function updateGroceryItem(

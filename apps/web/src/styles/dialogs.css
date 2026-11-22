@@ -41,9 +41,31 @@
   margin-top: 12px;
 }
 
+.confirm-dialog-actions.confirmation-actions,
+.grocery-entry-actions.confirmation-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
 @media (max-width: 480px) {
   .confirm-dialog-actions {
     flex-direction: column-reverse;
+  }
+
+  @media (max-width: 700px) {
+    .confirm-dialog-actions.confirmation-actions,
+    .grocery-entry-actions.confirmation-actions {
+      flex-direction: row;
+    }
+
+    .confirm-dialog-actions.confirmation-actions button,
+    .grocery-entry-actions.confirmation-actions button {
+      width: auto;
+      flex: 1;
+    }
   }
 
   .confirm-dialog-actions .btn {

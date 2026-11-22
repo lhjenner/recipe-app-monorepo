@@ -7,6 +7,8 @@ import { toTitleCase } from '../../../shared/utils/titleCase';
 import { RecipeMetadata, RecipeSource } from '../components/RecipeMetadata';
 import RecipeStep from '../components/RecipeStep';
 import { useRecipeStepCompletion } from '../hooks/useRecipeStepCompletion';
+import RecipeGroceryActions from '../components/RecipeGroceryActions';
+import { useRecipeGroceryStatus } from '../hooks/useRecipeGroceryStatus';
 
 function RecipeImage({
   recipeName,
@@ -57,6 +59,7 @@ function RecipeDetailPage() {
   const recipe = useRecipe(id && isRecipeId(id) ? id : null);
   const { completedSteps, toggleStep } = useRecipeStepCompletion(id);
   const details = recipe.data;
+  const grocery = useRecipeGroceryStatus(details?.id ?? null);
   const backToRecipes = `/recipes${readListSearch(location.state)}`;
   const isNotFound = !id || !isRecipeId(id) || recipe.status === 404;
   const pageTitle = details
@@ -97,6 +100,20 @@ function RecipeDetailPage() {
                   <Link className="recipe-back-link" to={backToRecipes}>Back to recipes</Link>
                   <h1 id="recipe-detail-heading">{toTitleCase(details.name)}</h1>
                   <RecipeSource value={details.sourceUrl} />
+                  <RecipeGroceryActions
+                    key={details.id}
+                    recipeId={details.id}
+                    hasOutstandingAddition={grocery.hasOutstandingAddition}
+                    onChanged={grocery.reload}
+                  />
+                  {grocery.error && (
+                    <div role="alert">
+                      <p>Unable to check which ingredients are on the Grocery List. {grocery.error}</p>
+                      <button className="btn btn-secondary" type="button" onClick={grocery.reload}>
+                        Retry Grocery List check
+                      </button>
+                    </div>
+                  )}
 
                   {details.tags.length > 0 && (
                     <ul className="recipe-tags" aria-label="Recipe tags">
@@ -141,6 +158,7 @@ function RecipeDetailPage() {
                       {...step}
                       done={completedSteps.has(step.position)}
                       onToggle={() => toggleStep(step.position)}
+                      groceryIngredientIds={grocery.ingredientIds}
                     />
                   ))}
               </ol>

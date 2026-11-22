@@ -18,12 +18,25 @@ Feature: Atomic manual grocery entry
     When I confirm the duplicate review
     Then the grocery API creates one manual line named "Kale" with quantity "3"
 
-  Scenario: Consolidate duplicate rows in one batch only after review
+  Scenario: Reject matching rows in one batch without writing
     Given a logged in user
     When I submit duplicate manual rows for "Cumin"
-    Then the grocery API requests a review of the pending batch rows
-    When I confirm the duplicate review
-    Then the grocery API creates one manual line named "Cumin" with quantity "3"
+    Then the grocery API rejects matching draft rows without writing
+
+  Scenario: Replay a previously committed batch containing matching rows
+    Given a logged in user
+    When I replay a previously committed matching-row batch
+    Then the grocery API returns its receipt without applying it again
+
+  Scenario Outline: Resolve only selected duplicates in a mixed batch
+    Given a logged in user
+    When I resolve a mixed grocery batch by "<selection>"
+    Then the selective grocery batch has the expected "<selection>" outcome
+    Examples:
+      | selection       |
+      | confirming one  |
+      | skipping both   |
+      | submitting stale |
 
   Scenario: Save a selected new row as an Ingredient in the same command
     Given a logged in user

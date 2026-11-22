@@ -74,11 +74,13 @@ function IngredientMaintenancePage() {
         message: `${name} will be hidden from the active list. You can restore it later from Show archived.`,
         confirmLabel: 'Archive',
         tone: 'danger',
+        confirmFirst: true,
       }
       : {
         title: 'Restore ingredient?',
         message: `${name} will return to the active ingredient list.`,
         confirmLabel: 'Restore',
+        confirmFirst: true,
       });
     if (confirmed) {
       await performAction(id, shouldBeArchived);

@@ -7,8 +7,8 @@ type StepItem = Step['items'][number];
 type TouchPoint = { time: number; x: number; y: number };
 
 function RecipeStepItem({
-  kind, text, ingredientName, quantityText, unitText, notesText,
-}: StepItem) {
+  kind, text, ingredientName, quantityText, unitText, notesText, onGroceryList,
+}: StepItem & { onGroceryList: boolean }) {
   const displayName = kind === 'ingredient' ? toTitleCase(ingredientName ?? text) : text;
   const quantityAndUnit = [quantityText, unitText].filter(Boolean).join(' ');
 
@@ -39,10 +39,11 @@ function RecipeStepItem({
   }
 
   return (
-    <p className="recipe-step-item recipe-step-ingredient">
+    <p className={`recipe-step-item recipe-step-ingredient${onGroceryList ? ' recipe-step-on-grocery-list' : ''}`}>
       {quantityAndUnit && <span className="recipe-step-quantity">{quantityAndUnit} </span>}
       <span>{displayName}</span>
       {notesText && <span className="recipe-step-notes"> ({notesText})</span>}
+      {onGroceryList && <span className="recipe-step-grocery-status">On Grocery List</span>}
     </p>
   );
 }
@@ -55,8 +56,8 @@ function hasRenderableContent(item: StepItem): boolean {
 }
 
 export default function RecipeStep({
-  position, items, instructions, done, onToggle,
-}: Step & { done: boolean; onToggle: () => void }) {
+  position, items, instructions, done, onToggle, groceryIngredientIds,
+}: Step & { done: boolean; onToggle: () => void; groceryIngredientIds?: ReadonlySet<string> }) {
   const visibleItems = items.filter(hasRenderableContent);
   const hasInstructions = Boolean(instructions.trim());
   const isPaired = visibleItems.length > 0 && hasInstructions;
@@ -129,7 +130,10 @@ export default function RecipeStep({
       <h2 className="recipe-step-number">Step {position + 1}</h2>
       {visibleItems.length > 0 && (
         <div className="recipe-step-items">
-          {visibleItems.map((item) => <RecipeStepItem key={item.position} {...item} />)}
+          {visibleItems.map((item) => (
+            <RecipeStepItem key={item.position} {...item}
+              onGroceryList={item.kind === 'ingredient' && Boolean(item.ingredientId && groceryIngredientIds?.has(item.ingredientId))} />
+          ))}
         </div>
       )}
       {hasInstructions && <p className="recipe-step-instructions">{instructions}</p>}

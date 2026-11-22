@@ -69,6 +69,12 @@ public sealed class GroceryManualEntryService(
             }
         }
 
+        var duplicateDraftErrors = GroceryWriteValidator.ValidateDistinctBatch(command);
+        if (duplicateDraftErrors.Count != 0)
+        {
+            return Invalid(duplicateDraftErrors);
+        }
+
         var prepared = await GroceryManualEntryPreparation.PrepareAsync(
             database, ownerId, command, now, cancellationToken);
         if (prepared.IsNotFound)
@@ -91,6 +97,7 @@ public sealed class GroceryManualEntryService(
         }
 
         var activeItems = await database.GroceryItems
+            .Include(item => item.Contributions)
             .Where(item => item.OwnerUserId == ownerId
                 && item.GroceryListId == list.Id
                 && item.State == GroceryItemState.Outstanding)

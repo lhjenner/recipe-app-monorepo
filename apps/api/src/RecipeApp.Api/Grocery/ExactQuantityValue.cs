@@ -11,7 +11,7 @@ internal enum ExactQuantityFailure
     Range
 }
 
-internal readonly record struct ExactQuantityValue(BigInteger Numerator, BigInteger Denominator)
+internal readonly partial record struct ExactQuantityValue(BigInteger Numerator, BigInteger Denominator)
 {
     private static readonly BigInteger MaximumDecimalInteger =
         BigInteger.Parse(decimal.MaxValue.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);

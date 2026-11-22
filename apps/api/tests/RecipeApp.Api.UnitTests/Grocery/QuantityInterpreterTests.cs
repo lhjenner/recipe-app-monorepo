@@ -6,6 +6,58 @@ namespace RecipeApp.Api.UnitTests.Grocery;
 public sealed class QuantityInterpreterTests
 {
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void Recipe_quantity_without_a_unit_is_a_generic_count(string? unit)
+    {
+        var result = QuantityInterpreter.InterpretRecipe("1", unit);
+
+        result.Status.Should().Be(QuantityInterpretationStatus.Known);
+        result.Amount.Should().Be(1);
+        result.Dimension.Should().Be(QuantityDimension.Count);
+        result.CountLabel.Should().Be("item");
+        result.OriginalUnitText.Should().Be(unit);
+        QuantityInterpreter.Interpret("1", unit).Status.Should().Be(QuantityInterpretationStatus.Unresolved);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("0")]
+    [InlineData("1-2")]
+    public void Unitless_recipe_quantities_still_require_a_supported_positive_number(string amount)
+    {
+        QuantityInterpreter.InterpretRecipe(amount, null).Status
+            .Should().Be(QuantityInterpretationStatus.Unresolved);
+    }
+
+    [Theory]
+    [InlineData("1/3", "cup", 83.33)]
+    [InlineData("2/3", "cup", 166.67)]
+    [InlineData("1/8", "tsp", 0.63)]
+    [InlineData("1/200", "ml", 0.01)]
+    [InlineData("0.001", "kg", 1)]
+    [InlineData("1/3", null, 0.333333333)]
+    [InlineData("2/3", "onion", 0.666666667)]
+    public void Interprets_recipe_fractions_with_appropriate_precision(
+        string amount, string? unit, decimal expected)
+    {
+        var result = QuantityInterpreter.InterpretRecipe(amount, unit);
+
+        result.Status.Should().Be(QuantityInterpretationStatus.Known);
+        result.Amount.Should().Be(expected);
+    }
+
+    [Fact]
+    public void Recipe_measurement_that_would_round_to_zero_remains_unresolved()
+    {
+        var result = QuantityInterpreter.InterpretRecipe("0.001", "ml");
+
+        result.Status.Should().Be(QuantityInterpretationStatus.Unresolved);
+        result.UnresolvedReason.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Theory]
     [InlineData("1", "tbsp", 15)]
     [InlineData("2", "tsp", 10)]
     [InlineData("1 1/2", "tsp", 7.5)]

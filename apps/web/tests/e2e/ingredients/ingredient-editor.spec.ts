@@ -261,8 +261,10 @@ test.describe('Ingredient create and edit', () => {
       'An archived ingredient with this name exists',
     );
     await page.getByRole('button', { name: 'Restore' }).click();
-    await page.getByRole('dialog', { name: 'Restore archived ingredient?' })
-      .getByRole('button', { name: 'Restore', exact: true }).click();
+    const restoreDialog = page.getByRole('dialog', { name: 'Restore archived ingredient?' });
+    await expect(restoreDialog.getByRole('button')).toHaveText(['Restore', 'Cancel']);
+    await expect(restoreDialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await restoreDialog.getByRole('button', { name: 'Restore', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: 'Ingredient Maintenance' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Ingredients' }).getByText('Archived Ingredient')).toBeVisible();
@@ -369,6 +371,8 @@ test.describe('Ingredient create and edit', () => {
 
     const discardPrompt = page.getByRole('dialog', { name: 'Discard unsaved changes?' });
     const backNavigation = page.goBack().catch(() => null);
+    await expect(discardPrompt.getByRole('button')).toHaveText(['Discard changes', 'Keep editing']);
+    await expect(discardPrompt.getByRole('button', { name: 'Keep editing' })).toBeFocused();
     await discardPrompt.getByRole('button', { name: 'Keep editing' }).click();
     await backNavigation;
     await expect(discardPrompt).toBeHidden();
