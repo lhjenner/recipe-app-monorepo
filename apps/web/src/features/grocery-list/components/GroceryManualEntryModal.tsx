@@ -112,14 +112,20 @@ function GroceryManualEntryModal({
           <h2 id="grocery-entry-heading">Add items to Grocery List</h2>
           <p>Add one or more items. You can optionally save new rows as Ingredients.</p>
         </div>
-        <button className="btn btn-secondary" type="button" onClick={onClose} disabled={mutation.locked}>
-          Close
-        </button>
+        {duplicateReviews.length === 0 && (
+          <button className="btn btn-secondary" type="button" onClick={onClose} disabled={mutation.locked}>
+            Close
+          </button>
+        )}
       </header>
 
       {lookups.error && <p className="grocery-inline-error" role="alert">{lookups.error}</p>}
       {error && <p className="grocery-inline-error" role="alert">{error}</p>}
-      {mutation.error && <p className="grocery-inline-error" role="alert">{mutation.error.message}</p>}
+      {mutation.error && (
+        <p className={mutation.error.duplicateReviews.length > 0 ? 'grocery-update-notice' : 'grocery-inline-error'} role="alert">
+          {mutation.error.message}
+        </p>
+      )}
       {mutation.canRetry && (
         <p role="status">
           The outcome is unknown. Retry the original request before changing this draft.
@@ -182,13 +188,10 @@ function GroceryManualEntryModal({
           )}
           {duplicateReviews.length > 0 && (
             <button
-              className="btn btn-secondary"
+              className="btn btn-danger-secondary"
               type="button"
               disabled={mutation.locked}
-              onClick={() => {
-                setDuplicateReviews([]);
-                mutation.clearError();
-              }}
+              onClick={onClose}
             >
               Cancel review
             </button>

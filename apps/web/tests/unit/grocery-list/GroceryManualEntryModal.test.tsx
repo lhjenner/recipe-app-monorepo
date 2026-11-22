@@ -213,19 +213,33 @@ const duplicateReview = {
   existingQuantity: 1, increment: 1, resultingQuantity: 2, itemName: 'Oats', purchaseUnit: 'item',
 };
 
-test('cancels duplicate review without closing or losing the draft', async () => {
+test('presents duplicate review as a warning and cancels by closing the modal', async () => {
   mocks.addGroceryItems.mockRejectedValueOnce(
     new GroceryListApiError('Review duplicates', 409, {}, [duplicateReview]),
   );
   const onClose = vi.fn();
   render(<GroceryManualEntryModal expectedListVersion={3} onClose={onClose} onAdded={vi.fn()} />);
+  expect(screen.getByRole('button', { name: 'Close' })).toBeVisible();
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Cancel review' }));
-  expect(screen.getByLabelText('Name')).toHaveValue('Oats');
-  expect(screen.queryByText('Review matching grocery items')).not.toBeInTheDocument();
-  expect(onClose).not.toHaveBeenCalled();
+  const cancel = await screen.findByRole('button', { name: 'Cancel review' });
+  expect(cancel).toHaveClass('btn-danger-secondary');
+  expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveClass('grocery-update-notice');
+  expect(screen.getByText('Oats: 1 item(s) + 1 item(s) = 2 item(s)')).toBeVisible();
+  fireEvent.click(cancel);
+  expect(onClose).toHaveBeenCalledOnce();
   expect(mocks.addGroceryItems).toHaveBeenCalledOnce();
+});
+
+test('retains non-item units in duplicate review', async () => {
+  mocks.addGroceryItems.mockRejectedValueOnce(new GroceryListApiError('Review duplicates', 409, {}, [
+    { ...duplicateReview, purchaseUnit: 'kg' },
+  ]));
+  render(<GroceryManualEntryModal expectedListVersion={3} onClose={vi.fn()} onAdded={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  expect(await screen.findByText('Oats: 1 kg + 1 kg = 2 kg')).toBeVisible();
 });
 
 test('retries the exact reviewed batch after polling advances the list version', async () => {
@@ -239,6 +253,7 @@ test('retries the exact reviewed batch after polling advances the list version',
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Confirm reviewed increments' }));
   await screen.findByText('Response lost');
+  expect(screen.getByRole('alert')).toHaveClass('grocery-inline-error');
   rerender(<GroceryManualEntryModal {...initial} expectedListVersion={4} />);
   expect(screen.getByLabelText('Name')).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Cancel review' })).toBeDisabled();

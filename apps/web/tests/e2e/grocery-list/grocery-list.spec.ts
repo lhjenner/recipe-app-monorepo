@@ -129,6 +129,53 @@ test('manual entry suggests Ingredients while typing and links only a chosen sug
   await expect(badge).toBeVisible();
 });
 
+test('duplicate review uses the themed warning and cancellation discards the draft', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await mockIngredientApi(page, []);
+  for (const lookup of ['categories', 'departments']) {
+    await page.route(`**/api/${lookup}`, (route) => route.fulfill({ json: [] }));
+  }
+  let submissions = 0;
+  await page.route('**/api/grocery-list/items', async (route) => {
+    submissions++;
+    await route.fulfill({
+      status: 409,
+      json: {
+        detail: 'One or more entries match an outstanding item.',
+        duplicateReviews: [{
+          entryIndex: 0, targetItemId: groceryList.items[0].id, targetEntryIndex: null,
+          existingQuantity: 1, increment: 1, resultingQuantity: 2,
+          itemName: 'green apples', purchaseUnit: 'item',
+        }],
+      },
+    });
+  });
+  await page.goto('/grocery-list');
+  const trigger = page.getByRole('button', { name: 'Add items', exact: true });
+  await trigger.click();
+  const dialog = page.getByRole('dialog', { name: 'Add items to Grocery List' });
+  await dialog.getByRole('combobox', { name: 'Name' }).fill('green apples');
+  await dialog.getByRole('button', { name: 'Add to Grocery List' }).click();
+  const warning = dialog.getByRole('alert');
+  await expect(warning).toHaveText('One or more entries match an outstanding item.');
+  await expect(warning).toHaveCSS('background-color', 'rgb(255, 247, 225)');
+  await expect(warning).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
+  await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+  await expect(warning).toHaveCSS('background-color', 'rgb(73, 57, 31)');
+  await expect(warning).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
+  await expect(dialog.getByText('green apples: 1 item(s) + 1 item(s) = 2 item(s)')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Close' })).toHaveCount(0);
+  const cancel = dialog.getByRole('button', { name: 'Cancel review' });
+  await expect(cancel).toHaveClass(/btn-danger-secondary/);
+  await cancel.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(submissions).toBe(1);
+  await trigger.click();
+  await expect(dialog.getByRole('combobox', { name: 'Name' })).toHaveValue('');
+});
+
 test.describe('Grocery list reads', () => {
   test('expands recipe sources from the requirement without shifting desktop columns', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
