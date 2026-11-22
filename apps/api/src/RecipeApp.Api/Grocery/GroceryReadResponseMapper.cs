@@ -12,10 +12,13 @@ internal static class GroceryReadResponseMapper
                 && (item.State != GroceryItemState.Outstanding
                     || contribution.State == GroceryContributionState.Outstanding))
             .ToArray();
-        var requirementAmount = activeContributions
+        var knownContributions = activeContributions
             .Where(contribution => contribution.Dimension == item.Dimension
                 && contribution.InterpretedAmount is not null)
-            .Sum(contribution => contribution.InterpretedAmount!.Value);
+            .ToArray();
+        var requirementAmount = item.Dimension == QuantityDimension.Count
+            ? GetCountRequirement(knownContributions)
+            : knownContributions.Sum(contribution => contribution.InterpretedAmount!.Value);
         var requirementUnit = item.Dimension switch
         {
             QuantityDimension.Count => item.CountLabel,
@@ -23,9 +26,7 @@ internal static class GroceryReadResponseMapper
             QuantityDimension.Volume => "ml",
             _ => null
         };
-        var hasRequirement = activeContributions.Any(contribution =>
-            contribution.Dimension == item.Dimension
-            && contribution.InterpretedAmount is not null);
+        var hasRequirement = knownContributions.Length > 0;
         var storeMappings = item.Ingredient?.StoreMappings
             .Select(mapping => new GroceryStoreMappingResponse(
                 mapping.StoreId,
@@ -69,6 +70,17 @@ internal static class GroceryReadResponseMapper
                     contribution.SourceRecipeStepItemId,
                     contribution.SourceRecipeNameSnapshot))
                 .ToArray());
+    }
+
+    private static decimal GetCountRequirement(GroceryContribution[] contributions)
+    {
+        if (!GroceryCountRequirement.Sum(contributions)
+            .TryToRoundedDecimal(GroceryDecimalContract.Scale, out var amount, out _))
+        {
+            throw new OverflowException("The consolidated count exceeds the supported decimal range.");
+        }
+
+        return amount;
     }
 
     private static string? ToCanonicalUnit(QuantityDimension? dimension, string? countLabel) =>

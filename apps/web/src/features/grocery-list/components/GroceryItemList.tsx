@@ -184,7 +184,7 @@ function RequirementDetails({ item }: { item: GroceryItem }) {
           <ul>
             {sources.map(([contribution, ...rest]) => {
               const entries = [contribution, ...rest];
-              const amount = formatSourceAmount(entries);
+              const amount = formatSourceAmount(entries, item.dimension);
               const sourceName = contribution.recipeNameSnapshot
                 ? toTitleCase(contribution.recipeNameSnapshot)
                 : 'Manual addition';

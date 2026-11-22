@@ -25,11 +25,36 @@ public sealed class QuantityInterpreterTests
     [InlineData("")]
     [InlineData("0")]
     [InlineData("1-2")]
-    [InlineData("1/3")]
     public void Unitless_recipe_quantities_still_require_a_supported_positive_number(string amount)
     {
         QuantityInterpreter.InterpretRecipe(amount, null).Status
             .Should().Be(QuantityInterpretationStatus.Unresolved);
+    }
+
+    [Theory]
+    [InlineData("1/3", "cup", 83.33)]
+    [InlineData("2/3", "cup", 166.67)]
+    [InlineData("1/8", "tsp", 0.63)]
+    [InlineData("1/200", "ml", 0.01)]
+    [InlineData("0.001", "kg", 1)]
+    [InlineData("1/3", null, 0.333333333)]
+    [InlineData("2/3", "onion", 0.666666667)]
+    public void Interprets_recipe_fractions_with_appropriate_precision(
+        string amount, string? unit, decimal expected)
+    {
+        var result = QuantityInterpreter.InterpretRecipe(amount, unit);
+
+        result.Status.Should().Be(QuantityInterpretationStatus.Known);
+        result.Amount.Should().Be(expected);
+    }
+
+    [Fact]
+    public void Recipe_measurement_that_would_round_to_zero_remains_unresolved()
+    {
+        var result = QuantityInterpreter.InterpretRecipe("0.001", "ml");
+
+        result.Status.Should().Be(QuantityInterpretationStatus.Unresolved);
+        result.UnresolvedReason.Should().NotBeNullOrWhiteSpace();
     }
 
     [Theory]

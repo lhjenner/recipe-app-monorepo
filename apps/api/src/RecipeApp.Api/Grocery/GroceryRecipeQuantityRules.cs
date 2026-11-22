@@ -21,11 +21,15 @@ internal static class GroceryRecipeQuantityRules
             decimal recipeDemand;
             if (item.Dimension == QuantityDimension.Count)
             {
-                var requiredCount = recipeContributions
+                var countContributions = recipeContributions
                     .Where(contribution => contribution.Dimension == QuantityDimension.Count
-                        && string.Equals(contribution.CountLabel, item.CountLabel, StringComparison.Ordinal))
-                    .Sum(contribution => contribution.InterpretedAmount ?? 0m);
-                recipeDemand = decimal.Ceiling(requiredCount);
+                        && contribution.InterpretedAmount is not null
+                        && string.Equals(contribution.CountLabel, item.CountLabel, StringComparison.Ordinal));
+                if (!GroceryCountRequirement.Sum(countContributions).TryCeiling(out recipeDemand))
+                {
+                    outstandingQuantity = 0;
+                    return false;
+                }
             }
             else
             {

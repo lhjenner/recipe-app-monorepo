@@ -25,18 +25,21 @@ export function groupRecipeSources(contributions: Contribution[]): Contribution[
   return [...sources.values()];
 }
 
-export function formatSourceAmount(entries: Contribution[]): string {
+export function formatSourceAmount(entries: Contribution[], dimension: GroceryItem['dimension']): string {
   const first = entries[0];
   if (entries.length === 1) {
     return [first.originalAmountText, formatRequirementUnit(first.originalUnitText)].filter(Boolean).join(' ');
   }
   const originalUnit = first.originalUnitText?.trim();
-  const sameUnit = Boolean(originalUnit) && entries.every((entry) =>
-    entry.originalUnitText?.trim().toLowerCase() === originalUnit?.toLowerCase());
+  const sameUnit = (Boolean(originalUnit) || first.canonicalUnit === 'item')
+    && entries.every((entry) =>
+      (entry.originalUnitText?.trim().toLowerCase() ?? '') === (originalUnit?.toLowerCase() ?? ''));
   const total = entries.reduce((sum, entry) =>
-    sum + (sameUnit ? parseOriginalAmount(entry.originalAmountText)! : entry.interpretedAmount!), 0);
+    sum + (sameUnit || dimension === 'count'
+      ? parseOriginalAmount(entry.originalAmountText)!
+      : entry.interpretedAmount!), 0);
   return `${new Intl.NumberFormat('en-NZ', { maximumFractionDigits: 9 }).format(total)} ${
-    formatRequirementUnit(sameUnit ? originalUnit : first.canonicalUnit)}`;
+    formatRequirementUnit(sameUnit && originalUnit ? originalUnit : first.canonicalUnit)}`;
 }
 
 function parseOriginalAmount(text: string | null): number | null {

@@ -40,6 +40,12 @@ Feature: Recipe grocery additions
     And I confirm adding another Recipe's worth
     Then two apples are required without changing the original source text
 
+  Scenario: Round measured fractions and combine count fractions before rounding up
+    Given a logged in user
+    And an active Recipe with fractional oil and onion requirements
+    When I preview the fractional Recipe and add it
+    Then the measured requirement is rounded and the combined count needs two onions
+
   Scenario: Removing the last measured Recipe keeps manual generic item demand
     Given a logged in user
     And an active Recipe with measured flour demand to remove

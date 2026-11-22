@@ -5,25 +5,36 @@ namespace RecipeApp.Api.Grocery;
 public static partial class QuantityInterpreter
 {
     public static QuantityInterpretation InterpretRecipe(string? amountText, string? unitText) =>
-        Interpret(amountText, string.IsNullOrWhiteSpace(unitText) ? "item" : unitText)
+        InterpretCore(amountText, string.IsNullOrWhiteSpace(unitText) ? "item" : unitText, true)
             with { OriginalUnitText = unitText };
 
-    public static QuantityInterpretation Interpret(string? amountText, string? unitText)
+    public static QuantityInterpretation Interpret(string? amountText, string? unitText) =>
+        InterpretCore(amountText, unitText, false);
+
+    private static QuantityInterpretation InterpretCore(string? amountText, string? unitText, bool recipe)
     {
         if (!QuantityUnitCatalog.TryGet(unitText, out var definition, out var unitError))
         {
             return Unresolved(amountText, unitText, unitError);
         }
 
-        if (!TryParsePositiveAmount(amountText, out var amount, out var reason))
+        if (!TryParsePositiveAmount(amountText, recipe, out var amount, out var reason))
         {
             return Unresolved(amountText, unitText, reason);
         }
 
-        if (!amount.Multiply(definition.Multiplier)
-                .TryToStoredDecimal(out var canonicalAmount, out var failure))
+        var canonical = amount.Multiply(definition.Multiplier);
+        var valid = recipe
+            ? canonical.TryToRoundedDecimal(
+                definition.Dimension == QuantityDimension.Count ? GroceryDecimalContract.Scale : 2,
+                out var canonicalAmount, out var failure)
+            : canonical.TryToStoredDecimal(out canonicalAmount, out failure);
+        if (!valid)
         {
-            return Unresolved(amountText, unitText, FailureReason(failure));
+            var failureMessage = recipe && failure == ExactQuantityFailure.Precision
+                ? "The quantity is too small to round at the supported precision."
+                : FailureReason(failure);
+            return Unresolved(amountText, unitText, failureMessage);
         }
 
         return new QuantityInterpretation(
@@ -39,6 +50,7 @@ public static partial class QuantityInterpreter
 
     private static bool TryParsePositiveAmount(
         string? amountText,
+        bool recipe,
         out ExactQuantityValue amount,
         out string reason)
     {
@@ -68,7 +80,7 @@ public static partial class QuantityInterpreter
             return false;
         }
 
-        if (!amount.TryToStoredDecimal(out _, out failure))
+        if (!recipe && !amount.TryToStoredDecimal(out _, out failure))
         {
             reason = FailureReason(failure);
             return false;

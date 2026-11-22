@@ -95,7 +95,7 @@ internal static class GroceryRecipeTestData
         int position,
         string text,
         string amount,
-        string unit) =>
+        string? unit) =>
         new()
         {
             OwnerUserId = ownerId,
