@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   addRecipeToGroceryList,
   getRecipeGroceryPreview,
@@ -24,6 +24,7 @@ export function useRecipeGroceryActions(recipeId: string, onChanged?: () => void
   const [canRetry, setCanRetry] = useState(false);
   const [needsFreshReview, setNeedsFreshReview] = useState(false);
   const [mode, setMode] = useState<'add' | 'remove'>('add');
+  const inFlight = useRef(false);
   const locked = isSubmitting || canRetry;
 
   async function loadPreview() {
@@ -53,6 +54,8 @@ export function useRecipeGroceryActions(recipeId: string, onChanged?: () => void
   }
 
   async function runCommand(command: PendingCommand) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setIsSubmitting(true);
     setError(null);
     setPendingCommand(command);
@@ -69,16 +72,18 @@ export function useRecipeGroceryActions(recipeId: string, onChanged?: () => void
       setIsOpen(false);
       onChanged?.();
     } catch (requestError: unknown) {
-      const status = requestError instanceof GroceryListApiError ? requestError.status : -1;
+      const status = requestError instanceof GroceryListApiError ? requestError.status : 0;
+      const knownRejection = status >= 400 && status < 500;
       setError(requestError instanceof Error
         ? requestError.message
         : 'The Recipe grocery command failed.');
-      setCanRetry(status === 0);
-      if (status !== 0) {
+      setCanRetry(!knownRejection);
+      if (knownRejection) {
         setPendingCommand(null);
         setNeedsFreshReview(status === 409);
       }
     } finally {
+      inFlight.current = false;
       setIsSubmitting(false);
     }
   }
@@ -93,6 +98,7 @@ export function useRecipeGroceryActions(recipeId: string, onChanged?: () => void
         commandId: crypto.randomUUID(),
         expectedListVersion: preview.listVersion,
         expectedRecipeVersion: preview.recipeVersion,
+        expectedIngredientFingerprint: preview.ingredientFingerprint,
         confirmRepeat: preview.hasOutstandingAddition,
       },
     });

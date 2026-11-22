@@ -11,8 +11,8 @@ internal static class GroceryManualEntryProcessor
         IReadOnlyList<GroceryItem> activeItems)
     {
         var targets = new Dictionary<string, DuplicateTarget>(StringComparer.Ordinal);
-        var measuredSuggestions = activeItems
-            .Where(IsMeasuredRecipeSuggestion)
+        var measuredTargets = activeItems
+            .Where(IsMeasuredRecipeTarget)
             .GroupBy(item => SuggestedTargetKey(item.IngredientId!.Value, item.PurchaseUnit), StringComparer.Ordinal)
             .Where(group => group.Count() == 1)
             .ToDictionary(
@@ -35,7 +35,7 @@ internal static class GroceryManualEntryProcessor
             var targetKey = TargetKey(GetConsolidationKey(entry), entry.CanonicalUnit);
             if (!targets.ContainsKey(targetKey)
                 && IsGenericItemTarget(entry)
-                && measuredSuggestions.TryGetValue(
+                && measuredTargets.TryGetValue(
                     SuggestedTargetKey(entry.IngredientId!.Value, entry.CanonicalUnit),
                     out var suggestedTarget))
             {
@@ -154,13 +154,12 @@ internal static class GroceryManualEntryProcessor
         && string.Equals(entry.CountLabel, "item", StringComparison.Ordinal)
         && string.Equals(entry.CanonicalUnit, "item", StringComparison.Ordinal);
 
-    private static bool IsMeasuredRecipeSuggestion(GroceryItem item) =>
+    private static bool IsMeasuredRecipeTarget(GroceryItem item) =>
         item.IngredientId is not null
         && item.PurchaseUnit == "item"
         && item.State == GroceryItemState.Outstanding
         && item.Dimension is QuantityDimension.Mass or QuantityDimension.Volume or null
-        && item.Contributions.Any(contribution => contribution.Origin == GroceryContributionOrigin.Recipe
-            && contribution.State == GroceryContributionState.Outstanding);
+        && item.Contributions.Any(contribution => contribution.Origin == GroceryContributionOrigin.Recipe);
 
     private static string? CleanOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

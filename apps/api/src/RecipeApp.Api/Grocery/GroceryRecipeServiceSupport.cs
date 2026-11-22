@@ -77,6 +77,16 @@ internal static class GroceryRecipeServiceSupport
         recipe.Steps.SelectMany(step => step.Items)
             .Any(item => item.Kind == RecipeStepItemKind.Ingredient && item.Ingredient is null);
 
+    public static string GetIngredientFingerprint(Recipe recipe) =>
+        GroceryCommandFingerprint.Compute("recipe-ingredient-review", recipe.Steps
+            .SelectMany(step => step.Items)
+            .Where(item => item.Kind == RecipeStepItemKind.Ingredient)
+            .Select(item => item.Ingredient!)
+            .DistinctBy(ingredient => ingredient.Id)
+            .OrderBy(ingredient => ingredient.Id)
+            .Select(ingredient => new { ingredient.Id, ingredient.Version })
+            .ToArray());
+
     public static List<EligibleRecipeItem> GetEligibleItems(Recipe recipe) =>
         recipe.Steps
             .OrderBy(step => step.Position)

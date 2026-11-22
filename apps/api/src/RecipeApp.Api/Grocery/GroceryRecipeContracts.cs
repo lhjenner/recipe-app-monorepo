@@ -4,6 +4,7 @@ public sealed record GroceryRecipePreviewResponse(
     Guid RecipeId,
     string RecipeName,
     uint RecipeVersion,
+    string IngredientFingerprint,
     Guid? GroceryListId,
     uint ListVersion,
     bool HasOutstandingAddition,
@@ -39,7 +40,8 @@ public sealed record GroceryRecipeAddCommand(
     Guid CommandId,
     uint ExpectedListVersion,
     uint ExpectedRecipeVersion,
-    bool ConfirmRepeat);
+    bool ConfirmRepeat,
+    string? ExpectedIngredientFingerprint);
 
 public sealed record GroceryRecipeRemovalCommand(
     Guid CommandId,

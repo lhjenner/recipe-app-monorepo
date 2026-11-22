@@ -21,6 +21,7 @@ const preview: GroceryRecipePreview = {
   recipeId: '019a0000-0000-7000-8000-000000000001',
   recipeName: 'tomato soup',
   recipeVersion: 4,
+  ingredientFingerprint: 'A'.repeat(64),
   groceryListId: null,
   listVersion: 0,
   hasOutstandingAddition: false,
@@ -96,6 +97,7 @@ test('reviews eligible, archived, excluded and unresolved items before adding wi
     commandId: expect.any(String),
     expectedListVersion: 0,
     expectedRecipeVersion: 4,
+    expectedIngredientFingerprint: preview.ingredientFingerprint,
     confirmRepeat: false,
   });
   expect(await screen.findByRole('link', { name: 'View Grocery List' }))
@@ -214,12 +216,58 @@ test('retries an ambiguous add with the exact same command payload', async () =>
   expect(addMock.mock.calls[1]).toEqual(addMock.mock.calls[0]);
 });
 
+test.each([
+  new GroceryListApiError('Server failed after submission.', 500),
+  new GroceryListApiError('Invalid receipt.', 201),
+  new SyntaxError('Unreadable receipt.'),
+])('retains the original command for an ambiguous response: $message', async (failure) => {
+  addMock.mockRejectedValueOnce(failure);
+  renderActions();
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  const dialog = await screen.findByRole('dialog');
+  fireEvent.click(await within(dialog).findByRole('button', { name: 'Confirm' }));
+  const retry = await within(dialog).findByRole('button', { name: 'Retry original command' });
+  expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  fireEvent.click(retry);
+  await waitFor(() => expect(addMock).toHaveBeenCalledTimes(2));
+  expect(addMock.mock.calls[1]).toEqual(addMock.mock.calls[0]);
+});
+
+test('prevents concurrent retries of an uncertain Recipe command', async () => {
+  let finish: (value: Awaited<ReturnType<typeof addRecipeToGroceryList>>) => void = () => {};
+  addMock.mockRejectedValueOnce(new GroceryListApiError('Response lost.', 0))
+    .mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+  renderActions();
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  const dialog = await screen.findByRole('dialog');
+  fireEvent.click(await within(dialog).findByRole('button', { name: 'Confirm' }));
+  const retry = await within(dialog).findByRole('button', { name: 'Retry original command' });
+  fireEvent.click(retry);
+  expect(retry).toBeDisabled();
+  fireEvent.click(retry);
+  expect(addMock).toHaveBeenCalledTimes(2);
+  finish({ commandId: '019a0000-0000-7000-8000-000000000005', resultListVersion: 1, resultIds: [] });
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
+test('retries an uncertain Recipe removal with the original payload', async () => {
+  previewMock.mockResolvedValue({ ...preview, hasOutstandingAddition: true });
+  removeMock.mockRejectedValueOnce(new GroceryListApiError('Server failed after submission.', 503));
+  renderActions(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove from Grocery List' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry original command' }));
+  await waitFor(() => expect(removeMock).toHaveBeenCalledTimes(2));
+  expect(removeMock.mock.calls[1]).toEqual(removeMock.mock.calls[0]);
+});
+
 test('a stale version requires a fresh preview before another command', async () => {
   addMock.mockRejectedValueOnce(new GroceryListApiError('The grocery list changed after review.', 409));
   previewMock.mockResolvedValueOnce(preview).mockResolvedValueOnce({
     ...preview,
     recipeVersion: 5,
     listVersion: 9,
+    ingredientFingerprint: 'B'.repeat(64),
   });
   renderActions();
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
@@ -233,5 +281,6 @@ test('a stale version requires a fresh preview before another command', async ()
   expect(addMock.mock.calls[1]?.[1]).toMatchObject({
     expectedRecipeVersion: 5,
     expectedListVersion: 9,
+    expectedIngredientFingerprint: 'B'.repeat(64),
   });
 });

@@ -5,6 +5,7 @@ import type { GroceryItem } from '../services/groceryListApi';
 import type { GroceryItemGroup } from '../models/groceryGrouping';
 import { formatRequirementUnit, formatSourceAmount, groupRecipeSources } from '../models/grocerySourceSummary';
 import GroceryQuantityStepper from './GroceryQuantityStepper';
+import GroceryPurchaseSuggestion from './GroceryPurchaseSuggestion';
 
 interface GroceryItemListProps {
   groups: GroceryItemGroup[];
@@ -70,6 +71,7 @@ function GroceryItemList({ groups, onEdit, onRemove, onQuantityChange, disabled 
                       readOnly
                       onChange={(value) => onQuantityChange(item, Number(value))}
                     />
+                    <GroceryPurchaseSuggestion item={item} />
                   </td>
                   <td>
                     <div className="grocery-item-actions">
@@ -132,6 +134,7 @@ function GroceryItemList({ groups, onEdit, onRemove, onQuantityChange, disabled 
                       </button>
                     </div>
                   </div>
+                  <GroceryPurchaseSuggestion item={item} />
                 </article>
               ))}
             </div>

@@ -64,6 +64,11 @@ public sealed class GroceryRecipeAdditionService(
             return GroceryRecipeServiceSupport.Conflict("The Recipe changed after review. Preview it again before adding it.");
         }
 
+        if (GroceryRecipeServiceSupport.GetIngredientFingerprint(recipe) != command.ExpectedIngredientFingerprint)
+        {
+            return await RecoverAsync(GroceryRecipeServiceSupport.Conflict("An Ingredient changed after review. Preview the Recipe again."));
+        }
+
         if (list is not null && list.Version != command.ExpectedListVersion)
         {
             return await RecoverAsync(

@@ -96,6 +96,16 @@ public sealed class GroceryRecipeRemovalSteps(ApiAuthContext context)
             && value.GetProperty("state").GetString() == "cancelled");
     }
 
+    [Then("the surviving manual line contains both increments")]
+    public async Task AssertTwoManualIncrementsAsync()
+    {
+        context.Response!.StatusCode.Should().Be(HttpStatusCode.Created);
+        using var list = await GroceryRecipeTestData.ReadListAsync(context);
+        var items = list.RootElement.GetProperty("items").EnumerateArray().ToArray();
+        items.Should().ContainSingle();
+        items[0].GetProperty("outstandingPurchaseQuantity").GetDecimal().Should().Be(2);
+    }
+
     private async Task SeedSingleIngredientRecipeAsync(
         string ingredientName,
         string recipeName,

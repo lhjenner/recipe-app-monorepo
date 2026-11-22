@@ -48,6 +48,15 @@ Feature: Recipe grocery additions
     When I remove the Recipe's outstanding requirements
     Then manual demand remains without Recipe demand
 
+  Scenario: Further manual additions review the surviving measured line
+    Given a logged in user
+    And an active Recipe with measured flour demand to remove
+    When I add this Recipe before adding a manual increment
+    And I add one manual increment
+    And I remove the Recipe's outstanding requirements
+    And I add one manual increment
+    Then the surviving manual line contains both increments
+
   Scenario: A Recipe changed after preview requires a fresh review
     Given a logged in user
     And an active Recipe with countable onion demand for stale-review testing
@@ -55,3 +64,33 @@ Feature: Recipe grocery additions
     And the Recipe changes after preview
     When I add the Recipe reviewed before its change
     Then the Recipe addition is rejected as stale without writes
+
+  Scenario Outline: An Ingredient changed after preview requires a fresh review
+    Given a logged in user
+    And an active Recipe with an excluded Ingredient for stale-review testing
+    When I preview the Recipe for grocery addition before it changes
+    And the Ingredient's <change> changes after preview
+    When I add the Recipe reviewed before its change
+    Then the Recipe addition is rejected as stale without writes
+
+    Examples:
+      | change      |
+      | eligibility |
+      | name        |
+
+  Scenario: An included Ingredient changed after preview requires a fresh review
+    Given a logged in user
+    And an active Recipe with countable onion demand for stale-review testing
+    When I preview the Recipe for grocery addition before it changes
+    And the Ingredient's name changes after preview
+    When I add the Recipe reviewed before its change
+    Then the Recipe addition is rejected as stale without writes
+
+  Scenario: A committed command can be replayed after an Ingredient changes
+    Given a logged in user
+    And an active Recipe with countable onion demand for stale-review testing
+    When I preview the Recipe for grocery addition before it changes
+    And I submit the reviewed Recipe and retain its command
+    And the Ingredient's name changes after preview
+    And I retry the submitted Recipe command
+    Then the original Recipe receipt is replayed without another addition

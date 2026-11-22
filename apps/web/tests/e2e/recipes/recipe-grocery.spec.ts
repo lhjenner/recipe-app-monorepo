@@ -69,6 +69,7 @@ for (const width of [320, 375, 1280]) {
     expect(groceryCommand?.body).toMatchObject({
       expectedListVersion: 0,
       expectedRecipeVersion: 7,
+      expectedIngredientFingerprint: 'A'.repeat(64),
       confirmRepeat: false,
     });
 
@@ -149,6 +150,39 @@ test('highlights demand from other recipes and manual additions without offering
   await expect(page.getByRole('button', { name: 'Remove from Grocery List', exact: true })).toBeVisible();
 });
 
+for (const status of [500, 201]) {
+  test(`retries the same command after an uncertain ${status} response`, async ({ page }) => {
+    const commands: Array<Record<string, unknown>> = [];
+    await mockRecipeGroceryApi(page, [], false);
+    await page.route('**/api/grocery-list/recipes/**', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.fallback();
+        return;
+      }
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      commands.push(body);
+      if (commands.length === 1) {
+        await route.fulfill({ status, body: status === 201 ? '{' : 'Server error' });
+        return;
+      }
+      await route.fulfill({ status: 201, json: {
+        commandId: body.commandId, resultListVersion: 1, resultIds: [],
+      } });
+    });
+    await page.goto(`/recipes/${recipeId}`);
+    await page.getByRole('button', { name: 'Add to Grocery List', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+    const retry = dialog.getByRole('button', { name: 'Retry original command' });
+    await expect(retry).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    await retry.click();
+    await expect(dialog).toHaveCount(0);
+    expect(commands).toHaveLength(2);
+    expect(commands[1]).toEqual(commands[0]);
+  });
+}
+
 async function mockRecipeGroceryApi(
   page: Page,
   commands: Array<{ method: string; body: Record<string, unknown> }>,
@@ -196,6 +230,7 @@ async function mockRecipeGroceryApi(
           recipeId,
           recipeName: recipeDetail.name,
           recipeVersion: 7,
+          ingredientFingerprint: 'A'.repeat(64),
           groceryListId: hasOutstandingAddition ? '019a0000-0000-7000-8000-000000000010' : null,
           listVersion,
           hasOutstandingAddition,

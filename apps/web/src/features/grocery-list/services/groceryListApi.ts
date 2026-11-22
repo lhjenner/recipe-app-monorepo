@@ -106,6 +106,7 @@ const recipePreviewSchema = z.object({
   recipeId: z.uuid(),
   recipeName: z.string(),
   recipeVersion: z.number().int().nonnegative(),
+  ingredientFingerprint: z.string().regex(/^[A-F0-9]{64}$/),
   groceryListId: z.uuid().nullable(),
   listVersion: z.number().int().nonnegative(),
   hasOutstandingAddition: z.boolean(),
@@ -149,6 +150,7 @@ export interface GroceryRecipeAddCommand {
   commandId: string;
   expectedListVersion: number;
   expectedRecipeVersion: number;
+  expectedIngredientFingerprint: string;
   confirmRepeat: boolean;
 }
 

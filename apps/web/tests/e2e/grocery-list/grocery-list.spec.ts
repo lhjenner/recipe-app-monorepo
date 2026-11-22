@@ -143,6 +143,7 @@ test.describe('Grocery list reads', () => {
           dimension: 'volume',
           requirementAmount: 20,
           requirementUnit: 'ml',
+          outstandingPurchaseQuantity: 1,
           contributions: [1, 2].map((step) => ({
             id: `00000000-0000-7000-8000-00000000050${step}`,
             origin: 'recipe',
@@ -171,6 +172,8 @@ test.describe('Grocery list reads', () => {
     const edit = actions.getByRole('button', { name: 'Edit', exact: true });
     const remove = actions.getByRole('button', { name: /Remove maple syrup/ });
     await expect(requirement).toBeVisible();
+    await expect(table.getByText(/1 unverified Recipe suggestion/)).toBeVisible();
+    await expect(table.getByText(/1 unverified Recipe suggestion/)).not.toContainText('remaining quantity');
     await expect(source).toBeHidden();
     const columnGeometry = () => table.getByRole('columnheader').evaluateAll((headers) =>
       headers.map((header) => {
@@ -202,6 +205,9 @@ test.describe('Grocery list reads', () => {
     await page.mouse.click(chevronPoint.x, chevronPoint.y);
     await expect(source).toBeHidden();
     expect(await columnGeometry()).toEqual(collapsedColumns);
+    await page.setViewportSize({ width: 320, height: 844 });
+    await expect(page.locator('.grocery-item-card').filter({ hasText: 'Maple Syrup' })
+      .getByText(/1 unverified Recipe suggestion/)).toBeVisible();
   });
 
   test('toggles departments independently and preserves expansion across desktop and mobile', async ({ page }) => {

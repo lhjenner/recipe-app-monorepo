@@ -76,7 +76,7 @@ function RecipeGroceryActions({ recipeId, hasOutstandingAddition = false, onChan
           {canRetry && (
             <p role="status">
               The outcome is unknown. Retry the original command before changing this review.
-              <button className="btn btn-secondary" type="button" onClick={retryCommand}>
+              <button className="btn btn-secondary" type="button" onClick={retryCommand} disabled={isSubmitting}>
                 Retry original command
               </button>
             </p>

@@ -29,16 +29,28 @@ internal static class GroceryRecipeTestData
         Guid recipeId,
         uint listVersion,
         uint recipeVersion,
-        bool confirmRepeat)
+        bool confirmRepeat,
+        string? ingredientFingerprint = null)
     {
+        if (ingredientFingerprint is null)
+        {
+            using var previewResponse = await context.Client.GetAsync(
+                $"/api/grocery-list/recipes/{recipeId}/preview");
+            previewResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
+            ingredientFingerprint = preview.RootElement.GetProperty("ingredientFingerprint").GetString();
+        }
         context.Response?.Dispose();
         context.Response = await context.Client.PostAsJsonAsync(
             $"/api/grocery-list/recipes/{recipeId}",
-            new GroceryRecipeAddCommand(
-                Guid.CreateVersion7(),
-                listVersion,
-                recipeVersion,
-                confirmRepeat));
+            new
+            {
+                CommandId = Guid.CreateVersion7(),
+                ExpectedListVersion = listVersion,
+                ExpectedRecipeVersion = recipeVersion,
+                ConfirmRepeat = confirmRepeat,
+                ExpectedIngredientFingerprint = ingredientFingerprint
+            });
     }
 
     public static Ingredient CreateIngredient(

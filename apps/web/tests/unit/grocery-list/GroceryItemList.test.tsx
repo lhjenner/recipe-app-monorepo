@@ -106,6 +106,7 @@ test('shows distinct outstanding manual addition notes without a Sources accordi
     originalNotesText: note, interpretedAmount: null, canonicalUnit: 'item', unresolvedReason: null,
     recipeId: null, recipeStepId: null, recipeStepItemId: null, recipeNameSnapshot: null,
   });
+
   const item: GroceryItem = {
     id: 'item', ingredientId: null, name: 'oats', state: 'outstanding', note: 'First note',
     dimension: 'count', countLabel: 'item', requirementAmount: null, requirementUnit: null,
@@ -120,4 +121,32 @@ test('shows distinct outstanding manual addition notes without a Sources accordi
   expect(screen.getAllByText('Second note')).toHaveLength(2);
   expect(screen.queryByText('Cancelled note')).not.toBeInTheDocument();
   expect(screen.queryByText(/Sources/)).not.toBeInTheDocument();
+});
+
+test.each([
+  { dimension: 'volume' as const, recipeState: 'outstanding' as const, suggested: true },
+  { dimension: 'mass' as const, recipeState: 'outstanding' as const, suggested: true },
+  { dimension: null, recipeState: 'outstanding' as const, suggested: true },
+  { dimension: 'count' as const, recipeState: 'outstanding' as const, suggested: false },
+  { dimension: 'volume' as const, recipeState: 'cancelled' as const, suggested: false },
+])('labels only outstanding measured or unresolved Recipe suggestions', ({ dimension, recipeState, suggested }) => {
+  const source = (origin: 'manual' | 'recipe', state: 'outstanding' | 'cancelled') => ({
+    id: origin, origin, state, originalAmountText: '1', originalUnitText: 'item',
+    originalNotesText: null, interpretedAmount: null, canonicalUnit: null, unresolvedReason: null,
+    recipeId: origin === 'recipe' ? 'recipe' : null, recipeStepId: null,
+    recipeStepItemId: null, recipeNameSnapshot: origin === 'recipe' ? 'soup' : null,
+  });
+  const item: GroceryItem = {
+    id: 'item', ingredientId: 'ingredient', name: 'flour', state: 'outstanding', note: null,
+    dimension, countLabel: null, requirementAmount: null, requirementUnit: null,
+    outstandingPurchaseQuantity: 2, purchaseUnit: 'item', ingredientVersion: null,
+    adHocStoreId: null, adHocDepartmentId: null, adHocDepartmentName: null, storeMappings: [],
+    contributions: [source('recipe', recipeState), source('manual', 'outstanding')],
+  };
+  render(<MemoryRouter><GroceryItemList groups={[{ name: 'Uncategorised', items: [item] }]}
+    onEdit={() => {}} onRemove={() => {}} onQuantityChange={() => {}} disabled={false} /></MemoryRouter>);
+  expect(screen.queryAllByText(/1 unverified Recipe suggestion/)).toHaveLength(suggested ? 2 : 0);
+  if (suggested) {
+    expect(screen.getAllByText(/remaining quantity is manual/)).toHaveLength(2);
+  }
 });

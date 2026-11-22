@@ -72,6 +72,7 @@ public sealed class GroceryRecipePreviewService(
             recipe.Id,
             recipe.Name,
             recipe.Version,
+            GroceryRecipeServiceSupport.GetIngredientFingerprint(recipe),
             list?.Id,
             list?.Version ?? 0,
             hasOutstandingAddition,
