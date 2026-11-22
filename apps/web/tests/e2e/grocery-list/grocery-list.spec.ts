@@ -129,6 +129,63 @@ test('manual entry suggests Ingredients while typing and links only a chosen sug
   await expect(badge).toBeVisible();
 });
 
+test('manual entry aligns name, quantity, note and remove controls on desktop', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await mockIngredientApi(page, []);
+  for (const lookup of ['categories', 'departments']) {
+    await page.route(`**/api/${lookup}`, (route) => route.fulfill({ json: [] }));
+  }
+  await page.goto('/grocery-list');
+  await page.getByRole('button', { name: 'Add items', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add items to Grocery List' });
+  const firstRow = dialog.getByRole('group', { name: 'Item 1' });
+  await expect(firstRow.getByRole('button', { name: 'Remove row' })).toHaveCount(0);
+  const firstName = (await firstRow.getByRole('combobox', { name: 'Name' }).boundingBox())!;
+  const firstStepper = (await firstRow.getByRole('spinbutton', { name: 'Quantity' }).locator('..').boundingBox())!;
+  expect(Math.abs(firstName.y - firstStepper.y)).toBeLessThanOrEqual(1);
+  await dialog.getByRole('button', { name: 'Add row' }).click();
+  const row = dialog.getByRole('group', { name: 'Item 1' });
+  const name = row.getByRole('combobox', { name: 'Name' });
+  const quantity = row.getByRole('spinbutton', { name: 'Quantity' });
+  const stepper = quantity.locator('..');
+  const note = row.getByLabel('Note (optional)');
+  const remove = row.getByRole('button', { name: 'Remove row' });
+
+  for (const width of [701, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    const nameBox = (await name.boundingBox())!;
+    const stepperBox = (await stepper.boundingBox())!;
+    const noteBox = (await note.boundingBox())!;
+    const removeBox = (await remove.boundingBox())!;
+    expect(Math.abs(nameBox.y - stepperBox.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(noteBox.y - removeBox.y)).toBeLessThanOrEqual(1);
+    expect(noteBox.y).toBeGreaterThan(nameBox.y);
+    expect(Math.abs(nameBox.x - noteBox.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(nameBox.width - noteBox.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(stepperBox.x - removeBox.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(stepperBox.width - removeBox.width)).toBeLessThanOrEqual(1);
+  }
+
+  const saveIngredient = row.getByRole('checkbox', { name: 'Save to master Ingredient list' });
+  await saveIngredient.check();
+  const category = row.getByLabel('Category (optional)');
+  await expect(category).toBeVisible();
+  expect((await category.boundingBox())!.y).toBeGreaterThan((await note.boundingBox())!.y);
+  await saveIngredient.uncheck();
+
+  await page.setViewportSize({ width: 320, height: 844 });
+  const mobileName = (await name.boundingBox())!;
+  const mobileQuantity = (await quantity.boundingBox())!;
+  const mobileNote = (await note.boundingBox())!;
+  const mobileRemove = (await remove.boundingBox())!;
+  expect(mobileQuantity.y).toBeGreaterThan(mobileName.y);
+  expect(Math.abs(mobileQuantity.y - mobileNote.y)).toBeLessThanOrEqual(1);
+  expect(mobileRemove.y).toBeGreaterThan(mobileNote.y);
+  await dialog.getByRole('group', { name: 'Item 2' }).getByRole('button', { name: 'Remove row' }).click();
+  await expect(dialog.getByRole('group', { name: 'Item 2' })).toHaveCount(0);
+});
+
 test('duplicate review uses the themed warning and cancellation discards the draft', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
   await mockGroceryApi(page);

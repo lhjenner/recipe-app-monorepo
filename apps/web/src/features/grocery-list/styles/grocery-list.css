@@ -186,6 +186,45 @@
   gap: 14px;
 }
 
+@media (min-width: 701px) {
+  .grocery-entry-row {
+    grid-template-columns: minmax(0, 1fr) 180px;
+  }
+
+  .grocery-entry-row > .grocery-entry-name {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .grocery-entry-row > .grocery-entry-quantity-note {
+    display: contents;
+  }
+
+  .grocery-entry-quantity-note > :first-child {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  .grocery-entry-quantity-note > :last-child {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .grocery-entry-row > button {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: end;
+    min-height: 42px;
+  }
+
+  .grocery-entry-row > .grocery-inline-error,
+  .grocery-entry-row > .grocery-checkbox,
+  .grocery-entry-row > .grocery-new-ingredient-fields {
+    grid-column: 1 / -1;
+  }
+}
+
 .grocery-quantity-stepper {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 36px;
