@@ -129,7 +129,7 @@ test('manual entry suggests Ingredients while typing and links only a chosen sug
   await expect(badge).toBeVisible();
 });
 
-test('manual entry aligns name, quantity, note and remove controls on desktop', async ({ page }) => {
+test('manual entry aligns name, quantity, note and remove controls responsively', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
   await mockGroceryApi(page);
   await mockIngredientApi(page, []);
@@ -174,16 +174,35 @@ test('manual entry aligns name, quantity, note and remove controls on desktop', 
   expect((await category.boundingBox())!.y).toBeGreaterThan((await note.boundingBox())!.y);
   await saveIngredient.uncheck();
 
-  await page.setViewportSize({ width: 320, height: 844 });
-  const mobileName = (await name.boundingBox())!;
-  const mobileQuantity = (await quantity.boundingBox())!;
-  const mobileNote = (await note.boundingBox())!;
-  const mobileRemove = (await remove.boundingBox())!;
-  expect(mobileQuantity.y).toBeGreaterThan(mobileName.y);
-  expect(Math.abs(mobileQuantity.y - mobileNote.y)).toBeLessThanOrEqual(1);
-  expect(mobileRemove.y).toBeGreaterThan(mobileNote.y);
+  for (const width of [320, 390, 700]) {
+    await page.setViewportSize({ width, height: 844 });
+    const mobileName = (await name.boundingBox())!;
+    const mobileStepper = (await stepper.boundingBox())!;
+    const mobileNote = (await note.boundingBox())!;
+    const mobileRemove = (await remove.boundingBox())!;
+    expect(mobileNote.y).toBeGreaterThan(mobileName.y);
+    expect(mobileStepper.y).toBeGreaterThan(mobileNote.y);
+    expect(Math.abs(mobileName.x - mobileNote.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(mobileName.width - mobileNote.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(mobileStepper.y - mobileRemove.y), JSON.stringify({ width, mobileStepper, mobileRemove }))
+      .toBeLessThanOrEqual(1);
+    expect(mobileRemove.x).toBeGreaterThan(mobileStepper.x + mobileStepper.width);
+    await expect.poll(() => remove.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await quantity.fill('9999');
+    const quantityFits = await quantity.evaluate((element: HTMLInputElement) => {
+      const style = getComputedStyle(element);
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d')!;
+      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const availableWidth = element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      return context.measureText(element.value).width <= availableWidth;
+    });
+    expect(quantityFits).toBe(true);
+  }
   await dialog.getByRole('group', { name: 'Item 2' }).getByRole('button', { name: 'Remove row' }).click();
   await expect(dialog.getByRole('group', { name: 'Item 2' })).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Remove row' })).toHaveCount(0);
+  await expect(quantity).toBeVisible();
 });
 
 test('duplicate review uses the themed warning and cancellation discards the draft', async ({ page }) => {
