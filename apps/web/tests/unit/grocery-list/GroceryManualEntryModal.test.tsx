@@ -229,7 +229,7 @@ const duplicateReview = {
   existingQuantity: 1, increment: 1, resultingQuantity: 2, itemName: 'Oats', purchaseUnit: 'item',
 };
 
-test('presents duplicate review as a warning and cancels by closing the modal', async () => {
+test('opens a separate duplicate review and cancels a duplicate-only batch', async () => {
   mocks.addGroceryItems.mockRejectedValueOnce(
     new GroceryListApiError('Review duplicates', 409, {}, [duplicateReview]),
   );
@@ -238,18 +238,120 @@ test('presents duplicate review as a warning and cancels by closing the modal', 
   expect(screen.getByRole('button', { name: 'Cancel' })).toBeVisible();
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
-  const cancel = await screen.findByRole('button', { name: 'Cancel review' });
-  expect(cancel).toHaveClass('btn-danger-secondary');
-  const actions = screen.getByRole('button', { name: 'Confirm reviewed increments' }).parentElement!;
-  expect(within(actions).getAllByRole('button').map((button) => button.textContent))
-    .toEqual(['Confirm reviewed increments', 'Add row', 'Cancel review']);
-  expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
-  expect(screen.getByRole('alert')).toHaveClass('grocery-update-notice');
-  expect(screen.getByText('Oats: 1 item(s) + 1 item(s) = 2 item(s)')).toBeVisible();
-  fireEvent.click(cancel);
+  const review = await screen.findByRole('dialog', { name: 'Review matching grocery items' });
+  expect(within(review).getByText('Oats')).toBeVisible();
+  expect(within(review).getByText('New Total: 2 item(s)')).toBeVisible();
+  expect(within(review).queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
+  fireEvent.click(within(review).getByRole('button', { name: 'Cancel' }));
   expect(onClose).toHaveBeenCalledOnce();
   expect(mocks.addGroceryItems).toHaveBeenCalledOnce();
+});
+
+test('Escape returns to the unchanged draft without saving', async () => {
+  mocks.addGroceryItems.mockRejectedValueOnce(
+    new GroceryListApiError('Review duplicates', 409, {}, [duplicateReview]),
+  );
+  const onClose = vi.fn();
+  render(<GroceryManualEntryModal expectedListVersion={3} onClose={onClose} onAdded={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  const review = await screen.findByRole('dialog', { name: 'Review matching grocery items' });
+  fireEvent(review, new Event('cancel', { cancelable: true }));
+  expect(screen.queryByRole('dialog', { name: 'Review matching grocery items' })).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Name')).toHaveValue('Oats');
+  expect(onClose).not.toHaveBeenCalled();
+  expect(mocks.addGroceryItems).toHaveBeenCalledOnce();
+});
+
+test('skips duplicates but submits the remaining new items', async () => {
+  mocks.addGroceryItems.mockRejectedValueOnce(
+    new GroceryListApiError('Review duplicates', 409, {}, [duplicateReview]),
+  );
+  const onClose = vi.fn();
+  render(<GroceryManualEntryModal expectedListVersion={3} onClose={onClose} onAdded={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add row' }));
+  fireEvent.change(within(screen.getByRole('group', { name: 'Item 2' })).getByLabelText('Name'),
+    { target: { value: 'Rice' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  const review = await screen.findByRole('dialog', { name: 'Review matching grocery items' });
+  expect(within(review).getByText(/1 other item will be added/)).toBeVisible();
+  fireEvent.click(within(review).getByRole('button', { name: 'Skip duplicates and add other items' }));
+  await waitFor(() => expect(mocks.addGroceryItems).toHaveBeenCalledTimes(2));
+  const [first, second] = mocks.addGroceryItems.mock.calls;
+  expect(second[0].items.map((item: { name: string }) => item.name)).toEqual(['Rice']);
+  expect(second[0].reviewedDuplicates).toEqual([]);
+  expect(second[0].commandId).not.toBe(first[0].commandId);
+  await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+});
+
+test('removing duplicates keeps selected reviews aligned with the submitted rows', async () => {
+  const reviews = [
+    duplicateReview,
+    { ...duplicateReview, entryIndex: 2, itemName: 'Beans', targetItemId: 'beans' },
+    { ...duplicateReview, entryIndex: 3, itemName: 'Flour', targetItemId: 'flour' },
+  ];
+  mocks.addGroceryItems.mockRejectedValueOnce(new GroceryListApiError('Review duplicates', 409, {}, reviews));
+  render(<GroceryManualEntryModal expectedListVersion={3} onClose={vi.fn()} onAdded={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
+  for (const [index, name] of ['Rice', 'Beans', 'Flour'].entries()) {
+    fireEvent.click(screen.getByRole('button', { name: 'Add row' }));
+    fireEvent.change(within(screen.getByRole('group', { name: `Item ${index + 2}` })).getByLabelText('Name'),
+      { target: { value: name } });
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  const review = await screen.findByRole('dialog', { name: 'Review matching grocery items' });
+  fireEvent.click(within(review).getByRole('button', { name: 'Remove Oats from review' }));
+  fireEvent.click(within(review).getByRole('button', { name: 'Remove Beans from review' }));
+  expect(within(review).queryByRole('button', { name: 'Remove Flour from review' })).not.toBeInTheDocument();
+  fireEvent.click(within(review).getByRole('button', { name: 'Confirm reviewed increments' }));
+  await waitFor(() => expect(mocks.addGroceryItems).toHaveBeenCalledTimes(2));
+  const submitted = mocks.addGroceryItems.mock.calls[1][0];
+  expect(submitted.items.map((item: { name: string }) => item.name)).toEqual(['Rice', 'Flour']);
+  expect(submitted.reviewedDuplicates).toEqual([{ ...reviews[2], entryIndex: 1 }]);
+});
+
+test('confirms two remaining duplicates after removing another', async () => {
+  const reviews = [
+    duplicateReview,
+    { ...duplicateReview, entryIndex: 1, itemName: 'Beans', targetItemId: 'beans' },
+    { ...duplicateReview, entryIndex: 2, itemName: 'Flour', targetItemId: 'flour' },
+  ];
+  mocks.addGroceryItems.mockRejectedValueOnce(new GroceryListApiError('Review duplicates', 409, {}, reviews));
+  render(<GroceryManualEntryModal expectedListVersion={3} onClose={vi.fn()} onAdded={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
+  for (const [index, name] of ['Beans', 'Flour'].entries()) {
+    fireEvent.click(screen.getByRole('button', { name: 'Add row' }));
+    fireEvent.change(within(screen.getByRole('group', { name: `Item ${index + 2}` })).getByLabelText('Name'),
+      { target: { value: name } });
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  const review = await screen.findByRole('dialog', { name: 'Review matching grocery items' });
+  fireEvent.click(within(review).getByRole('button', { name: 'Remove Oats from review' }));
+  expect(within(review).getByRole('status')).toHaveTextContent('1 removed item will not be added');
+  fireEvent.click(within(review).getByRole('button', { name: 'Confirm reviewed increments' }));
+  await waitFor(() => expect(mocks.addGroceryItems).toHaveBeenCalledTimes(2));
+  expect(mocks.addGroceryItems.mock.calls[1][0].reviewedDuplicates).toEqual([
+    { ...reviews[1], entryIndex: 0 },
+    { ...reviews[2], entryIndex: 1 },
+  ]);
+});
+
+test('stale review refreshes the list and returns to the intact draft', async () => {
+  mocks.addGroceryItems
+    .mockRejectedValueOnce(new GroceryListApiError('Review duplicates', 409, {}, [duplicateReview]))
+    .mockRejectedValueOnce(new GroceryListApiError('The grocery list changed.', 409));
+  const onAdded = vi.fn();
+  render(<GroceryManualEntryModal expectedListVersion={3} onClose={vi.fn()} onAdded={onAdded} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  const review = await screen.findByRole('dialog', { name: 'Review matching grocery items' });
+  fireEvent.click(within(review).getByRole('button', { name: 'Confirm reviewed increments' }));
+  expect(await within(review).findByRole('alert')).toHaveTextContent('The grocery list changed.');
+  expect(within(review).getByRole('button', { name: 'Confirm reviewed increments' })).toBeDisabled();
+  expect(onAdded).toHaveBeenCalledOnce();
+  fireEvent.click(within(review).getByRole('button', { name: 'Back to editing' }));
+  expect(screen.getByLabelText('Name')).toHaveValue('Oats');
 });
 
 test('retains non-item units in duplicate review', async () => {
@@ -259,7 +361,9 @@ test('retains non-item units in duplicate review', async () => {
   render(<GroceryManualEntryModal expectedListVersion={3} onClose={vi.fn()} onAdded={vi.fn()} />);
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
-  expect(await screen.findByText('Oats: 1 kg + 1 kg = 2 kg')).toBeVisible();
+  const review = await screen.findByRole('dialog', { name: 'Review matching grocery items' });
+  expect(within(review).getByText('Oats')).toBeVisible();
+  expect(within(review).getByText('New Total: 2 kg')).toBeVisible();
 });
 
 test('retries the exact reviewed batch after polling advances the list version', async () => {
@@ -271,13 +375,13 @@ test('retries the exact reviewed batch after polling advances the list version',
   const { rerender } = render(<GroceryManualEntryModal {...initial} />);
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Oats' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Confirm reviewed increments' }));
-  await screen.findByText('Response lost');
-  expect(screen.getByRole('alert')).toHaveClass('grocery-inline-error');
+  const review = await screen.findByRole('dialog', { name: 'Review matching grocery items' });
+  fireEvent.click(within(review).getByRole('button', { name: 'Confirm reviewed increments' }));
+  await within(review).findByText('Response lost');
   rerender(<GroceryManualEntryModal {...initial} expectedListVersion={4} />);
   expect(screen.getByLabelText('Name')).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'Cancel review' })).toBeDisabled();
-  fireEvent.click(screen.getByRole('button', { name: 'Retry addition' }));
+  expect(within(review).getByRole('button', { name: 'Back to editing' })).toBeDisabled();
+  fireEvent.click(within(review).getByRole('button', { name: 'Retry addition' }));
   await waitFor(() => expect(mocks.addGroceryItems).toHaveBeenCalledTimes(3));
   expect(mocks.addGroceryItems.mock.calls[2]).toEqual(mocks.addGroceryItems.mock.calls[1]);
   expect(mocks.addGroceryItems.mock.calls[2][0].reviewedDuplicates).toEqual([duplicateReview]);

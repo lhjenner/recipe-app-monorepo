@@ -94,6 +94,31 @@ internal static class GroceryWriteValidator
         return errors.ToDictionary(entry => entry.Key, entry => entry.Value.ToArray());
     }
 
+    public static Dictionary<string, string[]> ValidateDistinctBatch(GroceryManualEntryCommand command)
+    {
+        var errors = new Dictionary<string, string[]>();
+        var targets = new HashSet<(Guid?, string, QuantityDimension?, string?, string)>();
+        for (var index = 0; index < command.Items.Count; index++)
+        {
+            var item = command.Items[index];
+            var target = InterpretPurchaseTarget(item);
+            if (!string.IsNullOrWhiteSpace(item.Name)
+                && target.Status == QuantityInterpretationStatus.Known
+                && target.CanonicalUnit is not null
+                && !targets.Add((
+                    item.IngredientId,
+                    item.IngredientId is null ? IngredientWriteValidator.Normalize(item.Name) : string.Empty,
+                    target.Dimension,
+                    target.CountLabel,
+                    IngredientWriteValidator.Normalize(target.CanonicalUnit))))
+            {
+                errors[$"items[{index}].name"] = ["Another row contains the same item. Edit or remove one of the rows."];
+            }
+        }
+
+        return errors;
+    }
+
     public static Dictionary<string, string[]> ValidateUpdate(
         GroceryItemUpdateRequest request,
         string currentPurchaseUnit)

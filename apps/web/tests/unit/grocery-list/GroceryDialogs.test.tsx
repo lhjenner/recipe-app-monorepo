@@ -65,9 +65,9 @@ test.each(['add', 'edit'] as const)(
       expect(cancel.defaultPrevented).toBe(true);
       expect(dialog).toHaveAttribute('open');
       expect(firstInput).toBeDisabled();
-      expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
       if (mode === 'edit') {
-        expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
       }
       expect(onClose).not.toHaveBeenCalled();
     }

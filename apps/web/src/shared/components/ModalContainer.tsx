@@ -5,12 +5,13 @@ interface ModalContainerProps {
   className: string;
   initialFocusSelector?: string;
   locked: boolean;
+  closeOnBackdrop?: boolean;
   onClose: () => void;
   children: ReactNode;
 }
 
 function ModalContainer({
-  labelledBy, className, initialFocusSelector, locked, onClose, children,
+  labelledBy, className, initialFocusSelector, locked, closeOnBackdrop = false, onClose, children,
 }: ModalContainerProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -37,7 +38,13 @@ function ModalContainer({
       aria-labelledby={labelledBy}
       onCancel={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         if (!locked) {
+          onClose();
+        }
+      }}
+      onClick={(event) => {
+        if (closeOnBackdrop && !locked && event.target === event.currentTarget) {
           onClose();
         }
       }}

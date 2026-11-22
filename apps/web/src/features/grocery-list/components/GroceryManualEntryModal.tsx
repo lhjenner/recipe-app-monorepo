@@ -1,11 +1,7 @@
 import { useRef, useState } from 'react';
 import { useGroceryEntryLookups } from '../hooks/useGroceryEntryLookups';
-import {
-  addGroceryItems,
-  type GroceryDuplicateReview,
-  type GroceryManualEntryCommand,
-} from '../services/groceryListApi';
-import { useGroceryCommand } from '../hooks/useGroceryCommand';
+import type { GroceryManualEntryCommand } from '../services/groceryListApi';
+import { useGroceryManualReview } from '../hooks/useGroceryManualReview';
 import ModalContainer from '../../../shared/components/ModalContainer';
 import GroceryDuplicateReviewPanel from './GroceryDuplicateReviewPanel';
 import GroceryManualEntryRow, { type GroceryManualEntryDraft } from './GroceryManualEntryRow';
@@ -34,12 +30,10 @@ function GroceryManualEntryModal({
   const [rows, setRows] = useState<GroceryManualEntryDraft[]>([emptyRow()]);
   const lookups = useGroceryEntryLookups();
   const [error, setError] = useState<string | null>(null);
-  const [duplicateReviews, setDuplicateReviews] = useState<GroceryDuplicateReview[]>([]);
   const commandId = useRef(crypto.randomUUID());
-  const mutation = useGroceryCommand(addGroceryItems, () => {
-    onAdded();
-    onClose();
-  }, (failure) => setDuplicateReviews(failure.duplicateReviews));
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const review = useGroceryManualReview(onAdded, onClose);
+  const { mutation } = review;
   const fieldErrors = mutation.error?.fieldErrors ?? {};
   const isSaving = mutation.isSaving;
 
@@ -48,7 +42,6 @@ function GroceryManualEntryModal({
       return;
     }
     setRows(next);
-    setDuplicateReviews([]);
     setError(null);
     mutation.clearError();
     commandId.current = crypto.randomUUID();
@@ -70,7 +63,13 @@ function GroceryManualEntryModal({
     }
   }
 
-  function save(reviews: GroceryDuplicateReview[] = []) {
+  function backToEditing() {
+    if (mutation.locked) return;
+    review.backToEditing();
+    window.requestAnimationFrame(() => addButtonRef.current?.focus());
+  }
+
+  function save() {
     if (mutation.locked) {
       return;
     }
@@ -98,10 +97,10 @@ function GroceryManualEntryModal({
             .map(([storeId, departmentId]) => ({ storeId, departmentId, isNotStocked: false }))
           : [],
       })),
-      reviewedDuplicates: reviews,
+      reviewedDuplicates: [],
     };
 
-    mutation.submit(command);
+    review.submit(command);
   }
 
   return (
@@ -116,12 +115,12 @@ function GroceryManualEntryModal({
 
       {lookups.error && <p className="grocery-inline-error" role="alert">{lookups.error}</p>}
       {error && <p className="grocery-inline-error" role="alert">{error}</p>}
-      {mutation.error && (
-        <p className={mutation.error.duplicateReviews.length > 0 ? 'grocery-update-notice' : 'grocery-inline-error'} role="alert">
+      {mutation.error && !review.review && (
+        <p className="grocery-inline-error" role="alert">
           {mutation.error.message}
         </p>
       )}
-      {mutation.canRetry && (
+      {mutation.canRetry && !review.review && (
         <p role="status">
           The outcome is unknown. Retry the original request before changing this draft.
           <button className="btn btn-secondary" type="button" onClick={mutation.retry}>Retry addition</button>
@@ -159,20 +158,9 @@ function GroceryManualEntryModal({
           ))}
         </div>
         <div className="grocery-entry-actions">
-          {!duplicateReviews.length ? (
-            <button className="btn btn-primary" type="submit" disabled={mutation.locked}>
-              {isSaving ? 'Adding…' : 'Add to Grocery List'}
-            </button>
-          ) : (
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={mutation.locked}
-              onClick={() => save(duplicateReviews)}
-            >
-              {isSaving ? 'Adding…' : 'Confirm reviewed increments'}
-            </button>
-          )}
+          <button ref={addButtonRef} className="btn btn-primary" type="submit" disabled={mutation.locked}>
+            {isSaving ? 'Adding…' : 'Add to Grocery List'}
+          </button>
           <button
             className="btn btn-secondary"
             type="button"
@@ -187,12 +175,29 @@ function GroceryManualEntryModal({
             disabled={mutation.locked}
             onClick={onClose}
           >
-            {duplicateReviews.length > 0 ? 'Cancel review' : 'Cancel'}
+            Cancel
           </button>
         </div>
       </form>
 
-      <GroceryDuplicateReviewPanel reviews={duplicateReviews} />
+      {review.review && (
+        <GroceryDuplicateReviewPanel
+          reviews={review.visibleDuplicates}
+          otherCount={review.otherCount}
+          removedCount={review.review.removed.length}
+          locked={mutation.locked}
+          error={review.reviewError
+            ? [review.reviewError.message, ...Object.values(review.reviewError.fieldErrors).flat()].join(' ')
+            : null}
+          canRetry={mutation.canRetry}
+          onRemove={review.removeDuplicate}
+          onConfirm={() => review.submitReview(false)}
+          onSkip={() => review.submitReview(true)}
+          onCancel={onClose}
+          onBack={backToEditing}
+          onRetry={mutation.retry}
+        />
+      )}
     </ModalContainer>
   );
 }

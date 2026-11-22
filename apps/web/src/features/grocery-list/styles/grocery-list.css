@@ -141,7 +141,6 @@
 }
 
 .grocery-entry-row,
-.grocery-duplicate-review,
 .grocery-department-confirmation {
   padding: 16px;
   border: 1px solid var(--color-border-subtle);
@@ -283,14 +282,43 @@
   height: 18px;
 }
 
-.grocery-duplicate-review h3,
 .grocery-department-confirmation h3 {
   margin-top: 0;
 }
 
-.grocery-duplicate-review ul {
+.grocery-duplicate-review-list {
   display: grid;
   gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.grocery-duplicate-review-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.grocery-duplicate-review-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.grocery-duplicate-dialog {
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+
+@media (min-width: 701px) {
+  .grocery-duplicate-dialog .confirm-dialog-actions.confirmation-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .grocery-duplicate-dialog .confirm-dialog-actions.confirmation-actions button:first-child {
+    grid-column: 1 / -1;
+  }
 }
 
 .grocery-entry-name {
@@ -533,6 +561,16 @@
 }
 
 @media (max-width: 700px) {
+  .grocery-duplicate-dialog .confirm-dialog-actions.confirmation-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .grocery-duplicate-dialog .confirm-dialog-actions.confirmation-actions button {
+    width: 100%;
+    flex: none;
+  }
+
   .grocery-page-heading {
     align-items: flex-start;
     flex-direction: column;

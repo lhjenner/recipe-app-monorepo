@@ -69,6 +69,12 @@ public sealed class GroceryManualEntryService(
             }
         }
 
+        var duplicateDraftErrors = GroceryWriteValidator.ValidateDistinctBatch(command);
+        if (duplicateDraftErrors.Count != 0)
+        {
+            return Invalid(duplicateDraftErrors);
+        }
+
         var prepared = await GroceryManualEntryPreparation.PrepareAsync(
             database, ownerId, command, now, cancellationToken);
         if (prepared.IsNotFound)

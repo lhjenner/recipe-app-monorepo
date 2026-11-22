@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { mockAuthApi } from '../support/mockAuthApi.ts';
 import { groceryList, mockGroceryApi, selectedStoreId } from '../support/mockGroceryApi.ts';
 import { ingredient, mockIngredientApi } from '../support/mockIngredientListApi.ts';
+import type { GroceryManualEntryCommand } from '../../../src/features/grocery-list/services/groceryListApi.ts';
 
 test('requires confirmation before removing an item and allows cancellation with Escape', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
@@ -245,7 +246,7 @@ test('manual entry aligns name, quantity, note and remove controls responsively'
   await expect(quantity).toBeVisible();
 });
 
-test('duplicate review uses the themed warning and cancellation discards the draft', async ({ page }) => {
+test('duplicate review opens above the draft, supports Escape, and cancels both dialogs', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
   await mockGroceryApi(page);
   await mockIngredientApi(page, []);
@@ -273,23 +274,187 @@ test('duplicate review uses the themed warning and cancellation discards the dra
   const dialog = page.getByRole('dialog', { name: 'Add items to Grocery List' });
   await dialog.getByRole('combobox', { name: 'Name' }).fill('green apples');
   await dialog.getByRole('button', { name: 'Add to Grocery List' }).click();
-  const warning = dialog.getByRole('alert');
-  await expect(warning).toHaveText('One or more entries match an outstanding item.');
-  await expect(warning).toHaveCSS('background-color', 'rgb(255, 247, 225)');
-  await expect(warning).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
-  await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
-  await expect(warning).toHaveCSS('background-color', 'rgb(73, 57, 31)');
-  await expect(warning).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
-  await expect(dialog.getByText('green apples: 1 item(s) + 1 item(s) = 2 item(s)')).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Close' })).toHaveCount(0);
-  const cancel = dialog.getByRole('button', { name: 'Cancel review' });
-  await expect(cancel).toHaveClass(/btn-danger-secondary/);
-  await cancel.click();
+  const review = page.getByRole('dialog', { name: 'Review matching grocery items' });
+  await expect(review).toBeVisible();
+  await expect(review.getByText('Green Apples', { exact: true })).toBeVisible();
+  await expect(review.getByText('Green Apples', { exact: true })).toHaveCSS('font-weight', '600');
+  await expect(review.getByText('New Total: 2 item(s)', { exact: true })).toBeVisible();
+  await expect(review.getByRole('button', { name: 'Back to editing' })).toBeFocused();
+  for (const width of [320, 390, 700]) {
+    await page.setViewportSize({ width, height: 844 });
+    const [nameBottom, totalTop] = await review.getByRole('listitem').evaluate((item) => {
+      const [name, total] = item.firstElementChild!.children;
+      return [name.getBoundingClientRect().bottom, total.getBoundingClientRect().top];
+    });
+    expect(totalTop).toBeGreaterThanOrEqual(nameBottom);
+    const buttons = await Promise.all(['Confirm reviewed increments', 'Back to editing', 'Cancel'].map(
+      (name) => review.getByRole('button', { name, exact: true }).boundingBox(),
+    ));
+    for (const [index, button] of buttons.entries()) {
+      expect(button).not.toBeNull();
+      expect(button!.width).toBeCloseTo(buttons[0]!.width, 1);
+      if (index > 0) expect(button!.y).toBeGreaterThanOrEqual(buttons[index - 1]!.y + buttons[index - 1]!.height);
+    }
+  }
+  for (const width of [701, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const [confirm, back, cancel] = await Promise.all(
+      ['Confirm reviewed increments', 'Back to editing', 'Cancel'].map(
+        (name) => review.getByRole('button', { name, exact: true }).boundingBox(),
+      ),
+    );
+    expect(confirm).not.toBeNull();
+    expect(back).not.toBeNull();
+    expect(cancel).not.toBeNull();
+    expect(confirm!.y + confirm!.height).toBeLessThanOrEqual(back!.y);
+    expect(back!.y).toBeCloseTo(cancel!.y, 1);
+    expect(back!.width).toBeCloseTo(cancel!.width, 1);
+    expect(back!.x).toBeCloseTo(confirm!.x, 1);
+    expect(cancel!.x + cancel!.width).toBeCloseTo(confirm!.x + confirm!.width, 1);
+  }
+  await page.keyboard.press('Escape');
+  await expect(review).toHaveCount(0);
+  await expect(dialog.getByRole('combobox', { name: 'Name' })).toHaveValue('Green Apples');
+  await expect(dialog.getByRole('button', { name: 'Add to Grocery List' })).toBeFocused();
+  await dialog.getByRole('button', { name: 'Add to Grocery List' }).click();
+  await expect(review).toBeVisible();
+  await review.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
-  expect(submissions).toBe(1);
+  expect(submissions).toBe(2);
   await trigger.click();
   await expect(dialog.getByRole('combobox', { name: 'Name' })).toHaveValue('');
+});
+
+test('confirms a selected duplicate while adding non-duplicate items', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await mockIngredientApi(page, []);
+  for (const lookup of ['categories', 'departments']) {
+    await page.route(`**/api/${lookup}`, (route) => route.fulfill({ json: [] }));
+  }
+  const commands: GroceryManualEntryCommand[] = [];
+  await page.route('**/api/grocery-list/items', async (route) => {
+    const command = route.request().postDataJSON() as GroceryManualEntryCommand;
+    commands.push(command);
+    if (commands.length === 1) {
+      await route.fulfill({
+        status: 409,
+        json: {
+          detail: 'Review duplicate grocery items.',
+          duplicateReviews: [0, 2].map((entryIndex) => ({
+            entryIndex, targetItemId: groceryList.items[entryIndex].id, targetEntryIndex: null,
+            existingQuantity: 1, increment: 1, resultingQuantity: 2,
+            itemName: command.items[entryIndex].name, purchaseUnit: 'item',
+          })),
+        },
+      });
+    } else {
+      await route.fulfill({
+        status: 201,
+        json: { commandId: command.commandId, resultListVersion: 2, resultIds: [groceryList.items[0].id] },
+      });
+    }
+  });
+  await page.goto('/grocery-list');
+  await page.getByRole('button', { name: 'Add items', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add items to Grocery List' });
+  await dialog.getByRole('group', { name: 'Item 1' }).getByRole('combobox', { name: 'Name' }).fill('Oats');
+  for (const [index, name] of ['Rice', 'Beans'].entries()) {
+    await dialog.getByRole('button', { name: 'Add row' }).click();
+    await dialog.getByRole('group', { name: `Item ${index + 2}` }).getByRole('combobox', { name: 'Name' }).fill(name);
+  }
+  await dialog.getByRole('button', { name: 'Add to Grocery List' }).click();
+  const review = page.getByRole('dialog', { name: 'Review matching grocery items' });
+  await expect(review.getByText('1 other item will be added.')).toBeVisible();
+  for (const width of [320, 390, 700]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await review.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    const buttons = await Promise.all([
+      'Confirm reviewed increments', 'Back to editing', 'Skip duplicates and add other items',
+    ].map((name) => review.getByRole('button', { name, exact: true }).boundingBox()));
+    for (const [index, button] of buttons.entries()) {
+      expect(button).not.toBeNull();
+      expect(button!.width).toBeCloseTo(buttons[0]!.width, 1);
+      if (index > 0) expect(button!.y).toBeGreaterThanOrEqual(buttons[index - 1]!.y + buttons[index - 1]!.height);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 844 });
+  const [confirm, back, skip] = await Promise.all(
+    ['Confirm reviewed increments', 'Back to editing', 'Skip duplicates and add other items'].map(
+      (name) => review.getByRole('button', { name, exact: true }).boundingBox(),
+    ),
+  );
+  expect(confirm).not.toBeNull();
+  expect(back).not.toBeNull();
+  expect(skip).not.toBeNull();
+  expect(confirm!.y + confirm!.height).toBeLessThanOrEqual(back!.y);
+  expect(back!.y).toBeCloseTo(skip!.y, 1);
+  expect(back!.width).toBeCloseTo(skip!.width, 1);
+  expect(back!.x).toBeCloseTo(confirm!.x, 1);
+  expect(skip!.x + skip!.width).toBeCloseTo(confirm!.x + confirm!.width, 1);
+  await review.getByRole('button', { name: 'Remove Oats from review' }).click();
+  await expect(review.getByRole('status')).toHaveText('1 removed item will not be added.');
+  await expect(review.getByRole('button', { name: 'Remove Beans from review' })).toHaveCount(0);
+  await review.getByRole('button', { name: 'Confirm reviewed increments' }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(commands).toHaveLength(2);
+  expect(commands[1].items.map((item) => item.name)).toEqual(['Rice', 'Beans']);
+  expect(commands[1].reviewedDuplicates).toHaveLength(1);
+  expect(commands[1].reviewedDuplicates[0].entryIndex).toBe(1);
+  expect(commands[1].commandId).not.toBe(commands[0].commandId);
+});
+
+test('retries the exact selected batch after an uncertain response', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await mockIngredientApi(page, []);
+  for (const lookup of ['categories', 'departments']) {
+    await page.route(`**/api/${lookup}`, (route) => route.fulfill({ json: [] }));
+  }
+  const commands: GroceryManualEntryCommand[] = [];
+  await page.route('**/api/grocery-list/items', async (route) => {
+    const command = route.request().postDataJSON() as GroceryManualEntryCommand;
+    commands.push(command);
+    if (commands.length === 1) {
+      await route.fulfill({
+        status: 409,
+        json: {
+          detail: 'Review duplicate grocery items.',
+          duplicateReviews: [{
+            entryIndex: 0, targetItemId: groceryList.items[0].id, targetEntryIndex: null,
+            existingQuantity: 1, increment: 1, resultingQuantity: 2,
+            itemName: 'Oats', purchaseUnit: 'item',
+          }],
+        },
+      });
+    } else if (commands.length === 2) {
+      await route.fulfill({ status: 500, json: { detail: 'The result is unknown.' } });
+    } else {
+      await route.fulfill({
+        status: 201,
+        json: { commandId: command.commandId, resultListVersion: 2, resultIds: [groceryList.items[0].id] },
+      });
+    }
+  });
+  await page.goto('/grocery-list');
+  await page.getByRole('button', { name: 'Add items', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add items to Grocery List' });
+  await dialog.getByRole('group', { name: 'Item 1' }).getByRole('combobox', { name: 'Name' }).fill('Oats');
+  await dialog.getByRole('button', { name: 'Add row' }).click();
+  await dialog.getByRole('group', { name: 'Item 2' }).getByRole('combobox', { name: 'Name' }).fill('Rice');
+  await dialog.getByRole('button', { name: 'Add to Grocery List' }).click();
+  const review = page.getByRole('dialog', { name: 'Review matching grocery items' });
+  await review.getByRole('button', { name: 'Skip duplicates and add other items' }).click();
+  await expect(review.getByRole('alert')).toHaveText('The result is unknown.');
+  await expect(review.getByRole('button', { name: 'Back to editing' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(review).toBeVisible();
+  await review.getByRole('button', { name: 'Retry addition' }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(commands).toHaveLength(3);
+  expect(commands[2]).toEqual(commands[1]);
+  expect(commands[2].items.map((item) => item.name)).toEqual(['Rice']);
 });
 
 test.describe('Grocery list reads', () => {
