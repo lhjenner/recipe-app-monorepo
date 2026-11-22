@@ -29,6 +29,57 @@
   justify-content: flex-start;
 }
 
+.grocery-recipe-sources {
+  border: 1px solid var(--color-accordion-container-header);
+  border-radius: 8px;
+  background: var(--color-accordion-container-background);
+  color: var(--color-text);
+}
+
+.grocery-recipe-sources summary {
+  cursor: pointer;
+  padding: 14px 16px;
+  border-radius: 7px;
+  background: var(--color-accordion-container-header);
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.grocery-recipe-sources[open] summary {
+  border-radius: 7px 7px 0 0;
+}
+
+.grocery-recipe-sources ul {
+  display: grid;
+  gap: 8px;
+  margin: 12px 16px 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.grocery-recipe-sources > p {
+  margin: 12px 16px 14px;
+}
+
+.grocery-recipe-sources li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.grocery-recipe-sources li a {
+  min-width: 0;
+  color: var(--color-link);
+  overflow-wrap: anywhere;
+}
+
+.grocery-recipe-sources li a:hover {
+  color: var(--color-link-hover);
+}
+
 .grocery-page-actions,
 .grocery-item-actions,
 .grocery-entry-actions {

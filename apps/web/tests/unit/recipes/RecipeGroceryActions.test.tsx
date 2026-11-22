@@ -90,7 +90,7 @@ test('reviews eligible, archived, excluded and unresolved items before adding wi
   expect(screen.getByText(/For serving — Headings and notes are not grocery items/)).toBeInTheDocument();
   expect(addMock).not.toHaveBeenCalled();
 
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }));
   await waitFor(() => expect(addMock).toHaveBeenCalledOnce());
   expect(addMock).toHaveBeenCalledWith(preview.recipeId, {
     commandId: expect.any(String),
@@ -100,6 +100,17 @@ test('reviews eligible, archived, excluded and unresolved items before adding wi
   });
   expect(await screen.findByRole('link', { name: 'View Grocery List' }))
     .toHaveAttribute('href', '/grocery-list');
+});
+
+test('allows cancelling a first-time review after a stale list conflict', async () => {
+  addMock.mockRejectedValueOnce(new GroceryListApiError('List changed.', 409));
+  renderActions();
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
+  const dialog = await screen.findByRole('dialog');
+  fireEvent.click(await within(dialog).findByRole('button', { name: 'Confirm' }));
+  await screen.findByRole('button', { name: 'Review latest Recipe and Grocery List' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
 test.each(['cubed', '(cubed)'])('omits cooking notes "%s" from unitless ingredient review', async (notes) => {
@@ -196,7 +207,7 @@ test('retries an ambiguous add with the exact same command payload', async () =>
   renderActions();
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
   await screen.findByText('Tomato');
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Retry original command' }));
 
   await waitFor(() => expect(addMock).toHaveBeenCalledTimes(2));
@@ -213,11 +224,11 @@ test('a stale version requires a fresh preview before another command', async ()
   renderActions();
   fireEvent.click(screen.getByRole('button', { name: 'Add to Grocery List' }));
   await screen.findByText('Tomato');
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Review latest Recipe and Grocery List' }));
 
   await waitFor(() => expect(previewMock).toHaveBeenCalledTimes(2));
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to Grocery List' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }));
   await waitFor(() => expect(addMock).toHaveBeenCalledTimes(2));
   expect(addMock.mock.calls[1]?.[1]).toMatchObject({
     expectedRecipeVersion: 5,

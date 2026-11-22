@@ -30,7 +30,7 @@ function RecipeGroceryActions({ recipeId, hasOutstandingAddition = false, onChan
   } = useRecipeGroceryActions(recipeId, onChanged);
   const isRemoval = mode === 'remove';
   const isRepeat = !isRemoval && preview?.hasOutstandingAddition;
-  const showConfirmationActions = Boolean(preview && !isLoading && (isRemoval || isRepeat));
+  const showConfirmationActions = Boolean(preview && !isLoading);
 
   return (
     <>
@@ -140,29 +140,21 @@ function RecipeGroceryActions({ recipeId, hasOutstandingAddition = false, onChan
                     : 'This Recipe no longer has outstanding grocery requirements. Nothing needs removing.'}
                 </p>
               )}
-              {(!needsFreshReview || isRepeat || isRemoval) && (
-                <div className={`grocery-entry-actions${showConfirmationActions ? ' confirmation-actions' : ''}`}>
-                  {!needsFreshReview && !isRemoval && preview.included.length > 0 && (
-                    <button className="btn btn-primary" type="button" onClick={addRecipe} disabled={locked}>
-                      {isSubmitting
-                        ? 'Adding…'
-                        : isRepeat
-                          ? 'Confirm'
-                          : 'Add to Grocery List'}
-                    </button>
-                  )}
-                  {!needsFreshReview && isRemoval && preview.hasOutstandingAddition && (
-                    <button className="btn btn-danger" type="button" onClick={removeRecipe} disabled={locked}>
-                      {isSubmitting ? 'Removing…' : 'Confirm'}
-                    </button>
-                  )}
-                  {(isRepeat || isRemoval) && (
-                    <button className="btn btn-danger-secondary" type="button" onClick={closeReview} disabled={locked} autoFocus>
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              )}
+              <div className="grocery-entry-actions confirmation-actions">
+                {!needsFreshReview && !isRemoval && preview.included.length > 0 && (
+                  <button className="btn btn-primary" type="button" onClick={addRecipe} disabled={locked}>
+                    {isSubmitting ? 'Adding…' : 'Confirm'}
+                  </button>
+                )}
+                {!needsFreshReview && isRemoval && preview.hasOutstandingAddition && (
+                  <button className="btn btn-danger" type="button" onClick={removeRecipe} disabled={locked}>
+                    {isSubmitting ? 'Removing…' : 'Confirm'}
+                  </button>
+                )}
+                <button className="btn btn-danger-secondary" type="button" onClick={closeReview} disabled={locked} autoFocus>
+                  Cancel
+                </button>
+              </div>
             </>
           )}
         </ModalContainer>

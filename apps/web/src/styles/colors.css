@@ -21,6 +21,8 @@
     --color-brand-highlight: #e1f39b;
     --color-link: #315b46;
     --color-link-hover: #203b2c;
+    --color-accordion-container-header: #04dba2;
+    --color-accordion-container-background: #aeffea;
 
     /* Form and divider colors */
     --color-input-border: #a9b5aa;
@@ -62,6 +64,8 @@
     --color-text-completed: #aeb7af;
     --color-link: #b4e1c1;
     --color-link-hover: #d6f0dd;
+    --color-accordion-container-header: #075447;
+    --color-accordion-container-background: #173e36;
     --color-input-border: #647568;
     --color-border-subtle: #465248;
     --color-option-border: #8a958c;

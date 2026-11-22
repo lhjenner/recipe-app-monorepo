@@ -24,6 +24,20 @@ for (const width of [320, 375, 1280]) {
 
     await addButton.click();
     await expect(page.getByRole('heading', { name: 'Review Recipe grocery items' })).toBeVisible();
+    const reviewDialog = page.getByRole('dialog');
+    const reviewConfirm = reviewDialog.getByRole('button', { name: 'Confirm', exact: true });
+    const reviewCancel = reviewDialog.getByRole('button', { name: 'Cancel', exact: true });
+    await expect(reviewCancel).toHaveClass(/btn-danger-secondary/);
+    await expect(reviewCancel).toBeFocused();
+    await expect(reviewDialog.getByRole('button', { name: 'Close', exact: true })).toHaveCount(0);
+    const reviewConfirmBounds = await reviewConfirm.boundingBox();
+    const reviewCancelBounds = await reviewCancel.boundingBox();
+    expect(reviewCancelBounds!.x - (reviewConfirmBounds!.x + reviewConfirmBounds!.width)).toBeGreaterThanOrEqual(8);
+    expect(Math.abs(reviewCancelBounds!.y - reviewConfirmBounds!.y)).toBeLessThan(2);
+    await reviewCancel.click();
+    expect(commands).toHaveLength(0);
+    await addButton.click();
+    await expect(reviewCancel).toBeVisible();
     const backgroundButtonBounds = await addButton.boundingBox();
     const backgroundTagBounds = await tags.boundingBox();
     expect(backgroundTagBounds!.y - (backgroundButtonBounds!.y + backgroundButtonBounds!.height))
@@ -45,7 +59,7 @@ for (const width of [320, 375, 1280]) {
       document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
     await page.getByRole('dialog')
-      .getByRole('button', { name: 'Add to Grocery List', exact: true })
+      .getByRole('button', { name: 'Confirm', exact: true })
       .click();
     await expect(page.getByRole('link', { name: 'View Grocery List' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Remove from Grocery List', exact: true })).toBeVisible();
@@ -131,7 +145,7 @@ test('highlights demand from other recipes and manual additions without offering
   await expect(page.getByRole('button', { name: 'Remove from Grocery List', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Add to Grocery List', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Included Recipe Ingredients' })).toBeVisible();
-  await page.getByRole('dialog').getByRole('button', { name: 'Add to Grocery List', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Remove from Grocery List', exact: true })).toBeVisible();
 });
 
