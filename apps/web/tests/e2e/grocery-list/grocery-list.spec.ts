@@ -364,8 +364,18 @@ test.describe('Grocery list reads', () => {
     secondDeviceUpdated = true;
     await page.clock.fastForward(15_000);
 
-    await expect(page.getByRole('status')).toContainText('Grocery list updated.');
+    const notice = page.getByRole('status').filter({ hasText: 'Grocery list updated.' });
+    await expect(notice).toBeVisible();
+    await expect(notice).toHaveCSS('background-color', 'rgb(255, 247, 225)');
+    await expect(notice).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
+    await expect(notice).toHaveCSS('color', 'rgb(67, 67, 67)');
+    await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+    await expect(notice).toHaveCSS('background-color', 'rgb(73, 57, 31)');
+    await expect(notice).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
+    await expect(notice).toHaveCSS('color', 'rgb(198, 199, 198)');
     await expect(page.getByRole('table', { name: 'Outstanding grocery items' })).toBeVisible();
     expect(readCount).toBeGreaterThan(initialReadCount);
+    await page.clock.fastForward(4_000);
+    await expect(notice).toHaveCount(0);
   });
 });

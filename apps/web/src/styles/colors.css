@@ -14,6 +14,10 @@
     --color-text-muted: #434343;
     --color-text-completed: #9e9a9a;
     --color-focus: #d5f523;
+    --color-accordion-container-header: #04dba2;
+    --color-accordion-container-background: #aeffea;
+    --color-information-banner-border: #ffd58a;
+    --color-information-banner-background: #fff7e1;
 
     /* Brand and contrast */
     --color-on-brand: #fff;
@@ -21,8 +25,6 @@
     --color-brand-highlight: #e1f39b;
     --color-link: #315b46;
     --color-link-hover: #203b2c;
-    --color-accordion-container-header: #04dba2;
-    --color-accordion-container-background: #aeffea;
 
     /* Form and divider colors */
     --color-input-border: #a9b5aa;
@@ -58,6 +60,8 @@
     --color-disabled: #4a4a4a;
     --color-warning: #ffd58a;
     --color-warning-surface: #49391f;
+    --color-information-banner-border: var(--color-warning);
+    --color-information-banner-background: var(--color-warning-surface);
     --color-muted-surface: #363d38;
     --color-text: #e4e9e3;
     --color-text-muted: #c6c7c6;

@@ -322,6 +322,11 @@
   border-color: var(--color-danger);
 }
 
+.grocery-update-notice {
+  border-color: var(--color-information-banner-border);
+  background: var(--color-information-banner-background);
+}
+
 .grocery-items-table-wrap,
 .grocery-history-table-wrap {
   overflow-x: auto;
