@@ -500,8 +500,7 @@ test.describe('Grocery list reads', () => {
     const edit = actions.getByRole('button', { name: 'Edit', exact: true });
     const remove = actions.getByRole('button', { name: /Remove maple syrup/ });
     await expect(requirement).toBeVisible();
-    await expect(table.getByText(/1 unverified Recipe suggestion/)).toBeVisible();
-    await expect(table.getByText(/1 unverified Recipe suggestion/)).not.toContainText('remaining quantity');
+    await expect(table.getByText(/unverified Recipe suggestion/)).toHaveCount(0);
     await expect(source).toBeHidden();
     const columnGeometry = () => table.getByRole('columnheader').evaluateAll((headers) =>
       headers.map((header) => {
@@ -534,8 +533,9 @@ test.describe('Grocery list reads', () => {
     await expect(source).toBeHidden();
     expect(await columnGeometry()).toEqual(collapsedColumns);
     await page.setViewportSize({ width: 320, height: 844 });
-    await expect(page.locator('.grocery-item-card').filter({ hasText: 'Maple Syrup' })
-      .getByText(/1 unverified Recipe suggestion/)).toBeVisible();
+    const mobileItem = page.locator('.grocery-item-card').filter({ hasText: 'Maple Syrup' });
+    await expect(mobileItem.getByText('Requirement: 20 ml', { exact: true })).toBeVisible();
+    await expect(mobileItem.getByText(/unverified Recipe suggestion/)).toHaveCount(0);
   });
 
   test('toggles departments independently and preserves expansion across desktop and mobile', async ({ page }) => {

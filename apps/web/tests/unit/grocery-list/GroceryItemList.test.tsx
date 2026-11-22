@@ -124,12 +124,10 @@ test('shows distinct outstanding manual addition notes without a Sources accordi
 });
 
 test.each([
-  { dimension: 'volume' as const, recipeState: 'outstanding' as const, suggested: true },
-  { dimension: 'mass' as const, recipeState: 'outstanding' as const, suggested: true },
-  { dimension: null, recipeState: 'outstanding' as const, suggested: true },
-  { dimension: 'count' as const, recipeState: 'outstanding' as const, suggested: false },
-  { dimension: 'volume' as const, recipeState: 'cancelled' as const, suggested: false },
-])('labels only outstanding measured or unresolved Recipe suggestions', ({ dimension, recipeState, suggested }) => {
+  { dimension: 'volume' as const },
+  { dimension: 'mass' as const },
+  { dimension: null },
+])('does not show purchase suggestion warnings for $dimension Recipe requirements', ({ dimension }) => {
   const source = (origin: 'manual' | 'recipe', state: 'outstanding' | 'cancelled') => ({
     id: origin, origin, state, originalAmountText: '1', originalUnitText: 'item',
     originalNotesText: null, interpretedAmount: null, canonicalUnit: null, unresolvedReason: null,
@@ -141,12 +139,11 @@ test.each([
     dimension, countLabel: null, requirementAmount: null, requirementUnit: null,
     outstandingPurchaseQuantity: 2, purchaseUnit: 'item', ingredientVersion: null,
     adHocStoreId: null, adHocDepartmentId: null, adHocDepartmentName: null, storeMappings: [],
-    contributions: [source('recipe', recipeState), source('manual', 'outstanding')],
+    contributions: [source('recipe', 'outstanding'), source('manual', 'outstanding')],
   };
   render(<MemoryRouter><GroceryItemList groups={[{ name: 'Uncategorised', items: [item] }]}
     onEdit={() => {}} onRemove={() => {}} onQuantityChange={() => {}} disabled={false} /></MemoryRouter>);
-  expect(screen.queryAllByText(/1 unverified Recipe suggestion/)).toHaveLength(suggested ? 2 : 0);
-  if (suggested) {
-    expect(screen.getAllByText(/remaining quantity is manual/)).toHaveLength(2);
-  }
+  expect(screen.queryByText(/unverified Recipe suggestion/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/remaining quantity is manual/)).not.toBeInTheDocument();
+  expect(screen.getAllByRole('spinbutton')).toHaveLength(2);
 });
