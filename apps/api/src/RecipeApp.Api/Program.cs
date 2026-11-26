@@ -57,6 +57,8 @@ builder.Services.AddScoped<GroceryRecipeRemovalService>();
 builder.Services.AddScoped<GroceryManualEntryService>();
 builder.Services.AddScoped<GroceryItemMutationService>();
 builder.Services.AddScoped<GroceryItemCancellationService>();
+builder.Services.AddScoped<GroceryPurchaseService>();
+builder.Services.AddScoped<GroceryPurchaseReversalService>();
 builder.Services.AddScoped<IGroceryWriteService, GroceryWriteService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ITicketStore, PostgresTicketStore>();

@@ -2,7 +2,10 @@ import { expect, test } from '@playwright/test';
 import { mockAuthApi } from '../support/mockAuthApi.ts';
 import { groceryList, mockGroceryApi, selectedStoreId } from '../support/mockGroceryApi.ts';
 import { ingredient, mockIngredientApi } from '../support/mockIngredientListApi.ts';
-import type { GroceryManualEntryCommand } from '../../../src/features/grocery-list/services/groceryListApi.ts';
+import type {
+  GroceryHistoryEvent,
+  GroceryManualEntryCommand,
+} from '../../../src/features/grocery-list/services/groceryListApi.ts';
 
 test('requires confirmation before removing an item and allows cancellation with Escape', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
@@ -28,6 +31,110 @@ test('requires confirmation before removing an item and allows cancellation with
   await remove.click();
   await dialog.getByRole('button', { name: 'Remove item', exact: true }).click();
   await expect.poll(() => removals).toBe(1);
+});
+
+test('records a whole-line purchase and reverses it without erasing its history', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  const list = structuredClone(groceryList);
+  const historyEvents: GroceryHistoryEvent[] = [];
+  let purchaseId = '';
+  await page.route('**/api/grocery-list', (route) => route.fulfill({ json: list }));
+  await page.route('**/api/grocery-list/purchase-history**', (route) => route.fulfill({
+    json: { items: historyEvents, totalCount: historyEvents.length, page: 1, pageSize: 25 },
+  }));
+  await page.route('**/api/grocery-list/items/*/purchases', async (route) => {
+    expect(route.request().method()).toBe('POST');
+    const request = route.request().postDataJSON() as {
+      expectedListVersion: number;
+      expectedOutstandingQuantity: number;
+      purchaseUnit: string;
+      storeId: string | null;
+    };
+    expect(request).toMatchObject({
+      expectedListVersion: 1,
+      expectedOutstandingQuantity: 2,
+      purchaseUnit: 'item',
+      storeId: null,
+    });
+    purchaseId = '00000000-0000-7000-8000-000000000501';
+    historyEvents.push({
+      id: purchaseId,
+      groceryItemId: list.items[0].id,
+      kind: 'purchase',
+      quantity: 2,
+      purchaseUnit: 'item',
+      occurredAtUtc: new Date().toISOString(),
+      itemNameSnapshot: 'green apples',
+      noteSnapshot: null,
+      storeId: null,
+      storeName: null,
+      origin: 'manual',
+      reversesEventId: null,
+      isReversed: false,
+    });
+    list.version = 2;
+    list.completedItemCount = 1;
+    list.items[0].state = 'completed';
+    list.items[0].outstandingPurchaseQuantity = 0;
+    await route.fulfill({
+      json: {
+        commandId: '00000000-0000-7000-8000-000000000502',
+        resultListVersion: 2,
+        resultIds: [purchaseId],
+      },
+    });
+  });
+  await page.route('**/api/grocery-list/purchase-history/*/reverse', async (route) => {
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().url()).toContain(purchaseId);
+    historyEvents[0].isReversed = true;
+    historyEvents.push({
+      id: '00000000-0000-7000-8000-000000000504',
+      groceryItemId: list.items[0].id,
+      kind: 'reversal',
+      quantity: 2,
+      purchaseUnit: 'item',
+      occurredAtUtc: new Date().toISOString(),
+      itemNameSnapshot: 'green apples',
+      noteSnapshot: null,
+      storeId: null,
+      storeName: null,
+      origin: 'manual',
+      reversesEventId: purchaseId,
+      isReversed: false,
+    });
+    list.version = 3;
+    list.completedItemCount = 0;
+    list.items[0].state = 'outstanding';
+    list.items[0].outstandingPurchaseQuantity = 2;
+    await route.fulfill({
+      json: {
+        commandId: '00000000-0000-7000-8000-000000000503',
+        resultListVersion: 3,
+        resultIds: ['00000000-0000-7000-8000-000000000504'],
+      },
+    });
+  });
+
+  await page.goto('/grocery-list');
+  const itemRow = page.getByRole('row', { name: /Green Apples/ });
+  await itemRow.getByRole('button', { name: 'Mark purchased' }).click();
+  const purchaseDialog = page.getByRole('dialog', { name: 'Mark item purchased?' });
+  await expect(purchaseDialog).toContainText('whole outstanding quantity of 2 item');
+  await purchaseDialog.getByRole('button', { name: 'Mark purchased' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Green Apples purchased.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo purchase' })).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Undo purchase' }).click();
+  const undoDialog = page.getByRole('dialog', { name: 'Undo purchase?' });
+  await expect(undoDialog).toContainText('original purchase will remain in history');
+  await undoDialog.getByRole('button', { name: 'Undo purchase' }).click();
+  await expect(page.getByText('Purchase undone.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Green Apples/ })).toBeVisible();
+  await page.getByRole('link', { name: 'Purchase history' }).click();
+  await expect(page.getByText('Purchase reversed').first()).toBeVisible();
+  await expect(page.getByText('Undo recorded (manual)').first()).toBeVisible();
 });
 
 test('grocery dialogs contain focus, close with Escape and restore the trigger', async ({ page }) => {

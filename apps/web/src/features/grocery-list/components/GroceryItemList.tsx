@@ -4,17 +4,19 @@ import { toTitleCase } from '../../../shared/utils/titleCase';
 import type { GroceryItem } from '../services/groceryListApi';
 import type { GroceryItemGroup } from '../models/groceryGrouping';
 import { formatRequirementUnit, formatSourceAmount, groupRecipeSources } from '../models/grocerySourceSummary';
+import GroceryItemActions from './GroceryItemActions';
 import GroceryQuantityStepper from './GroceryQuantityStepper';
 
 interface GroceryItemListProps {
   groups: GroceryItemGroup[];
   onEdit: (item: GroceryItem) => void;
   onRemove: (item: GroceryItem) => void;
+  onPurchase?: (item: GroceryItem) => void;
   onQuantityChange: (item: GroceryItem, quantity: number) => void;
   disabled: boolean;
 }
 
-function GroceryItemList({ groups, onEdit, onRemove, onQuantityChange, disabled }: GroceryItemListProps) {
+function GroceryItemList({ groups, onEdit, onRemove, onPurchase, onQuantityChange, disabled }: GroceryItemListProps) {
   const id = useId();
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
 
@@ -72,20 +74,7 @@ function GroceryItemList({ groups, onEdit, onRemove, onQuantityChange, disabled 
                     />
                   </td>
                   <td>
-                    <div className="grocery-item-actions">
-                      <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onEdit(item)}>
-                        Edit
-                      </button>
-                      <button
-                        className="btn btn-danger-secondary"
-                        type="button"
-                        disabled={disabled}
-                        aria-label={`Remove ${item.name} from Grocery List`}
-                        onClick={() => onRemove(item)}
-                      >
-                        Remove
-                      </button>
-                    </div>
+                    <GroceryItemActions item={item} disabled={disabled} onEdit={onEdit} onRemove={onRemove} onPurchase={onPurchase} />
                   </td>
                 </tr>
               ))}
@@ -117,20 +106,7 @@ function GroceryItemList({ groups, onEdit, onRemove, onQuantityChange, disabled 
                       readOnly
                       onChange={(value) => onQuantityChange(item, Number(value))}
                     />
-                    <div className="grocery-item-actions">
-                      <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onEdit(item)}>
-                        Edit
-                      </button>
-                      <button
-                        className="btn btn-danger-secondary"
-                        type="button"
-                        disabled={disabled}
-                        aria-label={`Remove ${item.name} from Grocery List`}
-                        onClick={() => onRemove(item)}
-                      >
-                        Remove
-                      </button>
-                    </div>
+                    <GroceryItemActions item={item} disabled={disabled} onEdit={onEdit} onRemove={onRemove} onPurchase={onPurchase} />
                   </div>
                 </article>
               ))}

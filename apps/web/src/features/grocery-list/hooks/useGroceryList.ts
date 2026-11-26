@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   getGroceryList,
+  type GroceryListQuery,
   type GroceryList,
 } from '../services/groceryListApi';
 
@@ -17,7 +18,10 @@ export interface GroceryListState {
   reload: () => void;
 }
 
-export function useGroceryList(): GroceryListState {
+export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
+  const includeCompleted = query.includeCompleted ?? false;
+  const from = query.from;
+  const to = query.to;
   const [data, setData] = useState<GroceryList | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +69,7 @@ export function useGroceryList(): GroceryListState {
       setIsLoading(!hasDataRef.current);
 
       try {
-        const next = await getGroceryList(requestController.signal);
+        const next = await getGroceryList(requestController.signal, { includeCompleted, from, to });
         if (!active || requestController.signal.aborted) {
           return;
         }
@@ -151,7 +155,7 @@ export function useGroceryList(): GroceryListState {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('pageshow', handlePageShow);
     };
-  }, []);
+  }, [includeCompleted, from, to]);
 
   return {
     data,

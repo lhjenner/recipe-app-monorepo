@@ -3,9 +3,11 @@ import { toTitleCase } from '../../../shared/utils/titleCase';
 
 interface GroceryHistoryListProps {
   events: GroceryHistoryEvent[];
+  onUndo?: (event: GroceryHistoryEvent) => void;
+  disabled?: boolean;
 }
 
-function GroceryHistoryList({ events }: GroceryHistoryListProps) {
+function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistoryListProps) {
   return (
     <>
       <div className="grocery-history-table-wrap">
@@ -28,7 +30,14 @@ function GroceryHistoryList({ events }: GroceryHistoryListProps) {
                 </th>
                 <td>{formatAmount(event.quantity)} {event.purchaseUnit}</td>
                 <td>{event.storeName ?? 'Store not recorded'}</td>
-                <td><EventState event={event} /></td>
+                <td>
+                  <EventState event={event} />
+                  {onUndo && event.kind === 'purchase' && !event.isReversed && (
+                    <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onUndo(event)}>
+                      Undo purchase
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -42,7 +51,17 @@ function GroceryHistoryList({ events }: GroceryHistoryListProps) {
               <div><dt>Date</dt><dd>{formatDate(event.occurredAtUtc)}</dd></div>
               <div><dt>Quantity</dt><dd>{formatAmount(event.quantity)} {event.purchaseUnit}</dd></div>
               <div><dt>Store</dt><dd>{event.storeName ?? 'Store not recorded'}</dd></div>
-              <div><dt>Record</dt><dd><EventState event={event} /></dd></div>
+              <div>
+                <dt>Record</dt>
+                <dd>
+                  <EventState event={event} />
+                  {onUndo && event.kind === 'purchase' && !event.isReversed && (
+                    <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onUndo(event)}>
+                      Undo purchase
+                    </button>
+                  )}
+                </dd>
+              </div>
             </dl>
             {event.noteSnapshot && <p>{event.noteSnapshot}</p>}
           </li>

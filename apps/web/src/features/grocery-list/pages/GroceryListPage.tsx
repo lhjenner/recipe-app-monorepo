@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageTitle from '../../../shared/components/PageTitle';
-import ConfirmDialog from '../../../shared/components/ConfirmDialog';
 import { toTitleCase } from '../../../shared/utils/titleCase';
 import { useSupermarkets } from '../../ingredients/hooks/useSupermarkets';
-import type { SupermarketStore } from '../../ingredients/services/ingredientsApi';
+import GroceryListControls from '../components/GroceryListControls';
+import GroceryListOverlays from '../components/GroceryListOverlays';
 import GroceryItemList from '../components/GroceryItemList';
 import GroceryItemEditDialog from '../components/GroceryItemEditDialog';
 import GroceryManualEntryModal from '../components/GroceryManualEntryModal';
@@ -14,14 +14,25 @@ import { useGroceryList } from '../hooks/useGroceryList';
 import { useGroceryQuantityUpdate } from '../hooks/useGroceryQuantityUpdate';
 import { useGroceryItemRemoval } from '../hooks/useGroceryItemRemoval';
 import { useGroceryRecipeRemoval } from '../hooks/useGroceryRecipeRemoval';
+import { useGroceryClearAll } from '../hooks/useGroceryClearAll';
+import { useGroceryPurchaseActions } from '../hooks/useGroceryPurchaseActions';
+import { getAucklandToday } from '../models/groceryDate';
 import type { GroceryItem } from '../services/groceryListApi';
 
 const STORE_PREFERENCE_KEY = 'recipe-app:grocery-list:selected-store';
 function GroceryListPage() {
-  const grocery = useGroceryList();
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [completedDate, setCompletedDate] = useState(getAucklandToday);
+  const grocery = useGroceryList({
+    includeCompleted: showCompleted,
+    from: showCompleted ? completedDate : undefined,
+    to: showCompleted ? completedDate : undefined,
+  });
   const quantityUpdate = useGroceryQuantityUpdate(grocery);
   const removal = useGroceryItemRemoval(grocery);
   const recipeRemoval = useGroceryRecipeRemoval(grocery);
+  const clearAll = useGroceryClearAll(grocery);
+  const purchases = useGroceryPurchaseActions(grocery);
   const supermarkets = useSupermarkets();
   const [storePreference, setStorePreference] = useState(readStorePreference);
   const [isAddingItems, setIsAddingItems] = useState(false);
@@ -34,11 +45,20 @@ function GroceryListPage() {
     && !stores.some((store) => store.id === storePreference.storeId)
     ? null
     : storePreference.storeId;
-  const groups = useMemo(
-    () => groupGroceryItems(grocery.data?.items ?? [], selectedStoreId),
-    [grocery.data?.items, selectedStoreId],
+  const outstandingItems = useMemo(
+    () => grocery.data?.items.filter((item) => item.state === 'outstanding') ?? [],
+    [grocery.data?.items],
   );
-
+  const completedItems = useMemo(
+    () => grocery.data?.items.filter((item) => item.state === 'completed') ?? [],
+    [grocery.data?.items],
+  );
+  const groups = useMemo(() => groupGroceryItems(outstandingItems, selectedStoreId), [outstandingItems, selectedStoreId]);
+  const mutationsDisabled = quantityUpdate.disabled
+    || removal.disabled
+    || recipeRemoval.disabled
+    || clearAll.disabled
+    || purchases.disabled;
   function selectStore(storeId: string) {
     const nextStoreId = storeId || null;
     try {
@@ -56,7 +76,6 @@ function GroceryListPage() {
     }
   }
 
-  const outstandingItems = grocery.data?.items.filter((item) => item.state === 'outstanding') ?? [];
   const currentEditingItem = editingItem
     ? grocery.data?.items.find((item) => item.id === editingItem.id) ?? editingItem
     : null;
@@ -66,87 +85,30 @@ function GroceryListPage() {
       <PageTitle title="Grocery List" />
       <main className="app-main">
         <section className="app-page grocery-list-page" aria-labelledby="grocery-list-heading">
-          <header className="grocery-page-heading">
-            <div>
-              <h1 id="grocery-list-heading">Grocery List</h1>
-              <p>Outstanding items are grouped by their selected store and department.</p>
-            </div>
-            <div className="grocery-page-actions">
-              <button
-                className="btn btn-primary"
-                type="button"
-                onClick={() => setIsAddingItems(true)}
-                disabled={!grocery.data || quantityUpdate.disabled || removal.disabled || recipeRemoval.disabled}
-              >
-                Add items
-              </button>
-              <Link className="btn btn-secondary" to="/grocery-list/history">Purchase history</Link>
-            </div>
-          </header>
-
-          <div className="grocery-list-controls">
-            <label className="grocery-store-select" htmlFor="grocery-store">
-              <span>Group for store</span>
-              <select
-                id="grocery-store"
-                value={selectedStoreId ?? ''}
-                onChange={(event) => selectStore(event.currentTarget.value)}
-              >
-                <option value="">Choose a store</option>
-                {stores.map((store: SupermarketStore) => (
-                  <option value={store.id} key={store.id}>{store.name}</option>
-                ))}
-              </select>
-            </label>
-            {supermarkets.error && (
-              <p className="grocery-inline-error" role="alert">
-                {supermarkets.error}
-                <button className="btn btn-secondary" type="button" onClick={supermarkets.reload}>
-                  Retry stores
-                </button>
-              </p>
-            )}
-          </div>
+          <GroceryListControls
+            stores={stores}
+            selectedStoreId={selectedStoreId}
+            onSelectStore={selectStore}
+            storeError={supermarkets.error}
+            onRetryStores={supermarkets.reload}
+            onAdd={() => setIsAddingItems(true)}
+            onClear={clearAll.request}
+            outstandingCount={outstandingItems.length}
+            disabled={mutationsDisabled}
+            canAdd={grocery.data !== null}
+            showCompleted={showCompleted}
+            onShowCompletedChange={setShowCompleted}
+            completedDate={completedDate}
+            onCompletedDateChange={setCompletedDate}
+          />
 
           {grocery.data && (
             <GroceryRecipeSources items={grocery.data.items}
-              disabled={quantityUpdate.disabled || removal.disabled || recipeRemoval.disabled}
+              disabled={mutationsDisabled}
               onRemove={recipeRemoval.request} />
           )}
 
           {storePreference.error && <p className="grocery-inline-error" role="status">{storePreference.error}</p>}
-          {removal.error && (
-            <p className="grocery-inline-error" role="alert">
-              {removal.error}
-              {removal.canRetry && (
-                <button className="btn btn-secondary" type="button" onClick={removal.retry}>
-                  Retry removal
-                </button>
-              )}
-              {removal.canRetry && removal.retryName && ` for ${toTitleCase(removal.retryName)}`}
-            </p>
-          )}
-          {recipeRemoval.error && (
-            <p className="grocery-inline-error" role="alert">
-              {recipeRemoval.error}
-              {recipeRemoval.canRetry && (
-                <button className="btn btn-secondary" type="button" onClick={recipeRemoval.retry}>
-                  Retry Recipe removal
-                </button>
-              )}
-              {recipeRemoval.canRetry && recipeRemoval.retryName && ` for ${toTitleCase(recipeRemoval.retryName)}`}
-            </p>
-          )}
-          {quantityUpdate.error && (
-            <p className="grocery-inline-error" role="alert">
-              {quantityUpdate.error}
-              {quantityUpdate.canRetry && (
-                <button className="btn btn-secondary" type="button" onClick={quantityUpdate.retry}>
-                  Retry quantity update
-                </button>
-              )}
-            </p>
-          )}
           {grocery.updated && <p className="grocery-update-notice" role="status">Grocery list updated.</p>}
           {grocery.lastSuccessfulAt && (
             <p className="grocery-last-check">
@@ -189,31 +151,33 @@ function GroceryListPage() {
               groups={groups}
               onEdit={setEditingItem}
               onRemove={removal.request}
+              onPurchase={(item) => purchases.requestPurchase(item, selectedStoreId)}
               onQuantityChange={quantityUpdate.changeQuantity}
-              disabled={quantityUpdate.disabled || removal.disabled || recipeRemoval.disabled}
+              disabled={mutationsDisabled}
             />
+          )}
+          {showCompleted && completedItems.length > 0 && (
+            <section aria-labelledby="grocery-completed-heading">
+              <h2 id="grocery-completed-heading">Completed items</h2>
+              <ul>
+                {completedItems.map((item) => (
+                  <li key={item.id}>
+                    {toTitleCase(item.name)} —{' '}
+                    <Link to="/grocery-list/history">view recorded purchases and amounts</Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
         </section>
       </main>
-      <ConfirmDialog
-        open={recipeRemoval.recipe !== null}
-        title="Remove Recipe from Grocery List?"
-        message={`Remove ${recipeRemoval.recipe ? toTitleCase(recipeRemoval.recipe.name) : 'this Recipe'} and its outstanding requirements? Manual additions, other Recipes, and purchase history will remain.`}
-        confirmLabel="Remove Recipe"
-        tone="danger"
-        confirmFirst
-        onCancel={recipeRemoval.cancel}
-        onConfirm={recipeRemoval.confirm}
-      />
-      <ConfirmDialog
-        open={removal.item !== null}
-        title="Remove grocery item?"
-        message={`Remove ${removal.item ? toTitleCase(removal.item.name) : 'this item'} and cancel its outstanding demand, including any Recipe contributions? Purchase history will be kept.`}
-        confirmLabel="Remove item"
-        tone="danger"
-        confirmFirst
-        onCancel={removal.cancel}
-        onConfirm={removal.confirm}
+      <GroceryListOverlays
+        removal={removal}
+        recipeRemoval={recipeRemoval}
+        quantityUpdate={quantityUpdate}
+        clearAll={clearAll}
+        purchases={purchases}
+        disabled={mutationsDisabled}
       />
       {isAddingItems && grocery.data && (
         <GroceryManualEntryModal

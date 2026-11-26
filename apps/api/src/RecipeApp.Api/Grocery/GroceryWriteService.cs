@@ -3,7 +3,9 @@ namespace RecipeApp.Api.Grocery;
 public sealed class GroceryWriteService(
     GroceryManualEntryService manualEntries,
     GroceryItemMutationService itemMutations,
-    GroceryItemCancellationService itemCancellations) : IGroceryWriteService
+    GroceryItemCancellationService itemCancellations,
+    GroceryPurchaseService purchases,
+    GroceryPurchaseReversalService reversals) : IGroceryWriteService
 {
     public Task<GroceryWriteOutcome> AddManualItemsAsync(
         GroceryManualEntryCommand command,
@@ -21,4 +23,21 @@ public sealed class GroceryWriteService(
         GroceryCommandMetadata command,
         CancellationToken cancellationToken) =>
         itemCancellations.CancelItemAsync(itemId, command, cancellationToken);
+
+    public Task<GroceryCancelOutcome> CancelAllItemsAsync(
+        GroceryCommandMetadata command,
+        CancellationToken cancellationToken) =>
+        itemCancellations.CancelAllItemsAsync(command, cancellationToken);
+
+    public Task<GroceryWriteOutcome> PurchaseItemAsync(
+        Guid itemId,
+        GroceryPurchaseRequest request,
+        CancellationToken cancellationToken) =>
+        purchases.PurchaseItemAsync(itemId, request, cancellationToken);
+
+    public Task<GroceryWriteOutcome> ReversePurchaseAsync(
+        Guid eventId,
+        GroceryCommandMetadata command,
+        CancellationToken cancellationToken) =>
+        reversals.ReversePurchaseAsync(eventId, command, cancellationToken);
 }

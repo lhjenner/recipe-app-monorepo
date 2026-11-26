@@ -435,6 +435,7 @@
 
 .grocery-items-table {
   table-layout: fixed;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -455,7 +456,7 @@
 
 .grocery-items-table thead th:last-child {
   box-sizing: border-box;
-  width: 13rem;
+  width: 10rem;
 }
 
 .grocery-items-table .grocery-item-actions {
@@ -733,7 +734,7 @@
     gap: 4px;
   }
 
-  .grocery-item-card-controls .grocery-item-actions .btn {
-    padding-inline: 3px;
+  .grocery-item-card-controls .grocery-quantity-stepper {
+    width: 112px;
   }
 }

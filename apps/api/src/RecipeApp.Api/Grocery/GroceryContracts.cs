@@ -78,7 +78,8 @@ public sealed record GroceryPurchaseRequest(
     Guid CommandId,
     uint ExpectedListVersion,
     decimal ExpectedOutstandingQuantity,
-    string PurchaseUnit);
+    string PurchaseUnit,
+    Guid? StoreId = null);
 
 public sealed record GroceryHistoryQuery(
     DateOnly? From,
