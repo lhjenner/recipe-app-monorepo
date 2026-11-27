@@ -52,10 +52,18 @@ test('displays separate columns and Auckland dates without times on both layouts
   expect(within(cards).getByText('5 Apr 2026')).toBeInTheDocument();
 });
 
-test('displays numeric quantities without purchase units on both layouts', () => {
+test('displays meaningful purchase units on both layouts', () => {
   render(<GroceryHistoryList events={[{ ...purchase, quantity: 1.5 }]} />);
   const table = screen.getByRole('table', { name: 'Purchase history' });
-  expect(within(table).getByRole('cell', { name: '1.5' })).toBeInTheDocument();
+  expect(within(table).getByRole('cell', { name: '1.5 tin' })).toBeInTheDocument();
   const cards = screen.getByRole('list', { name: 'Purchase history' });
-  expect(within(cards).getByText('1.5', { exact: true })).toBeInTheDocument();
+  expect(within(cards).getByText('1.5 tin', { exact: true })).toBeInTheDocument();
+});
+
+test('omits the generic item unit on both layouts', () => {
+  render(<GroceryHistoryList events={[{ ...purchase, purchaseUnit: 'item' }]} />);
+  expect(within(screen.getByRole('table', { name: 'Purchase history' }))
+    .getByRole('cell', { name: '3' })).toBeInTheDocument();
+  expect(within(screen.getByRole('list', { name: 'Purchase history' }))
+    .getByText('3', { exact: true })).toBeInTheDocument();
 });

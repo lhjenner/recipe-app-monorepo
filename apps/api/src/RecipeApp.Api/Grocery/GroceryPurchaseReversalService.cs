@@ -65,8 +65,6 @@ public sealed class GroceryPurchaseReversalService(
                 && value.OwnerUserId == ownerId
                 && value.GroceryListId == list.Id,
                 cancellationToken);
-        var affectedContributionIds =
-            JsonSerializer.Deserialize<Guid[]>(purchaseEvent.AffectedContributionIdsJson) ?? [];
         var targetItem = await database.GroceryItems
             .Include(value => value.Contributions)
             .SingleOrDefaultAsync(value => value.Id != item.Id
@@ -77,20 +75,11 @@ public sealed class GroceryPurchaseReversalService(
                 && value.PurchaseUnit == item.PurchaseUnit,
                 cancellationToken);
         var restoreItem = targetItem ?? item;
-        var affectedContributions = item.Contributions
-            .Where(value => affectedContributionIds.Contains(value.Id)
-                && value.State == GroceryContributionState.Completed)
-            .ToArray();
-        foreach (var contribution in affectedContributions)
-        {
-            contribution.State = GroceryContributionState.Outstanding;
-            contribution.GroceryItemId = restoreItem.Id;
-        }
-
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        restoreItem.OutstandingPurchaseQuantity += purchaseEvent.Quantity;
-        restoreItem.State = GroceryItemState.Outstanding;
-        restoreItem.UpdatedAtUtc = now;
+        if (!GroceryPurchaseRestoration.TryRestore(item, restoreItem, purchaseEvent, now))
+        {
+            return Conflict("The purchased quantity cannot be restored safely. Reload the grocery list.");
+        }
         var reversalEvent = new GroceryPurchaseEvent
         {
             GroceryListId = list.Id,
@@ -103,6 +92,7 @@ public sealed class GroceryPurchaseReversalService(
             ItemNameSnapshot = purchaseEvent.ItemNameSnapshot,
             NoteSnapshot = purchaseEvent.NoteSnapshot,
             StoreIdSnapshot = purchaseEvent.StoreIdSnapshot,
+            StoreNameSnapshot = purchaseEvent.StoreNameSnapshot,
             Origin = purchaseEvent.Origin,
             ReversesEventId = purchaseEvent.Id,
             AffectedContributionIdsJson = purchaseEvent.AffectedContributionIdsJson
@@ -117,7 +107,7 @@ public sealed class GroceryPurchaseReversalService(
         {
             return await RecoverAsync(Conflict("The grocery list changed while this purchase was being undone."));
         }
-        catch (DbUpdateException exception) when (IsActiveLineConflict(exception))
+        catch (DbUpdateException exception) when (IsReversalConflict(exception))
         {
             return await RecoverAsync(Conflict(
                 "Undo would reopen a grocery line that conflicts with another outstanding line. Refresh the list."));
@@ -136,7 +126,7 @@ public sealed class GroceryPurchaseReversalService(
             return await RecoverAsync(Conflict("The grocery list changed while this purchase was being undone."));
         }
         catch (DbUpdateException exception) when (
-            GroceryMutationPersistence.IsReceiptConflict(exception) || IsActiveLineConflict(exception))
+            GroceryMutationPersistence.IsReceiptConflict(exception) || IsReversalConflict(exception))
         {
             return await RecoverAsync(Conflict("The grocery list changed while this purchase was being undone."));
         }
@@ -172,14 +162,14 @@ public sealed class GroceryPurchaseReversalService(
                     : Conflict("This command ID was already used with different content.");
             }
 
-            await using var recoveryDatabase = await databaseFactory.CreateDbContextAsync(cancellationToken);
-            var existingReversal = await FindReversalAsync(
-                recoveryDatabase, purchaseEvent, ownerId, cancellationToken);
-            return existingReversal is null
-                ? fallback
-                : new GroceryWriteOutcome(
-                    new GroceryCommandReceiptResponse(command.CommandId, list.Version, [existingReversal.Id]),
-                    StatusCodes.Status200OK);
+            var noOp = await GroceryPurchaseReversalRecovery.SaveNoOpAsync(
+                databaseFactory, ownerId, purchaseEvent.GroceryListId, purchaseEvent.Id,
+                command.CommandId, CommandType, fingerprint, timeProvider.GetUtcNow().UtcDateTime,
+                cancellationToken);
+            if (noOp is null) return fallback;
+            return noOp.CommandType == CommandType && noOp.RequestFingerprint == fingerprint
+                ? Success(noOp, StatusCodes.Status200OK)
+                : Conflict("This command ID was already used with different content.");
         }
     }
 
@@ -219,11 +209,11 @@ public sealed class GroceryPurchaseReversalService(
             : Conflict("This command ID was already used with different content.");
     }
 
-    private static bool IsActiveLineConflict(DbUpdateException exception) =>
+    private static bool IsReversalConflict(DbUpdateException exception) =>
         exception.InnerException is PostgresException
         {
             SqlState: PostgresErrorCodes.UniqueViolation,
-            ConstraintName: "IX_GroceryItems_ActivePurchaseLineKey"
+            ConstraintName: "IX_GroceryItems_ActivePurchaseLineKey" or "IX_GroceryPurchaseEvents_OneReversalPerEvent"
         };
 
     private static GroceryWriteOutcome Success(GroceryCommandReceipt receipt, int statusCode)

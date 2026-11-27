@@ -15,6 +15,7 @@ public sealed class GroceryPurchaseEvent
     public required string ItemNameSnapshot { get; set; }
     public string? NoteSnapshot { get; set; }
     public Guid? StoreIdSnapshot { get; set; }
+    public string? StoreNameSnapshot { get; set; }
     public GroceryPurchaseOrigin Origin { get; set; }
     public Guid? ReversesEventId { get; set; }
     public string AffectedContributionIdsJson { get; set; } = "[]";

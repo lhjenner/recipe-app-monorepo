@@ -216,6 +216,7 @@ The implementation may simplify physical columns or use owned values, but must p
 - Enforce same-owner references for Ingredients, Recipes, list children and reversal targets at application and database-integrity boundaries. Use the repository's owner-aware FK pattern.
 - Archived Ingredients remain readable in existing lines/history; hide them from new-Ingredient pickers. Grocery-excluded Ingredients cannot be newly selected for a linked grocery addition.
 - History snapshots remain unchanged after an Ingredient rename, archive, mapping change or later Recipe import. Current outstanding display may resolve the latest Ingredient name/store mapping without rewriting history.
+- Purchases record the linked Ingredient's current name and selected store's current name at purchase time; reversals retain those snapshots. Earlier test events without a stored store name display the current store name without rewriting the append-only events.
 - No destructive cascade from Recipe/Ingredient changes into Grocery history. Referenced rows cannot be hard-deleted through incidental maintenance.
 - Use normalized-name rules from Ingredient Maintenance for unlinked identity and lookup. A name match does not substitute for a linked Ingredient FK.
 - Prevent duplicate active consolidation keys under concurrency. Reuse a completed line only where identity and purchase unit agree; retain distinct purchase events and Recipe-addition identities.
@@ -228,6 +229,7 @@ The implementation may simplify physical columns or use owned values, but must p
 - Explicit removal cancels only outstanding demand; it appends no purchase. Existing purchases remain visible and reversible.
 - Undo appends a compensating reversal and restores exactly the purchased quantity in one transaction. It does not erase the purchase or recreate previously cancelled unrelated demand.
 - Undo restores source associations affected by that event only, and only where they have not subsequently been explicitly cancelled. The restored shopping quantity remains valid even when its Recipe association was separately cancelled; retain historical attribution without resurrecting cancelled Recipe demand.
+- Restored purchase quantity is tracked separately from subsequent Recipe suggestions, so recalculation does not erase it or count restored associations twice. Existing outstanding test data from Undo operations made before this tracking was added is not reconstructed by the migration.
 - If the original line was removed, explicitly explain that undo will reopen that line for the reversed quantity. Do not merge by name or silently resurrect its whole old target.
 - A changed/cancelled source Recipe does not make a recorded purchase vanish. New purchases of the same item are separate events even on the same date.
 - Record selected store when supplied. An unknown store stays absent, not guessed from grouping state or product URLs.
@@ -281,7 +283,7 @@ Below the Grocery List store selector, show a prominently formatted, keyboard-ac
 ### Shopping, removal and undo
 
 - Default view contains only outstanding, noncancelled lines. Selecting "Mark purchased" immediately records the entire outstanding line without a confirmation dialog; no partial-purchase option is offered. Quantity adjustments do not create purchase events and cannot cross the Recipe-derived minimum.
-- Completed lines hide immediately after confirmed success; show a separate accessible, four-second purchase snackbar for each item with immediate Undo. Pause its timer while hovered or keyboard-focused; purchase history continues to require Undo confirmation. Do not optimistically claim success before the server confirms it.
+- Completed lines hide immediately after confirmed success; show a separate accessible, four-second purchase snackbar for each item with immediate Undo. Pause its timer while hovered, keyboard-focused, or while Undo is disabled awaiting synchronization; purchase history continues to require Undo confirmation. Do not optimistically claim success before the server confirms it.
 - "Show completed" exposes completed rows/events for the selected date scope.
 - History lists purchases and reversals with effective/reversed state, amount/unit, item snapshot, store and origin. Server-side paging and date filters; default today, selectable all dates. Reversals outside a date range must still determine the original event's current reversed state.
 - Restore exactly one event with Undo, even after midnight or a later purchase. Repeated undo has no additional effect.

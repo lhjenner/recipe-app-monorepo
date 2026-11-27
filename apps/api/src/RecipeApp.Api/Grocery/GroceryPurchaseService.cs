@@ -26,6 +26,7 @@ public sealed class GroceryPurchaseService(
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         var item = await database.GroceryItems
             .Include(value => value.Contributions)
+            .Include(value => value.Ingredient)
             .SingleOrDefaultAsync(value => value.Id == itemId && value.OwnerUserId == ownerId, cancellationToken);
         if (item is null)
         {
@@ -61,8 +62,12 @@ public sealed class GroceryPurchaseService(
                 "Purchase requests must match the entire current outstanding quantity and unit.");
         }
 
-        if (request.StoreId is not null
-            && !await database.Stores.AnyAsync(value => value.Id == request.StoreId, cancellationToken))
+        var storeName = request.StoreId is null
+            ? null
+            : await database.Stores.Where(value => value.Id == request.StoreId)
+                .Select(value => value.Name)
+                .SingleOrDefaultAsync(cancellationToken);
+        if (request.StoreId is not null && storeName is null)
         {
             return Invalid(nameof(request.StoreId), "The selected store does not exist.");
         }
@@ -80,6 +85,7 @@ public sealed class GroceryPurchaseService(
 
         item.State = GroceryItemState.Completed;
         item.OutstandingPurchaseQuantity = 0;
+        item.RestoredPurchaseQuantity = 0;
         item.UpdatedAtUtc = now;
         var purchaseEvent = new GroceryPurchaseEvent
         {
@@ -90,9 +96,10 @@ public sealed class GroceryPurchaseService(
             Quantity = request.ExpectedOutstandingQuantity,
             PurchaseUnit = item.PurchaseUnit,
             OccurredAtUtc = now,
-            ItemNameSnapshot = item.NameSnapshot,
+            ItemNameSnapshot = item.Ingredient?.Name ?? item.NameSnapshot,
             NoteSnapshot = item.Note,
             StoreIdSnapshot = request.StoreId,
+            StoreNameSnapshot = storeName,
             Origin = GroceryPurchaseOrigin.Manual,
             AffectedContributionIdsJson = JsonSerializer.Serialize(affectedContributionIds)
         };

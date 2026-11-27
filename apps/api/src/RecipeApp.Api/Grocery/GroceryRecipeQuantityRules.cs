@@ -12,7 +12,8 @@ internal static class GroceryRecipeQuantityRules
                 .Where(contribution => contribution.State == GroceryContributionState.Outstanding)
                 .ToArray();
             var recipeContributions = contributions
-                .Where(contribution => contribution.Origin == GroceryContributionOrigin.Recipe)
+                .Where(contribution => contribution.Origin == GroceryContributionOrigin.Recipe
+                    && !contribution.IsRestoredRecipeAssociation)
                 .ToArray();
             var manualDemand = contributions
                 .Where(contribution => contribution.Origin == GroceryContributionOrigin.Manual)
@@ -37,7 +38,7 @@ internal static class GroceryRecipeQuantityRules
                 recipeDemand = hasRecipeSuggestion ? 1m : 0m;
             }
 
-            outstandingQuantity = checked(recipeDemand + manualDemand);
+            outstandingQuantity = checked(recipeDemand + manualDemand + item.RestoredPurchaseQuantity);
             return GroceryDecimalContract.CanRepresent(outstandingQuantity);
         }
         catch (OverflowException)

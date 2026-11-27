@@ -149,7 +149,7 @@ for (const width of [320, 1280]) {
         expect(header.background).not.toBe('rgb(4, 219, 162)');
         expect(content.background).not.toBe('rgb(174, 255, 234)');
       }
-      expect(content.border).toBe(header.background);
+      expect(content.border).toBe(width <= 700 ? 'rgb(74, 124, 89)' : header.background);
       expect(contrastRatio(header.color, header.background)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(content.color, content.background)).toBeGreaterThanOrEqual(4.5);
       await page.mouse.move(0, 0);

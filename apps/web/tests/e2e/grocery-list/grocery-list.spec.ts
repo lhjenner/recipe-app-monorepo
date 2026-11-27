@@ -225,6 +225,48 @@ test('stacks purchase snackbars on mobile and undoes the selected purchase', asy
   await expect(second).toBeVisible();
 });
 
+test('allows retrying a failed grocery-list read needed for history Undo', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await page.route('**/api/grocery-list/purchase-history**', (route) => route.fulfill({
+    json: {
+      items: [{
+        id: '00000000-0000-7000-8000-000000000401',
+        groceryItemId: groceryList.items[0].id,
+        kind: 'purchase',
+        quantity: 2,
+        purchaseUnit: 'item',
+        occurredAtUtc: '2026-04-04T11:00:00Z',
+        itemNameSnapshot: 'green apples',
+        noteSnapshot: null,
+        storeId: null,
+        storeName: null,
+        origin: 'manual',
+        reversesEventId: null,
+        isReversed: false,
+      }],
+      totalCount: 1,
+      page: 1,
+      pageSize: 25,
+    },
+  }));
+  let listAvailable = false;
+  await page.route('**/api/grocery-list', (route) => {
+    return listAvailable
+      ? route.fulfill({ json: groceryList })
+      : route.fulfill({ status: 503, json: { title: 'List unavailable' } });
+  });
+  await page.goto('/grocery-list/history');
+  await expect(page.getByRole('alert')).toContainText('Unable to refresh the grocery list for Undo');
+  const undo = page.getByRole('table', { name: 'Purchase history' })
+    .getByRole('button', { name: 'Undo purchase' });
+  await expect(undo).toBeDisabled();
+  listAvailable = true;
+  await page.getByRole('button', { name: 'Retry grocery list' }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(undo).toBeEnabled();
+});
+
 for (const width of [320, 390, 1280]) {
 test(`purchase history displays responsive Undo and requires confirmation at ${width}px`, async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });

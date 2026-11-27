@@ -31,6 +31,7 @@ public sealed class GroceryPurchaseEventConfiguration : IEntityTypeConfiguration
             .HasPrecision(GroceryDecimalContract.Precision, GroceryDecimalContract.Scale);
         purchaseEvent.Property(entity => entity.PurchaseUnit).IsRequired().HasMaxLength(40);
         purchaseEvent.Property(entity => entity.ItemNameSnapshot).IsRequired().HasMaxLength(200);
+        purchaseEvent.Property(entity => entity.StoreNameSnapshot).HasMaxLength(100);
         purchaseEvent.Property(entity => entity.AffectedContributionIdsJson)
             .IsRequired()
             .HasColumnType("jsonb");

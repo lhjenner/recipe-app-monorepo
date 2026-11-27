@@ -83,6 +83,17 @@ function GroceryHistoryPage() {
             </p>
           )}
           {purchases.status && <p className="grocery-update-notice" role="status">{purchases.status}</p>}
+          {grocery.isLoading && !grocery.data && (
+            <p className="grocery-list-status" role="status">Loading grocery list for Undo…</p>
+          )}
+          {grocery.error && (
+            <div className="grocery-inline-error" role="alert">
+              <p>Unable to refresh the grocery list for Undo: {grocery.error}</p>
+              <button className="btn btn-secondary" type="button" onClick={() => grocery.reload()}>
+                Retry grocery list
+              </button>
+            </div>
+          )}
           {history.isLoading && validDateRange && <p className="grocery-list-status" role="status">Loading purchase history…</p>}
           {history.error && validDateRange && (
             <div className="grocery-inline-error" role="alert">

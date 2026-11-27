@@ -23,6 +23,7 @@ public sealed class GroceryContribution
     public Guid? SourceRecipeStepItemId { get; set; }
     public string? SourceRecipeNameSnapshot { get; set; }
     public decimal? ManualPurchaseIncrement { get; set; }
+    public bool IsRestoredRecipeAssociation { get; set; }
     public GroceryContributionState State { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public GroceryList? GroceryList { get; set; }

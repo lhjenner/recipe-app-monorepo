@@ -31,7 +31,7 @@ function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistory
                   {toTitleCase(event.itemNameSnapshot)}
                   {event.noteSnapshot && <small>{event.noteSnapshot}</small>}
                 </th>
-                <td>{formatAmount(event.quantity)}</td>
+                <td>{formatPurchaseQuantity(event)}</td>
                 <td>{event.storeName ?? 'Store not recorded'}</td>
                 <td>
                   <div className="grocery-history-record">
@@ -54,7 +54,7 @@ function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistory
             <h2>{toTitleCase(event.itemNameSnapshot)}</h2>
             <dl>
               <div><dt>Date</dt><dd>{formatDate(event.occurredAtUtc)}</dd></div>
-              <div><dt>Quantity</dt><dd>{formatAmount(event.quantity)}</dd></div>
+              <div><dt>Quantity</dt><dd>{formatPurchaseQuantity(event)}</dd></div>
               <div><dt>Store</dt><dd>{event.storeName ?? 'Store not recorded'}</dd></div>
               <div className="grocery-history-record-row">
                 <dt>Record</dt>
@@ -95,8 +95,9 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-function formatAmount(value: number): string {
-  return new Intl.NumberFormat('en-NZ', { maximumFractionDigits: 9 }).format(value);
+function formatPurchaseQuantity(event: GroceryHistoryEvent): string {
+  const amount = new Intl.NumberFormat('en-NZ', { maximumFractionDigits: 9 }).format(event.quantity);
+  return event.purchaseUnit.trim().toLowerCase() === 'item' ? amount : `${amount} ${event.purchaseUnit}`;
 }
 
 export default GroceryHistoryList;

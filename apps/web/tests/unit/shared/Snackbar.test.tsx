@@ -62,3 +62,16 @@ test('pauses dismissal while hovered or focused and resumes the remaining time',
   act(() => vi.advanceTimersByTime(1));
   expect(screen.queryByRole('button', { name: 'Undo purchase of Onions' })).not.toBeInTheDocument();
 });
+
+test('preserves the Undo window while its action is disabled', () => {
+  vi.useFakeTimers();
+  const action = { label: 'Undo', accessibleLabel: 'Undo purchase', disabled: true, onClick: vi.fn() };
+  const { rerender } = render(<Snackbar message="Purchased" action={action} />);
+  act(() => vi.advanceTimersByTime(10_000));
+  expect(screen.getByRole('status')).toBeInTheDocument();
+  rerender(<Snackbar message="Purchased" action={{ ...action, disabled: false }} />);
+  act(() => vi.advanceTimersByTime(3_999));
+  expect(screen.getByRole('status')).toBeInTheDocument();
+  act(() => vi.advanceTimersByTime(1));
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});

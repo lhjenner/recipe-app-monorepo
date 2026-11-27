@@ -18,7 +18,7 @@ function Snackbar({ message, action, onDismiss }: SnackbarProps) {
   const remaining = useRef(4_000);
 
   useEffect(() => {
-    if (!visible || hovered || focused) return;
+    if (!visible || hovered || focused || action?.disabled) return;
     const started = Date.now();
     const timer = window.setTimeout(() => {
       setVisible(false);
@@ -28,7 +28,7 @@ function Snackbar({ message, action, onDismiss }: SnackbarProps) {
       window.clearTimeout(timer);
       remaining.current = Math.max(0, remaining.current - (Date.now() - started));
     };
-  }, [visible, hovered, focused, onDismiss]);
+  }, [visible, hovered, focused, action?.disabled, onDismiss]);
 
   return visible ? (
     <div

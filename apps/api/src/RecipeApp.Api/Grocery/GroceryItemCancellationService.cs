@@ -62,6 +62,7 @@ public sealed class GroceryItemCancellationService(
         var now = timeProvider.GetUtcNow().UtcDateTime;
         item.State = GroceryItemState.Cancelled;
         item.OutstandingPurchaseQuantity = 0;
+        item.RestoredPurchaseQuantity = 0;
         item.UpdatedAtUtc = now;
         foreach (var contribution in item.Contributions.Where(value =>
                      value.State == GroceryContributionState.Outstanding))
@@ -126,15 +127,30 @@ public sealed class GroceryItemCancellationService(
         var ownerId = currentUser.UserId;
         await using var database = await databaseFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var list = await database.GroceryLists
-            .SingleOrDefaultAsync(value => value.OwnerUserId == ownerId, cancellationToken);
-        if (list is null)
-        {
-            return new GroceryCancelOutcome(StatusCodes.Status204NoContent);
-        }
-
         const string commandType = "items-cancel";
         var fingerprint = GroceryCommandFingerprint.Compute(commandType, command);
+        var list = await database.GroceryLists
+            .SingleOrDefaultAsync(value => value.OwnerUserId == ownerId, cancellationToken);
+        var created = list is null;
+        if (list is null)
+        {
+            if (command.ExpectedListVersion != 0)
+            {
+                return Conflict("The grocery list changed. Reload it before clearing outstanding items.");
+            }
+            var createdAt = timeProvider.GetUtcNow().UtcDateTime;
+            list = new GroceryList { OwnerUserId = ownerId, CreatedAtUtc = createdAt, UpdatedAtUtc = createdAt };
+            database.GroceryLists.Add(list);
+            try
+            {
+                await database.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException exception) when (GroceryRecipeServiceSupport.IsOwnerListConflict(exception))
+            {
+                return await RecoverAsync("The grocery list was created elsewhere. Reload it before clearing outstanding items.");
+            }
+        }
+
         var existingReceipt = await database.GroceryCommandReceipts
             .AsNoTracking()
             .SingleOrDefaultAsync(value => value.OwnerUserId == ownerId
@@ -149,7 +165,7 @@ public sealed class GroceryItemCancellationService(
                 : Conflict("This command ID was already used with different content.");
         }
 
-        if (list.Version != command.ExpectedListVersion)
+        if (!created && list.Version != command.ExpectedListVersion)
         {
             return await RecoverAsync("The grocery list changed. Reload it before clearing outstanding items.");
         }
@@ -165,6 +181,7 @@ public sealed class GroceryItemCancellationService(
         {
             item.State = GroceryItemState.Cancelled;
             item.OutstandingPurchaseQuantity = 0;
+            item.RestoredPurchaseQuantity = 0;
             item.UpdatedAtUtc = now;
             foreach (var contribution in item.Contributions.Where(
                          value => value.State == GroceryContributionState.Outstanding))

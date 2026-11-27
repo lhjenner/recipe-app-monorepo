@@ -90,7 +90,9 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
   const includeCompleted = query.includeCompleted ?? false;
   const from = query.from;
   const to = query.to;
+  const queryKey = JSON.stringify([includeCompleted, from, to]);
   const [data, setData] = useState<GroceryList | null>(null);
+  const [dataQueryKey, setDataQueryKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStale, setIsStale] = useState(false);
@@ -156,6 +158,7 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
         previousList = next;
         hasDataRef.current = true;
         setData(next);
+        setDataQueryKey(queryKey);
         setError(null);
         setIsStale(false);
         setLastSuccessfulAt(new Date());
@@ -204,8 +207,8 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
     refreshRef.current = (change) => {
       if (change) {
         localChange = change;
-        retireRequest();
       }
+      retireRequest();
       void refresh();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -225,10 +228,12 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('pageshow', handlePageShow);
     };
-  }, [includeCompleted, from, to]);
+  }, [includeCompleted, from, to, queryKey]);
 
   return {
-    data,
+    data: data && dataQueryKey !== queryKey
+      ? { ...data, items: data.items.filter((item) => item.state === 'outstanding') }
+      : data,
     isLoading,
     error,
     isStale,

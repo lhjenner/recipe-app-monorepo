@@ -266,6 +266,39 @@ test('retires an in-flight poll before refreshing a successful purchase', async 
   expect(result.current.data).toEqual(next);
 });
 
+test('retires an in-flight poll for an explicit reload without purchase metadata', async () => {
+  let resolvePoll: ((list: GroceryList) => void) | undefined;
+  const updated = { ...emptyList, id: 'list', version: 2 };
+  getGroceryListMock.mockResolvedValueOnce(emptyList)
+    .mockImplementationOnce(() => new Promise<GroceryList>((resolve) => { resolvePoll = resolve; }))
+    .mockResolvedValueOnce(updated);
+  const { result } = renderHook(() => useGroceryList());
+  await act(async () => {});
+  await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+  const signal = getGroceryListMock.mock.calls[1][0];
+  await act(async () => result.current.reload());
+  expect(signal?.aborted).toBe(true);
+  expect(result.current.data).toEqual(updated);
+  await act(async () => resolvePoll?.(emptyList));
+  expect(result.current.data).toEqual(updated);
+});
+
+test('hides previous completed results when the date scope changes and the new read fails', async () => {
+  const previous = structuredClone(groceryList);
+  previous.items[0].state = 'completed';
+  getGroceryListMock.mockResolvedValueOnce(previous).mockRejectedValueOnce(new Error('offline'));
+  const { result, rerender } = renderHook(
+    ({ from }) => useGroceryList({ includeCompleted: true, from, to: from }),
+    { initialProps: { from: '2026-04-04' } },
+  );
+  await act(async () => {});
+  expect(result.current.data?.items.some((item) => item.state === 'completed')).toBe(true);
+  await act(async () => rerender({ from: '2026-04-05' }));
+  expect(result.current.data?.items.some((item) => item.state === 'completed')).toBe(false);
+  expect(result.current.data?.items.some((item) => item.state === 'outstanding')).toBe(true);
+  expect(result.current.isStale).toBe(true);
+});
+
 test('keeps the last good list stale after a failed poll and clears stale only on success', async () => {
   getGroceryListMock
     .mockResolvedValueOnce(emptyList)
