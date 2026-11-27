@@ -1,1 +1,1 @@
-export { Check, Pencil, Trash2 } from 'lucide-react';
+export { Archive, Check, Pencil, Trash2 } from 'lucide-react';

@@ -158,7 +158,14 @@ test.describe('Ingredient create and edit', () => {
     await page.getByRole('combobox', { name: 'New World Greenmeadows department' }).fill('Fruit');
     await page.getByRole('button', { name: "Create 'Fruit'" }).click();
     await page.getByRole('checkbox', { name: 'Not stocked' }).nth(1).check();
-    await page.getByRole('button', { name: 'Add product link' }).click();
+    const addProductLink = page.getByRole('button', { name: 'Add product link' });
+    await expect(addProductLink).toHaveClass(/btn-primary/);
+    await addProductLink.click();
+    const removeLink = page.getByRole('button', { name: 'Remove link' });
+    await expect(removeLink).toHaveClass(/btn-danger-secondary/);
+    await removeLink.click();
+    await expect(page.getByRole('textbox', { name: 'Product link 1 URL' })).toHaveCount(0);
+    await addProductLink.click();
     await page.getByRole('textbox', { name: 'Product link 1 URL' }).fill('https://example.com/green-apples');
     await page.getByRole('textbox', { name: 'Variant label (optional)' }).fill('Granny Smith');
     await page.getByRole('spinbutton', { name: 'Energy (kcal)' }).fill('52');

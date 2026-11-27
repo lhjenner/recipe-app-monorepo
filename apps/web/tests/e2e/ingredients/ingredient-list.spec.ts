@@ -7,6 +7,41 @@ import {
 } from '../support/mockIngredientListApi.ts';
 
 test.describe('Ingredient Maintenance list', () => {
+  for (const width of [320, 390, 1280]) {
+    test(`shows accessible edit and archive icons at ${width}px`, async ({ page }) => {
+      await mockAuthApi(page, { hasSession: true });
+      await mockIngredientApi(page, [ingredient('Basil')]);
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto('/ingredient-maintenance');
+
+      const container = width > 700
+        ? page.getByRole('row', { name: /Basil/ })
+        : page.getByRole('article', { name: 'Basil' });
+      const edit = container.getByRole('link', { name: 'Edit Basil' });
+      const archive = container.getByRole('button', { name: 'Archive Basil' });
+      await expect(edit).toHaveAttribute('href', /\/ingredient-maintenance\/[^/]+$/);
+      for (const [action, label] of [[edit, 'Edit'], [archive, 'Archive']] as const) {
+        await expect(action.locator('svg')).toHaveCount(1);
+        const bounds = await action.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds!.width).toBeGreaterThanOrEqual(40);
+        expect(bounds!.height).toBeGreaterThanOrEqual(40);
+        const tooltip = action.getByText(label, { exact: true });
+        await expect(tooltip).toBeHidden();
+        await action.hover();
+        if (width > 700) {
+          await expect(tooltip).toBeVisible();
+          await page.mouse.move(0, 0);
+          await action.focus();
+          await expect(tooltip).toBeVisible();
+        } else {
+          await expect(tooltip).toBeHidden();
+        }
+        await action.blur();
+      }
+    });
+  }
+
   test('AC-05, AC-08, AC-09, and AC-10 show the desktop table and mapping states', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockIngredientApi(page, [
