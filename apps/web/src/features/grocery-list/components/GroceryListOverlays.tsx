@@ -119,16 +119,6 @@ function GroceryListOverlays({
         onConfirm={clearAll.confirm}
       />
       <ConfirmDialog
-        open={purchases.purchaseItem !== null}
-        title="Mark item purchased?"
-        message={purchases.purchaseItem
-          ? `Record the whole outstanding quantity of ${formatAmount(purchases.purchaseItem.outstandingPurchaseQuantity)} ${purchases.purchaseItem.purchaseUnit} of ${toTitleCase(purchases.purchaseItem.name)} as purchased?`
-          : undefined}
-        confirmLabel="Mark purchased"
-        onCancel={purchases.cancelPurchase}
-        onConfirm={purchases.confirmPurchase}
-      />
-      <ConfirmDialog
         open={purchases.undoEventId !== null}
         title="Undo purchase?"
         message={`Restore the recorded quantity for ${purchases.undoItemName ? toTitleCase(purchases.undoItemName) : 'this item'} as outstanding demand? The original purchase will remain in history.`}
@@ -138,10 +128,6 @@ function GroceryListOverlays({
       />
     </>
   );
-}
-
-function formatAmount(value: number): string {
-  return new Intl.NumberFormat('en-NZ', { maximumFractionDigits: 9 }).format(value);
 }
 
 export default GroceryListOverlays;

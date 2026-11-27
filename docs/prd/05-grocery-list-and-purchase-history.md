@@ -280,7 +280,7 @@ Below the Grocery List store selector, show a prominently formatted, keyboard-ac
 
 ### Shopping, removal and undo
 
-- Default view contains only outstanding, noncancelled lines. "Mark purchased" records the entire outstanding line; no partial-purchase option is offered. Quantity adjustments do not create purchase events and cannot cross the Recipe-derived minimum.
+- Default view contains only outstanding, noncancelled lines. Selecting "Mark purchased" immediately records the entire outstanding line without a confirmation dialog; no partial-purchase option is offered. Quantity adjustments do not create purchase events and cannot cross the Recipe-derived minimum.
 - Completed lines hide immediately after confirmed success; show an accessible notice with Undo. Do not optimistically claim success before the server confirms it.
 - "Show completed" exposes completed rows/events for the selected date scope.
 - History lists purchases and reversals with effective/reversed state, amount/unit, item snapshot, store and origin. Server-side paging and date filters; default today, selectable all dates. Reversals outside a date range must still determine the original event's current reversed state.

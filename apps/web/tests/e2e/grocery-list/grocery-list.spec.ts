@@ -33,7 +33,8 @@ test('requires confirmation before removing an item and allows cancellation with
   await expect.poll(() => removals).toBe(1);
 });
 
-test('records a whole-line purchase and reverses it without erasing its history', async ({ page }) => {
+for (const width of [390, 1280]) {
+test(`records a whole-line purchase without confirmation and reverses it at ${width}px`, async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
   await mockGroceryApi(page);
   const list = structuredClone(groceryList);
@@ -117,12 +118,13 @@ test('records a whole-line purchase and reverses it without erasing its history'
     });
   });
 
+  await page.setViewportSize({ width, height: 844 });
   await page.goto('/grocery-list');
-  const itemRow = page.getByRole('row', { name: /Green Apples/ });
+  const itemRow = width > 700
+    ? page.getByRole('row', { name: /Green Apples/ })
+    : page.locator('.grocery-item-card').filter({ has: page.getByRole('heading', { name: 'Green Apples' }) });
   await itemRow.getByRole('button', { name: 'Mark purchased' }).click();
-  const purchaseDialog = page.getByRole('dialog', { name: 'Mark item purchased?' });
-  await expect(purchaseDialog).toContainText('whole outstanding quantity of 2 item');
-  await purchaseDialog.getByRole('button', { name: 'Mark purchased' }).click();
+  await expect(page.getByRole('dialog', { name: 'Mark item purchased?' })).toHaveCount(0);
   await expect(page.getByRole('status').filter({ hasText: 'Green Apples purchased.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo purchase' })).toBeEnabled();
 
@@ -131,11 +133,15 @@ test('records a whole-line purchase and reverses it without erasing its history'
   await expect(undoDialog).toContainText('original purchase will remain in history');
   await undoDialog.getByRole('button', { name: 'Undo purchase' }).click();
   await expect(page.getByText('Purchase undone.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('row', { name: /Green Apples/ })).toBeVisible();
+  await expect(itemRow).toBeVisible();
   await page.getByRole('link', { name: 'Purchase history' }).click();
-  await expect(page.getByText('Purchase reversed').first()).toBeVisible();
-  await expect(page.getByText('Undo recorded (manual)').first()).toBeVisible();
+  const history = width > 700
+    ? page.getByRole('table', { name: 'Purchase history' })
+    : page.getByRole('list', { name: 'Purchase history' });
+  await expect(history.getByText('Purchase reversed')).toBeVisible();
+  await expect(history.getByText('Undo recorded (manual)')).toBeVisible();
 });
+}
 
 test('grocery dialogs contain focus, close with Escape and restore the trigger', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });

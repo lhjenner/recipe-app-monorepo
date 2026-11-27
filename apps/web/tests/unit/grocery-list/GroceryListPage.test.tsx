@@ -98,18 +98,12 @@ beforeEach(() => {
   });
 });
 
-test('confirms a whole-line purchase and offers its compensating undo', async () => {
+test('purchases the whole line immediately and offers its compensating undo', async () => {
   const state = mocks.useGroceryList();
   const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
 
   fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[0]);
-  expect(screen.getByRole('dialog', { name: 'Mark item purchased?' }))
-    .toHaveTextContent('whole outstanding quantity of 2 onion of Onions');
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-  expect(mocks.purchaseGroceryItem).not.toHaveBeenCalled();
-
-  fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[0]);
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Mark purchased' }));
+  expect(screen.queryByRole('dialog', { name: 'Mark item purchased?' })).not.toBeInTheDocument();
   await waitFor(() => expect(mocks.purchaseGroceryItem).toHaveBeenCalledWith('item-id', {
     commandId: expect.any(String),
     expectedListVersion: 12,
@@ -132,6 +126,16 @@ test('confirms a whole-line purchase and offers its compensating undo', async ()
     commandId: expect.any(String),
     expectedListVersion: 13,
   }));
+});
+
+test('prevents repeated purchase requests while a purchase is in flight', () => {
+  mocks.purchaseGroceryItem.mockReturnValueOnce(new Promise(() => {}));
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  const purchase = screen.getAllByRole('button', { name: 'Mark purchased' })[0];
+  fireEvent.click(purchase);
+  fireEvent.click(purchase);
+  expect(mocks.purchaseGroceryItem).toHaveBeenCalledTimes(1);
+  expect(purchase).toBeDisabled();
 });
 
 test('clears only outstanding demand after explicit confirmation', async () => {
@@ -185,7 +189,6 @@ test('retries an uncertain purchase with the original command and blocks other c
   render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
 
   fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[0]);
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Mark purchased' }));
   await screen.findByText('Response lost');
   const retry = screen.getByRole('button', { name: 'Retry purchase' });
   expect(screen.getByRole('button', { name: 'Add items' })).toBeDisabled();

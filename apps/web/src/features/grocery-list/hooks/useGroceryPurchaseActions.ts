@@ -28,12 +28,6 @@ type UndoCommand = {
 
 type PendingCommand = PurchaseCommand | UndoCommand;
 
-interface PurchaseSelection {
-  item: GroceryItem;
-  expectedListVersion: number;
-  storeId: string | null;
-}
-
 interface UndoSelection {
   eventId: string;
   itemName: string;
@@ -44,7 +38,6 @@ export function useGroceryPurchaseActions(
   grocery: GroceryListState,
   onHistoryChanged?: () => void,
 ) {
-  const [purchaseSelection, setPurchaseSelection] = useState<PurchaseSelection | null>(null);
   const [undoSelection, setUndoSelection] = useState<UndoSelection | null>(null);
   const [pending, setPending] = useState<PendingCommand | null>(null);
   const [purchaseNotice, setPurchaseNotice] = useState<{ eventId: string; itemName: string } | null>(null);
@@ -61,21 +54,12 @@ export function useGroceryPurchaseActions(
     setError(null);
     setStatus(null);
     setPurchaseNotice(null);
-    setPurchaseSelection({ item, expectedListVersion: grocery.data.version, storeId });
-  }
-
-  function confirmPurchase() {
-    if (!purchaseSelection || blocked) {
-      return;
-    }
-    const { item, expectedListVersion, storeId } = purchaseSelection;
-    setPurchaseSelection(null);
     void execute({
       kind: 'purchase',
       itemId: item.id,
       itemName: item.name,
       commandId: crypto.randomUUID(),
-      expectedListVersion,
+      expectedListVersion: grocery.data.version,
       expectedOutstandingQuantity: item.outstandingPurchaseQuantity,
       purchaseUnit: item.purchaseUnit,
       storeId,
@@ -170,13 +154,10 @@ export function useGroceryPurchaseActions(
     || (requiredVersion !== null && (grocery.data?.version ?? 0) < requiredVersion);
 
   return {
-    purchaseItem: purchaseSelection?.item ?? null,
     undoItemName: undoSelection?.itemName ?? null,
     undoEventId: undoSelection?.eventId ?? null,
     purchaseNotice,
     requestPurchase,
-    confirmPurchase,
-    cancelPurchase: () => setPurchaseSelection(null),
     requestUndo,
     confirmUndo,
     cancelUndo: () => setUndoSelection(null),
