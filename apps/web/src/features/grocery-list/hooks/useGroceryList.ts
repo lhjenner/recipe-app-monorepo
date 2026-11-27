@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   getGroceryList,
+  type GroceryItem,
   type GroceryListQuery,
   type GroceryList,
 } from '../services/groceryListApi';
@@ -11,6 +12,15 @@ export interface LocalPurchase {
   version: number;
   itemId: string;
 }
+
+export interface LocalUndo {
+  kind: 'undo';
+  version: number;
+  expectedVersion: number;
+  item: GroceryItem;
+}
+
+export type LocalChange = LocalPurchase | LocalUndo;
 
 function itemSnapshot(items: GroceryList['items']): string {
   return JSON.stringify(items.map((item) => ({
@@ -35,6 +45,36 @@ export function isPurchaseOnlyChange(
       === itemSnapshot(next.items.filter((item) => item.id !== purchase.itemId));
 }
 
+export function isLocalChangeOnly(previous: GroceryList, next: GroceryList, change: LocalChange): boolean {
+  if (!('kind' in change)) return isPurchaseOnlyChange(previous, next, change);
+  if (previous.id !== next.id || previous.version !== change.expectedVersion || next.version !== change.version) {
+    return false;
+  }
+  const { item } = change;
+  const previousItem = previous.items.find((candidate) => candidate.id === item.id);
+  const restored = next.items.find((candidate) => candidate.id === item.id);
+  if ((!previousItem || previousItem.state === 'completed')
+    && restored?.state === 'outstanding'
+    && previous.completedItemCount - 1 === next.completedItemCount) {
+    return itemSnapshot(previous.items.filter((candidate) => candidate.id !== item.id))
+      === itemSnapshot(next.items.filter((candidate) => candidate.id !== item.id));
+  }
+
+  if (previous.completedItemCount !== next.completedItemCount) return false;
+  return previous.items.some((candidate) => {
+    if (candidate.id === item.id || candidate.state !== 'outstanding'
+      || candidate.ingredientId !== item.ingredientId
+      || (item.ingredientId === null && candidate.name.toLowerCase() !== item.name.toLowerCase())
+      || candidate.dimension !== item.dimension || candidate.countLabel !== item.countLabel
+      || candidate.purchaseUnit !== item.purchaseUnit) return false;
+    const updated = next.items.find((nextItem) => nextItem.id === candidate.id);
+    return updated?.state === 'outstanding'
+      && updated.outstandingPurchaseQuantity > candidate.outstandingPurchaseQuantity
+      && itemSnapshot(previous.items.filter((value) => value.id !== candidate.id))
+        === itemSnapshot(next.items.filter((value) => value.id !== candidate.id));
+  });
+}
+
 export interface GroceryListState {
   data: GroceryList | null;
   isLoading: boolean;
@@ -43,7 +83,7 @@ export interface GroceryListState {
   lastSuccessfulAt: Date | null;
   updateCount: number;
   lastChange: { previous: GroceryList; next: GroceryList } | null;
-  reload: (localPurchase?: LocalPurchase) => void;
+  reload: (localChange?: LocalChange) => void;
 }
 
 export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
@@ -57,7 +97,7 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
   const [lastSuccessfulAt, setLastSuccessfulAt] = useState<Date | null>(null);
   const [updateCount, setUpdateCount] = useState(0);
   const [lastChange, setLastChange] = useState<{ previous: GroceryList; next: GroceryList } | null>(null);
-  const refreshRef = useRef<((localPurchase?: LocalPurchase) => void) | null>(null);
+  const refreshRef = useRef<((localChange?: LocalChange) => void) | null>(null);
   const hasDataRef = useRef(false);
 
   useEffect(() => {
@@ -66,7 +106,7 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
     let controller: AbortController | null = null;
     let requestInFlight = false;
     let previousList: GroceryList | null = null;
-    let localPurchase: LocalPurchase | undefined;
+    let localChange: LocalChange | undefined;
 
     function retireRequest() {
       controller?.abort();
@@ -107,12 +147,12 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
           id: list.id, completedItemCount: list.completedItemCount, items: itemSnapshot(list.items),
         });
         if (previousList && snapshot(previousList) !== snapshot(next)) {
-          if (!localPurchase || !isPurchaseOnlyChange(previousList, next, localPurchase)) {
+          if (!localChange || !isLocalChangeOnly(previousList, next, localChange)) {
             setLastChange({ previous: previousList, next });
             setUpdateCount((count) => count + 1);
           }
         }
-        localPurchase = undefined;
+        localChange = undefined;
         previousList = next;
         hasDataRef.current = true;
         setData(next);
@@ -161,9 +201,9 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
       }
     }
 
-    refreshRef.current = (purchase) => {
-      if (purchase) {
-        localPurchase = purchase;
+    refreshRef.current = (change) => {
+      if (change) {
+        localChange = change;
         retireRequest();
       }
       void refresh();
@@ -195,6 +235,6 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
     lastSuccessfulAt,
     updateCount,
     lastChange,
-    reload: (purchase) => refreshRef.current?.(purchase),
+    reload: (change) => refreshRef.current?.(change),
   };
 }

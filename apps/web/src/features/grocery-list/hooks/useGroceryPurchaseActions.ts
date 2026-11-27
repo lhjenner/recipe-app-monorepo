@@ -5,12 +5,13 @@ import {
   reverseGroceryPurchase,
   type GroceryItem,
 } from '../services/groceryListApi';
-import type { GroceryListState, LocalPurchase } from './useGroceryList';
+import type { GroceryListState, LocalChange } from './useGroceryList';
 
 type PurchaseCommand = {
   kind: 'purchase';
   itemId: string;
   itemName: string;
+  item: GroceryItem;
   commandId: string;
   expectedListVersion: number;
   expectedOutstandingQuantity: number;
@@ -22,6 +23,7 @@ type UndoCommand = {
   kind: 'undo';
   eventId: string;
   itemName: string;
+  item: GroceryItem | null;
   commandId: string;
   expectedListVersion: number;
 };
@@ -40,8 +42,8 @@ export function useGroceryPurchaseActions(
 ) {
   const [undoSelection, setUndoSelection] = useState<UndoSelection | null>(null);
   const [pending, setPending] = useState<PendingCommand | null>(null);
-  const [purchaseNotices, setPurchaseNotices] = useState<{ eventId: string; itemName: string }[]>([]);
-  const [lastPurchase, setLastPurchase] = useState<LocalPurchase | null>(null);
+  const [purchaseNotices, setPurchaseNotices] = useState<{ eventId: string; itemName: string; item: GroceryItem }[]>([]);
+  const [lastLocalChange, setLastLocalChange] = useState<LocalChange | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -58,6 +60,7 @@ export function useGroceryPurchaseActions(
       kind: 'purchase',
       itemId: item.id,
       itemName: item.name,
+      item,
       commandId: crypto.randomUUID(),
       expectedListVersion: grocery.data.version,
       expectedOutstandingQuantity: item.outstandingPurchaseQuantity,
@@ -77,11 +80,14 @@ export function useGroceryPurchaseActions(
 
   function undoPurchase(eventId: string, itemName: string) {
     if (blocked || !grocery.data) return;
+    const notice = purchaseNotices.find((value) => value.eventId === eventId);
+    if (!notice) return;
     setStatus(null);
     void execute({
       kind: 'undo',
       eventId,
       itemName,
+      item: notice.item,
       commandId: crypto.randomUUID(),
       expectedListVersion: grocery.data.version,
     });
@@ -97,6 +103,7 @@ export function useGroceryPurchaseActions(
       kind: 'undo',
       eventId: selection.eventId,
       itemName: selection.itemName,
+      item: null,
       commandId: crypto.randomUUID(),
       expectedListVersion: selection.expectedListVersion,
     });
@@ -132,16 +139,19 @@ export function useGroceryPurchaseActions(
       setRequiredVersion(receipt.resultListVersion);
       if (command.kind === 'purchase') {
         setPurchaseNotices((notices) => notices.some((notice) => notice.eventId === eventId)
-          ? notices : [...notices, { eventId, itemName: command.itemName }]);
-        setLastPurchase({ version: receipt.resultListVersion, itemId: command.itemId });
+          ? notices : [...notices, { eventId, itemName: command.itemName, item: command.item }]);
         setStatus(null);
       } else {
         setPurchaseNotices((notices) => notices.filter((notice) => notice.eventId !== command.eventId));
         setStatus('Purchase undone.');
       }
-      grocery.reload(command.kind === 'purchase'
+      const localChange: LocalChange | undefined = command.kind === 'purchase'
         ? { version: receipt.resultListVersion, itemId: command.itemId }
-        : undefined);
+        : command.item
+          ? { kind: 'undo', version: receipt.resultListVersion, expectedVersion: command.expectedListVersion, item: command.item }
+          : undefined;
+      if (localChange) setLastLocalChange(localChange);
+      grocery.reload(localChange);
       onHistoryChanged?.();
     } catch (requestError: unknown) {
       const failure = requestError instanceof GroceryListApiError
@@ -173,7 +183,7 @@ export function useGroceryPurchaseActions(
     undoItemName: undoSelection?.itemName ?? null,
     undoEventId: undoSelection?.eventId ?? null,
     purchaseNotices,
-    lastPurchase,
+    lastLocalChange,
     dismissPurchaseNotice: (eventId: string) =>
       setPurchaseNotices((notices) => notices.filter((notice) => notice.eventId !== eventId)),
     requestPurchase,

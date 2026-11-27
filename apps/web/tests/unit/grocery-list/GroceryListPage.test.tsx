@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../src/features/grocery-list/hooks/useGroceryList', () => ({
   useGroceryList: mocks.useGroceryList,
-  isPurchaseOnlyChange: vi.fn(() => false),
+  isLocalChangeOnly: vi.fn(() => false),
 }));
 
 vi.mock('../../../src/features/ingredients/hooks/useSupermarkets', () => ({
@@ -127,6 +127,12 @@ test('purchases the whole line and undoes it directly from the snackbar', async 
   await waitFor(() => expect(mocks.reverseGroceryPurchase).toHaveBeenCalledWith('purchase-event', {
     commandId: expect.any(String),
     expectedListVersion: 13,
+  }));
+  await waitFor(() => expect(state.reload).toHaveBeenCalledWith({
+    kind: 'undo',
+    version: 14,
+    expectedVersion: 13,
+    item: expect.objectContaining({ id: 'item-id' }),
   }));
 });
 

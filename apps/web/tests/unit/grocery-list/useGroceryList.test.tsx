@@ -176,6 +176,73 @@ test('does not announce a poll that only reorders store mappings', async () => {
   expect(result.current.updateCount).toBe(0);
 });
 
+test.each([
+  { showCompleted: false, otherChange: false },
+  { showCompleted: true, otherChange: false },
+  { showCompleted: false, otherChange: true },
+])('suppresses only a local undo (completed: $showCompleted, other change: $otherChange)', async ({
+  showCompleted, otherChange,
+}) => {
+  const restored = structuredClone(groceryList.items[0]);
+  const previous = structuredClone(groceryList);
+  previous.version = 2;
+  previous.completedItemCount = 1;
+  if (showCompleted) {
+    previous.items[0].state = 'completed';
+    previous.items[0].outstandingPurchaseQuantity = 0;
+  } else {
+    previous.items.shift();
+  }
+  const next = structuredClone(previous);
+  next.version = 3;
+  next.completedItemCount = 0;
+  next.items = [restored, ...next.items.filter((item) => item.id !== restored.id)];
+  if (otherChange) next.items[1].name = 'updated elsewhere';
+  getGroceryListMock.mockResolvedValueOnce(previous).mockResolvedValue(next);
+  const { result } = renderHook(() => useGroceryList({ includeCompleted: showCompleted }));
+  await act(async () => {});
+  await act(async () => result.current.reload({
+    kind: 'undo', version: 3, expectedVersion: 2, item: restored,
+  }));
+  expect(result.current.updateCount).toBe(otherChange ? 1 : 0);
+});
+
+test.each([false, true])('handles an undo merged into an outstanding line (other change: %s)', async (otherChange) => {
+  const restored = structuredClone(groceryList.items[0]);
+  const previous = structuredClone(groceryList);
+  previous.version = 2;
+  previous.completedItemCount = 1;
+  previous.items[0] = { ...restored, id: 'existing-line', outstandingPurchaseQuantity: 3 };
+  const next = structuredClone(previous);
+  next.version = 3;
+  next.items[0].outstandingPurchaseQuantity += restored.outstandingPurchaseQuantity;
+  if (otherChange) next.items[1].name = 'updated elsewhere';
+  getGroceryListMock.mockResolvedValueOnce(previous).mockResolvedValue(next);
+  const { result } = renderHook(() => useGroceryList());
+  await act(async () => {});
+  await act(async () => result.current.reload({
+    kind: 'undo', version: 3, expectedVersion: 2, item: restored,
+  }));
+  expect(result.current.updateCount).toBe(otherChange ? 1 : 0);
+});
+
+test('announces an undo refresh containing an additional list version', async () => {
+  const restored = structuredClone(groceryList.items[0]);
+  const previous = structuredClone(groceryList);
+  previous.version = 2;
+  previous.completedItemCount = 1;
+  previous.items.shift();
+  const next = structuredClone(groceryList);
+  next.version = 4;
+  getGroceryListMock.mockResolvedValueOnce(previous).mockResolvedValue(next);
+  const { result } = renderHook(() => useGroceryList());
+  await act(async () => {});
+  await act(async () => result.current.reload({
+    kind: 'undo', version: 3, expectedVersion: 2, item: restored,
+  }));
+  expect(result.current.updateCount).toBe(1);
+});
+
 test('retires an in-flight poll before refreshing a successful purchase', async () => {
   const previous = structuredClone(groceryList);
   const next = structuredClone(previous);

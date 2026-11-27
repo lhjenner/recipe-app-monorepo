@@ -138,12 +138,14 @@ test(`records a whole-line purchase without confirmation and reverses it at ${wi
   await expect(page.getByRole('dialog', { name: 'Mark item purchased?' })).toHaveCount(0);
   await expect(page.getByRole('status').filter({ hasText: 'Purchased: Green Apples' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo purchase of Green Apples' })).toBeEnabled();
+  await expect(itemRow).toHaveCount(0);
   await expect(page.getByRole('status').filter({ hasText: 'Grocery list updated.' })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Undo purchase of Green Apples' }).click();
   await expect(page.getByRole('dialog', { name: 'Undo purchase?' })).toHaveCount(0);
   await expect(page.getByText('Purchase undone.', { exact: true })).toBeVisible();
   await expect(itemRow).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Grocery list updated.' })).toHaveCount(0);
   await page.getByRole('link', { name: 'Purchase history' }).click();
   const history = width > 700
     ? page.getByRole('table', { name: 'Purchase history' })

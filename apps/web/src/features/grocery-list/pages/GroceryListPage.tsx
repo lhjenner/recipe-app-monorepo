@@ -11,7 +11,7 @@ import GroceryItemEditDialog from '../components/GroceryItemEditDialog';
 import GroceryManualEntryModal from '../components/GroceryManualEntryModal';
 import GroceryRecipeSources from '../components/GroceryRecipeSources';
 import { groupGroceryItems } from '../models/groceryGrouping';
-import { isPurchaseOnlyChange, useGroceryList } from '../hooks/useGroceryList';
+import { isLocalChangeOnly, useGroceryList } from '../hooks/useGroceryList';
 import { useGroceryQuantityUpdate } from '../hooks/useGroceryQuantityUpdate';
 import { useGroceryItemRemoval } from '../hooks/useGroceryItemRemoval';
 import { useGroceryRecipeRemoval } from '../hooks/useGroceryRecipeRemoval';
@@ -179,8 +179,8 @@ function GroceryListPage() {
         purchases={purchases}
       />
       <div className="snackbar-stack">
-        {grocery.updateCount > 0 && !(grocery.lastChange && purchases.lastPurchase
-          && isPurchaseOnlyChange(grocery.lastChange.previous, grocery.lastChange.next, purchases.lastPurchase)) && (
+        {grocery.updateCount > 0 && !(grocery.lastChange && purchases.lastLocalChange
+          && isLocalChangeOnly(grocery.lastChange.previous, grocery.lastChange.next, purchases.lastLocalChange)) && (
           <Snackbar key={`update-${grocery.updateCount}`} message="Grocery list updated." />
         )}
         {purchases.purchaseNotices.map((notice) => (
