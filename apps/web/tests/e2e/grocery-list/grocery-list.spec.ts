@@ -967,6 +967,9 @@ test.describe('Grocery list reads', () => {
     await expect(page.getByRole('table', { name: 'Outstanding grocery items' })).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Green Apples', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Not stocked here', exact: true })).toBeVisible();
+    for (const card of await page.getByRole('article').all()) {
+      await expect(card).toHaveCSS('border-color', 'rgb(74, 124, 89)');
+    }
 
     await page.getByRole('link', { name: 'Purchase history' }).click();
     await expect(page.getByRole('heading', { name: 'Purchase History' })).toBeVisible();
@@ -1010,6 +1013,10 @@ test.describe('Grocery list reads', () => {
     });
     await page.goto('/grocery-list');
     await expect(page.getByText('There are no outstanding grocery items.', { exact: true })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole('status').filter({ hasText: 'There are no outstanding grocery items.' }))
+      .toHaveCSS('border-color', 'rgb(74, 124, 89)');
+    await page.setViewportSize({ width: 1280, height: 844 });
     const initialReadCount = readCount;
 
     secondDeviceUpdated = true;

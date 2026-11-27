@@ -45,6 +45,8 @@ for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto('/grocery-list');
     const accordion = page.locator('details.grocery-recipe-sources');
+    await expect(accordion).toHaveCSS('border-color', width <= 700
+      ? 'rgb(74, 124, 89)' : 'rgb(4, 219, 162)');
     await accordion.getByText('Recipes on Grocery List').click();
 
     const rows = accordion.getByRole('listitem');

@@ -32,10 +32,6 @@
 }
 
 @media (max-width: 700px) {
-  .grocery-history-card {
-    border-color: var(--color-primary);
-  }
-
   .grocery-history-card dl > .grocery-history-record-row {
     align-items: center;
   }

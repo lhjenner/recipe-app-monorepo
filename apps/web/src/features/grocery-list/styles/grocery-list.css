@@ -559,6 +559,12 @@
 }
 
 @media (max-width: 700px) {
+  .grocery-recipe-sources,
+  .grocery-empty-state,
+  .grocery-department-confirmation {
+    border-color: var(--color-primary);
+  }
+
   .grocery-duplicate-dialog .confirm-dialog-actions.confirmation-actions {
     align-items: stretch;
     flex-direction: column;
@@ -698,7 +704,7 @@
   .grocery-item-card,
   .grocery-history-card {
     padding: 16px;
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid var(--color-primary);
     border-radius: 6px;
     background: var(--color-surface);
   }
