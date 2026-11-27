@@ -6,7 +6,34 @@ import {
 } from '../services/groceryListApi';
 
 const POLL_INTERVAL_MS = 15_000;
-const CHANGE_NOTICE_MS = 4_000;
+
+export interface LocalPurchase {
+  version: number;
+  itemId: string;
+}
+
+function itemSnapshot(items: GroceryList['items']): string {
+  return JSON.stringify(items.map((item) => ({
+    ...item,
+    storeMappings: [...item.storeMappings].sort((a, b) => a.storeId.localeCompare(b.storeId)),
+  })));
+}
+
+export function isPurchaseOnlyChange(
+  previous: GroceryList,
+  next: GroceryList,
+  purchase: LocalPurchase,
+): boolean {
+  const purchased = previous.items.find((item) => item.id === purchase.itemId);
+  const completed = next.items.find((item) => item.id === purchase.itemId);
+  return next.version === purchase.version
+    && previous.id === next.id
+    && previous.completedItemCount + 1 === next.completedItemCount
+    && purchased?.state === 'outstanding'
+    && (!completed || completed.state === 'completed')
+    && itemSnapshot(previous.items.filter((item) => item.id !== purchase.itemId))
+      === itemSnapshot(next.items.filter((item) => item.id !== purchase.itemId));
+}
 
 export interface GroceryListState {
   data: GroceryList | null;
@@ -14,8 +41,9 @@ export interface GroceryListState {
   error: string | null;
   isStale: boolean;
   lastSuccessfulAt: Date | null;
-  updated: boolean;
-  reload: () => void;
+  updateCount: number;
+  lastChange: { previous: GroceryList; next: GroceryList } | null;
+  reload: (localPurchase?: LocalPurchase) => void;
 }
 
 export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
@@ -27,17 +55,18 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
   const [error, setError] = useState<string | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [lastSuccessfulAt, setLastSuccessfulAt] = useState<Date | null>(null);
-  const [updated, setUpdated] = useState(false);
-  const refreshRef = useRef<(() => void) | null>(null);
+  const [updateCount, setUpdateCount] = useState(0);
+  const [lastChange, setLastChange] = useState<{ previous: GroceryList; next: GroceryList } | null>(null);
+  const refreshRef = useRef<((localPurchase?: LocalPurchase) => void) | null>(null);
   const hasDataRef = useRef(false);
 
   useEffect(() => {
     let active = true;
     let intervalId: number | null = null;
-    let noticeTimeoutId: number | null = null;
     let controller: AbortController | null = null;
     let requestInFlight = false;
-    let previousSnapshot = '';
+    let previousList: GroceryList | null = null;
+    let localPurchase: LocalPurchase | undefined;
 
     function retireRequest() {
       controller?.abort();
@@ -74,19 +103,17 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
           return;
         }
 
-        const nextSnapshot = JSON.stringify({
-          id: next.id,
-          completedItemCount: next.completedItemCount,
-          items: next.items,
+        const snapshot = (list: GroceryList) => JSON.stringify({
+          id: list.id, completedItemCount: list.completedItemCount, items: itemSnapshot(list.items),
         });
-        if (previousSnapshot && previousSnapshot !== nextSnapshot) {
-          setUpdated(true);
-          if (noticeTimeoutId !== null) {
-            window.clearTimeout(noticeTimeoutId);
+        if (previousList && snapshot(previousList) !== snapshot(next)) {
+          if (!localPurchase || !isPurchaseOnlyChange(previousList, next, localPurchase)) {
+            setLastChange({ previous: previousList, next });
+            setUpdateCount((count) => count + 1);
           }
-          noticeTimeoutId = window.setTimeout(() => setUpdated(false), CHANGE_NOTICE_MS);
         }
-        previousSnapshot = nextSnapshot;
+        localPurchase = undefined;
+        previousList = next;
         hasDataRef.current = true;
         setData(next);
         setError(null);
@@ -134,7 +161,13 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
       }
     }
 
-    refreshRef.current = () => void refresh();
+    refreshRef.current = (purchase) => {
+      if (purchase) {
+        localPurchase = purchase;
+        retireRequest();
+      }
+      void refresh();
+    };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('online', handleOnline);
     window.addEventListener('pageshow', handlePageShow);
@@ -148,9 +181,6 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
       refreshRef.current = null;
       clearIntervalTimer();
       retireRequest();
-      if (noticeTimeoutId !== null) {
-        window.clearTimeout(noticeTimeoutId);
-      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('pageshow', handlePageShow);
@@ -163,7 +193,8 @@ export function useGroceryList(query: GroceryListQuery = {}): GroceryListState {
     error,
     isStale,
     lastSuccessfulAt,
-    updated,
-    reload: () => refreshRef.current?.(),
+    updateCount,
+    lastChange,
+    reload: (purchase) => refreshRef.current?.(purchase),
   };
 }

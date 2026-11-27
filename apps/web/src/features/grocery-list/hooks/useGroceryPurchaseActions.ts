@@ -5,7 +5,7 @@ import {
   reverseGroceryPurchase,
   type GroceryItem,
 } from '../services/groceryListApi';
-import type { GroceryListState } from './useGroceryList';
+import type { GroceryListState, LocalPurchase } from './useGroceryList';
 
 type PurchaseCommand = {
   kind: 'purchase';
@@ -40,7 +40,8 @@ export function useGroceryPurchaseActions(
 ) {
   const [undoSelection, setUndoSelection] = useState<UndoSelection | null>(null);
   const [pending, setPending] = useState<PendingCommand | null>(null);
-  const [purchaseNotice, setPurchaseNotice] = useState<{ eventId: string; itemName: string } | null>(null);
+  const [purchaseNotices, setPurchaseNotices] = useState<{ eventId: string; itemName: string }[]>([]);
+  const [lastPurchase, setLastPurchase] = useState<LocalPurchase | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -53,7 +54,6 @@ export function useGroceryPurchaseActions(
     }
     setError(null);
     setStatus(null);
-    setPurchaseNotice(null);
     void execute({
       kind: 'purchase',
       itemId: item.id,
@@ -73,6 +73,18 @@ export function useGroceryPurchaseActions(
     setError(null);
     setStatus(null);
     setUndoSelection({ eventId, itemName, expectedListVersion: grocery.data.version });
+  }
+
+  function undoPurchase(eventId: string, itemName: string) {
+    if (blocked || !grocery.data) return;
+    setStatus(null);
+    void execute({
+      kind: 'undo',
+      eventId,
+      itemName,
+      commandId: crypto.randomUUID(),
+      expectedListVersion: grocery.data.version,
+    });
   }
 
   function confirmUndo() {
@@ -119,13 +131,17 @@ export function useGroceryPurchaseActions(
       setPending(null);
       setRequiredVersion(receipt.resultListVersion);
       if (command.kind === 'purchase') {
-        setPurchaseNotice({ eventId, itemName: command.itemName });
+        setPurchaseNotices((notices) => notices.some((notice) => notice.eventId === eventId)
+          ? notices : [...notices, { eventId, itemName: command.itemName }]);
+        setLastPurchase({ version: receipt.resultListVersion, itemId: command.itemId });
         setStatus(null);
       } else {
-        setPurchaseNotice(null);
+        setPurchaseNotices((notices) => notices.filter((notice) => notice.eventId !== command.eventId));
         setStatus('Purchase undone.');
       }
-      grocery.reload();
+      grocery.reload(command.kind === 'purchase'
+        ? { version: receipt.resultListVersion, itemId: command.itemId }
+        : undefined);
       onHistoryChanged?.();
     } catch (requestError: unknown) {
       const failure = requestError instanceof GroceryListApiError
@@ -156,8 +172,12 @@ export function useGroceryPurchaseActions(
   return {
     undoItemName: undoSelection?.itemName ?? null,
     undoEventId: undoSelection?.eventId ?? null,
-    purchaseNotice,
+    purchaseNotices,
+    lastPurchase,
+    dismissPurchaseNotice: (eventId: string) =>
+      setPurchaseNotices((notices) => notices.filter((notice) => notice.eventId !== eventId)),
     requestPurchase,
+    undoPurchase,
     requestUndo,
     confirmUndo,
     cancelUndo: () => setUndoSelection(null),

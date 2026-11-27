@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageTitle from '../../../shared/components/PageTitle';
+import Snackbar from '../../../shared/components/Snackbar';
 import { toTitleCase } from '../../../shared/utils/titleCase';
 import { useSupermarkets } from '../../ingredients/hooks/useSupermarkets';
 import GroceryListControls from '../components/GroceryListControls';
@@ -10,7 +11,7 @@ import GroceryItemEditDialog from '../components/GroceryItemEditDialog';
 import GroceryManualEntryModal from '../components/GroceryManualEntryModal';
 import GroceryRecipeSources from '../components/GroceryRecipeSources';
 import { groupGroceryItems } from '../models/groceryGrouping';
-import { useGroceryList } from '../hooks/useGroceryList';
+import { isPurchaseOnlyChange, useGroceryList } from '../hooks/useGroceryList';
 import { useGroceryQuantityUpdate } from '../hooks/useGroceryQuantityUpdate';
 import { useGroceryItemRemoval } from '../hooks/useGroceryItemRemoval';
 import { useGroceryRecipeRemoval } from '../hooks/useGroceryRecipeRemoval';
@@ -109,7 +110,6 @@ function GroceryListPage() {
           )}
 
           {storePreference.error && <p className="grocery-inline-error" role="status">{storePreference.error}</p>}
-          {grocery.updated && <p className="grocery-update-notice" role="status">Grocery list updated.</p>}
           {grocery.lastSuccessfulAt && (
             <p className="grocery-last-check">
               Last successful check:{' '}
@@ -123,7 +123,7 @@ function GroceryListPage() {
           {grocery.isStale && grocery.data && (
             <p className="grocery-stale-notice" role="status">
               Unable to check for updates. Showing the last successful list.
-              <button className="btn btn-secondary" type="button" onClick={grocery.reload}>Retry</button>
+              <button className="btn btn-secondary" type="button" onClick={() => grocery.reload()}>Retry</button>
             </p>
           )}
           {grocery.isLoading && !grocery.data && (
@@ -132,7 +132,7 @@ function GroceryListPage() {
           {grocery.error && !grocery.data && (
             <div className="grocery-inline-error" role="alert">
               <p>{grocery.error}</p>
-              <button className="btn btn-secondary" type="button" onClick={grocery.reload}>
+              <button className="btn btn-secondary" type="button" onClick={() => grocery.reload()}>
                 Retry grocery list
               </button>
             </div>
@@ -177,8 +177,26 @@ function GroceryListPage() {
         quantityUpdate={quantityUpdate}
         clearAll={clearAll}
         purchases={purchases}
-        disabled={mutationsDisabled}
       />
+      <div className="snackbar-stack">
+        {grocery.updateCount > 0 && !(grocery.lastChange && purchases.lastPurchase
+          && isPurchaseOnlyChange(grocery.lastChange.previous, grocery.lastChange.next, purchases.lastPurchase)) && (
+          <Snackbar key={`update-${grocery.updateCount}`} message="Grocery list updated." />
+        )}
+        {purchases.purchaseNotices.map((notice) => (
+          <Snackbar
+            key={notice.eventId}
+            message={`Purchased: ${toTitleCase(notice.itemName)}`}
+            onDismiss={() => purchases.dismissPurchaseNotice(notice.eventId)}
+            action={{
+              label: 'Undo',
+              accessibleLabel: `Undo purchase of ${toTitleCase(notice.itemName)}`,
+              disabled: mutationsDisabled,
+              onClick: () => purchases.undoPurchase(notice.eventId, notice.itemName),
+            }}
+          />
+        ))}
+      </div>
       {isAddingItems && grocery.data && (
         <GroceryManualEntryModal
           expectedListVersion={grocery.data.version}

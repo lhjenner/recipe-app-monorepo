@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../src/features/grocery-list/hooks/useGroceryList', () => ({
   useGroceryList: mocks.useGroceryList,
+  isPurchaseOnlyChange: vi.fn(() => false),
 }));
 
 vi.mock('../../../src/features/ingredients/hooks/useSupermarkets', () => ({
@@ -53,6 +54,8 @@ vi.mock('../../../src/features/grocery-list/components/GroceryManualEntryModal',
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.removeRecipeGroceryRequirements.mockReset();
+  mocks.purchaseGroceryItem.mockReset();
+  mocks.reverseGroceryPurchase.mockReset();
   mocks.cancelAllGroceryItems.mockResolvedValue(undefined);
   mocks.purchaseGroceryItem.mockResolvedValue({ resultListVersion: 13, resultIds: ['purchase-event'] });
   mocks.reverseGroceryPurchase.mockResolvedValue({ resultListVersion: 14, resultIds: ['reversal-event'] });
@@ -86,7 +89,8 @@ beforeEach(() => {
     error: null,
     isStale: false,
     lastSuccessfulAt: null,
-    updated: false,
+    updateCount: 0,
+    lastChange: null,
     reload: vi.fn(),
   });
 
@@ -98,7 +102,7 @@ beforeEach(() => {
   });
 });
 
-test('purchases the whole line immediately and offers its compensating undo', async () => {
+test('purchases the whole line and undoes it directly from the snackbar', async () => {
   const state = mocks.useGroceryList();
   const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
 
@@ -112,20 +116,61 @@ test('purchases the whole line immediately and offers its compensating undo', as
     storeId: null,
   }));
   expect(state.reload).toHaveBeenCalled();
-  expect(await screen.findByText(/Onions purchased\./)).toBeInTheDocument();
+  expect(await screen.findByText('Purchased: Onions')).toBeInTheDocument();
 
   state.data.version = 13;
   rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
-  const undo = await screen.findByRole('button', { name: 'Undo purchase' });
+  const undo = await screen.findByRole('button', { name: 'Undo purchase of Onions' });
   await waitFor(() => expect(undo).toBeEnabled());
   fireEvent.click(undo);
-  expect(screen.getByRole('dialog', { name: 'Undo purchase?' }))
-    .toHaveTextContent('original purchase will remain in history');
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Undo purchase' }));
+  expect(screen.queryByRole('dialog', { name: 'Undo purchase?' })).not.toBeInTheDocument();
   await waitFor(() => expect(mocks.reverseGroceryPurchase).toHaveBeenCalledWith('purchase-event', {
     commandId: expect.any(String),
     expectedListVersion: 13,
   }));
+});
+
+test('keeps individual purchase snackbars and undoes the selected event', async () => {
+  const state = mocks.useGroceryList();
+  state.data.items.push({ ...state.data.items[0], id: 'item-2', name: 'potatoes' });
+  mocks.purchaseGroceryItem
+    .mockResolvedValueOnce({ resultListVersion: 13, resultIds: ['purchase-1'] })
+    .mockResolvedValueOnce({ resultListVersion: 14, resultIds: ['purchase-2'] });
+  const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[0]);
+  expect(await screen.findByText('Purchased: Onions')).toBeInTheDocument();
+  state.data.version = 13;
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[1]);
+  expect(await screen.findByText('Purchased: Potatoes')).toBeInTheDocument();
+  expect(screen.getByText('Purchased: Onions')).toBeInTheDocument();
+  state.data.version = 14;
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Undo purchase of Onions' }));
+  await waitFor(() => expect(mocks.reverseGroceryPurchase).toHaveBeenCalledWith('purchase-1', {
+    commandId: expect.any(String),
+    expectedListVersion: 14,
+  }));
+  await waitFor(() => expect(screen.queryByText('Purchased: Onions')).not.toBeInTheDocument());
+  expect(screen.getByText('Purchased: Potatoes')).toBeInTheDocument();
+});
+
+test('retries an uncertain snackbar undo using the same purchase and command', async () => {
+  const state = mocks.useGroceryList();
+  mocks.reverseGroceryPurchase
+    .mockRejectedValueOnce(new GroceryListApiError('Undo response lost', 0))
+    .mockResolvedValueOnce({ resultListVersion: 14, resultIds: ['reversal-event'] });
+  const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[0]);
+  await screen.findByText('Purchased: Onions');
+  state.data.version = 13;
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Undo purchase of Onions' }));
+  await screen.findByText('Undo response lost');
+  const command = mocks.reverseGroceryPurchase.mock.calls[0];
+  fireEvent.click(screen.getByRole('button', { name: 'Retry Undo' }));
+  await waitFor(() => expect(mocks.reverseGroceryPurchase).toHaveBeenCalledTimes(2));
+  expect(mocks.reverseGroceryPurchase.mock.calls[1]).toEqual(command);
 });
 
 test('prevents repeated purchase requests while a purchase is in flight', () => {

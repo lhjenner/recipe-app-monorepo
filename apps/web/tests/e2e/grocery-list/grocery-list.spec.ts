@@ -38,9 +38,20 @@ test(`records a whole-line purchase without confirmation and reverses it at ${wi
   await mockAuthApi(page, { hasSession: true });
   await mockGroceryApi(page);
   const list = structuredClone(groceryList);
+  list.items[1].storeMappings.push({
+    storeId: '00000000-0000-7000-8000-000000000999',
+    state: 'unmapped',
+    departmentId: null,
+    departmentName: null,
+  });
   const historyEvents: GroceryHistoryEvent[] = [];
   let purchaseId = '';
-  await page.route('**/api/grocery-list', (route) => route.fulfill({ json: list }));
+  await page.route('**/api/grocery-list', (route) => {
+    const response = structuredClone(list);
+    response.items = response.items.filter((item) => item.state === 'outstanding');
+    if (response.version > 1) response.items.find((item) => item.id === list.items[1].id)?.storeMappings.reverse();
+    return route.fulfill({ json: response });
+  });
   await page.route('**/api/grocery-list/purchase-history**', (route) => route.fulfill({
     json: { items: historyEvents, totalCount: historyEvents.length, page: 1, pageSize: 25 },
   }));
@@ -125,13 +136,12 @@ test(`records a whole-line purchase without confirmation and reverses it at ${wi
     : page.locator('.grocery-item-card').filter({ has: page.getByRole('heading', { name: 'Green Apples' }) });
   await itemRow.getByRole('button', { name: 'Mark purchased' }).click();
   await expect(page.getByRole('dialog', { name: 'Mark item purchased?' })).toHaveCount(0);
-  await expect(page.getByRole('status').filter({ hasText: 'Green Apples purchased.' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Undo purchase' })).toBeEnabled();
+  await expect(page.getByRole('status').filter({ hasText: 'Purchased: Green Apples' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo purchase of Green Apples' })).toBeEnabled();
+  await expect(page.getByRole('status').filter({ hasText: 'Grocery list updated.' })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Undo purchase' }).click();
-  const undoDialog = page.getByRole('dialog', { name: 'Undo purchase?' });
-  await expect(undoDialog).toContainText('original purchase will remain in history');
-  await undoDialog.getByRole('button', { name: 'Undo purchase' }).click();
+  await page.getByRole('button', { name: 'Undo purchase of Green Apples' }).click();
+  await expect(page.getByRole('dialog', { name: 'Undo purchase?' })).toHaveCount(0);
   await expect(page.getByText('Purchase undone.', { exact: true })).toBeVisible();
   await expect(itemRow).toBeVisible();
   await page.getByRole('link', { name: 'Purchase history' }).click();
@@ -142,6 +152,122 @@ test(`records a whole-line purchase without confirmation and reverses it at ${wi
   await expect(history.getByText('Undo recorded (manual)')).toBeVisible();
 });
 }
+
+test('stacks purchase snackbars on mobile and undoes the selected purchase', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await page.clock.install({ time: new Date('2026-04-05T00:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-04-05T00:00:01Z'));
+  await page.setViewportSize({ width: 320, height: 844 });
+  const list = structuredClone(groceryList);
+  list.items[1].name = 'extraordinarilylongunbrokeningredientnameforpurchases';
+  const eventIds: string[] = [];
+  let undoneId = '';
+  await page.route('**/api/grocery-list', (route) => route.fulfill({ json: list }));
+  await page.route('**/api/grocery-list/items/*/purchases', async (route) => {
+    const itemId = new URL(route.request().url()).pathname.split('/').at(-2);
+    const item = list.items.find((candidate) => candidate.id === itemId);
+    if (!item) throw new Error('Unknown purchase item.');
+    const eventId = `00000000-0000-7000-8000-00000000050${eventIds.length + 1}`;
+    eventIds.push(eventId);
+    item.state = 'completed';
+    item.outstandingPurchaseQuantity = 0;
+    list.version += 1;
+    list.completedItemCount += 1;
+    await route.fulfill({ json: {
+      commandId: '00000000-0000-7000-8000-000000000511',
+      resultListVersion: list.version,
+      resultIds: [eventId],
+    } });
+  });
+  await page.route('**/api/grocery-list/purchase-history/*/reverse', async (route) => {
+    undoneId = new URL(route.request().url()).pathname.split('/').at(-2) ?? '';
+    list.version += 1;
+    list.completedItemCount -= 1;
+    list.items[0].state = 'outstanding';
+    list.items[0].outstandingPurchaseQuantity = 2;
+    await route.fulfill({ json: {
+      commandId: '00000000-0000-7000-8000-000000000512',
+      resultListVersion: list.version,
+      resultIds: ['00000000-0000-7000-8000-000000000513'],
+    } });
+  });
+  await page.goto('/grocery-list');
+  await page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Green Apples' }) })
+    .getByRole('button', { name: 'Mark purchased' }).click();
+  const first = page.getByRole('status').filter({ hasText: 'Purchased: Green Apples' }).locator('..');
+  await expect(first).toBeVisible();
+  await page.clock.fastForward(1_000);
+  const longName = 'Extraordinarilylongunbrokeningredientnameforpurchases';
+  await page.getByRole('article').filter({ has: page.getByRole('heading', { name: longName }) })
+    .getByRole('button', { name: 'Mark purchased' }).click();
+  const second = page.getByRole('status').filter({ hasText: `Purchased: ${longName}` }).locator('..');
+  await expect(second).toBeVisible();
+  const undo = second.getByRole('button', { name: `Undo purchase of ${longName}` });
+  await expect(undo).toBeEnabled();
+  const [firstBox, secondBox, textBox, undoBox] = await Promise.all([
+    first.boundingBox(), second.boundingBox(), second.getByRole('status').boundingBox(), undo.boundingBox(),
+  ]);
+  expect(firstBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  expect(textBox).not.toBeNull();
+  expect(undoBox).not.toBeNull();
+  expect(secondBox!.y + secondBox!.height).toBeLessThanOrEqual(firstBox!.y);
+  expect(textBox!.height).toBeGreaterThan(30);
+  expect(textBox!.x + textBox!.width).toBeLessThanOrEqual(undoBox!.x);
+  expect(undoBox!.x + undoBox!.width).toBeLessThanOrEqual(secondBox!.x + secondBox!.width);
+  await first.getByRole('button', { name: 'Undo purchase of Green Apples' }).click();
+  await expect.poll(() => undoneId).toBe(eventIds[0]);
+  await expect(page.getByRole('dialog', { name: 'Undo purchase?' })).toHaveCount(0);
+  await expect(first).toHaveCount(0);
+  await expect(second).toBeVisible();
+});
+
+test('purchase history still requires confirmation before Undo', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  let reversals = 0;
+  const eventId = '00000000-0000-7000-8000-000000000501';
+  await page.route('**/api/grocery-list/purchase-history**', (route) => route.fulfill({
+    json: {
+      items: [{
+        id: eventId,
+        groceryItemId: groceryList.items[0].id,
+        kind: 'purchase',
+        quantity: 2,
+        purchaseUnit: 'item',
+        occurredAtUtc: new Date().toISOString(),
+        itemNameSnapshot: 'green apples',
+        noteSnapshot: null,
+        storeId: null,
+        storeName: null,
+        origin: 'manual',
+        reversesEventId: null,
+        isReversed: false,
+      }],
+      totalCount: 1,
+      page: 1,
+      pageSize: 25,
+    },
+  }));
+  await page.route('**/api/grocery-list/purchase-history/*/reverse', async (route) => {
+    reversals++;
+    await route.fulfill({ json: {
+      commandId: '00000000-0000-7000-8000-000000000511',
+      resultListVersion: 2,
+      resultIds: ['00000000-0000-7000-8000-000000000512'],
+    } });
+  });
+  await page.goto('/grocery-list/history');
+  await page.getByRole('button', { name: 'Undo purchase' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Undo purchase?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  expect(reversals).toBe(0);
+  await page.getByRole('button', { name: 'Undo purchase' }).click();
+  await dialog.getByRole('button', { name: 'Undo purchase' }).click();
+  await expect.poll(() => reversals).toBe(1);
+});
 
 test('grocery dialogs contain focus, close with Escape and restore the trigger', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
@@ -812,14 +938,17 @@ test.describe('Grocery list reads', () => {
     await page.clock.fastForward(15_000);
 
     const notice = page.getByRole('status').filter({ hasText: 'Grocery list updated.' });
+    const snackbar = notice.locator('..');
     await expect(notice).toBeVisible();
-    await expect(notice).toHaveCSS('background-color', 'rgb(255, 247, 225)');
-    await expect(notice).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
-    await expect(notice).toHaveCSS('color', 'rgb(67, 67, 67)');
+    await expect(snackbar.locator('..')).toHaveCSS('position', 'fixed');
+    await expect(snackbar).toHaveCSS('font-weight', '600');
+    await expect(snackbar).toHaveCSS('background-color', 'rgb(4, 219, 162)');
+    await expect(snackbar).toHaveCSS('border-top-color', 'rgb(4, 219, 162)');
+    await expect(snackbar).toHaveCSS('color', 'rgb(30, 30, 30)');
     await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
-    await expect(notice).toHaveCSS('background-color', 'rgb(73, 57, 31)');
-    await expect(notice).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
-    await expect(notice).toHaveCSS('color', 'rgb(198, 199, 198)');
+    await expect(snackbar).toHaveCSS('background-color', 'rgb(7, 84, 71)');
+    await expect(snackbar).toHaveCSS('border-top-color', 'rgb(7, 84, 71)');
+    await expect(snackbar).toHaveCSS('color', 'rgb(228, 233, 227)');
     await expect(page.getByRole('table', { name: 'Outstanding grocery items' })).toBeVisible();
     expect(readCount).toBeGreaterThan(initialReadCount);
     await page.clock.fastForward(4_000);

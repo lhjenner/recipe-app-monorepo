@@ -12,7 +12,6 @@ interface GroceryListOverlaysProps {
   quantityUpdate: ReturnType<typeof useGroceryQuantityUpdate>;
   clearAll: ReturnType<typeof useGroceryClearAll>;
   purchases: ReturnType<typeof useGroceryPurchaseActions>;
-  disabled: boolean;
 }
 
 function GroceryListOverlays({
@@ -21,9 +20,7 @@ function GroceryListOverlays({
   quantityUpdate,
   clearAll,
   purchases,
-  disabled,
 }: GroceryListOverlaysProps) {
-  const purchaseNotice = purchases.purchaseNotice;
   return (
     <>
       {removal.error && (
@@ -75,19 +72,6 @@ function GroceryListOverlays({
         </p>
       )}
       {purchases.status && <p className="grocery-update-notice" role="status">{purchases.status}</p>}
-      {purchaseNotice && (
-        <p className="grocery-update-notice" role="status">
-          {toTitleCase(purchaseNotice.itemName)} purchased.
-          <button
-            className="btn btn-secondary"
-            type="button"
-            disabled={disabled}
-            onClick={() => purchases.requestUndo(purchaseNotice.eventId, purchaseNotice.itemName)}
-          >
-            Undo purchase
-          </button>
-        </p>
-      )}
       <ConfirmDialog
         open={recipeRemoval.recipe !== null}
         title="Remove Recipe from Grocery List?"
@@ -117,14 +101,6 @@ function GroceryListOverlays({
         confirmFirst
         onCancel={clearAll.cancel}
         onConfirm={clearAll.confirm}
-      />
-      <ConfirmDialog
-        open={purchases.undoEventId !== null}
-        title="Undo purchase?"
-        message={`Restore the recorded quantity for ${purchases.undoItemName ? toTitleCase(purchases.undoItemName) : 'this item'} as outstanding demand? The original purchase will remain in history.`}
-        confirmLabel="Undo purchase"
-        onCancel={purchases.cancelUndo}
-        onConfirm={purchases.confirmUndo}
       />
     </>
   );
