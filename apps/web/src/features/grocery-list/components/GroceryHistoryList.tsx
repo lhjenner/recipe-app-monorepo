@@ -31,7 +31,7 @@ function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistory
                   {toTitleCase(event.itemNameSnapshot)}
                   {event.noteSnapshot && <small>{event.noteSnapshot}</small>}
                 </th>
-                <td>{formatAmount(event.quantity)} {event.purchaseUnit}</td>
+                <td>{formatAmount(event.quantity)}</td>
                 <td>{event.storeName ?? 'Store not recorded'}</td>
                 <td>
                   <div className="grocery-history-record">
@@ -54,7 +54,7 @@ function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistory
             <h2>{toTitleCase(event.itemNameSnapshot)}</h2>
             <dl>
               <div><dt>Date</dt><dd>{formatDate(event.occurredAtUtc)}</dd></div>
-              <div><dt>Quantity</dt><dd>{formatAmount(event.quantity)} {event.purchaseUnit}</dd></div>
+              <div><dt>Quantity</dt><dd>{formatAmount(event.quantity)}</dd></div>
               <div><dt>Store</dt><dd>{event.storeName ?? 'Store not recorded'}</dd></div>
               <div className="grocery-history-record-row">
                 <dt>Record</dt>

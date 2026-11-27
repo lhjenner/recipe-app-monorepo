@@ -17,6 +17,10 @@
 }
 
 @media (min-width: 701px) {
+  .grocery-history-table tr > :nth-child(3) {
+    text-align: center;
+  }
+
   .grocery-history-table .grocery-history-record {
     align-items: flex-start;
   }
@@ -28,7 +32,11 @@
 }
 
 @media (max-width: 700px) {
+  .grocery-history-card {
+    border-color: var(--color-primary);
+  }
+
   .grocery-history-card dl > .grocery-history-record-row {
-    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
   }
 }

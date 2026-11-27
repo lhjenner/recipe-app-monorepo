@@ -225,7 +225,7 @@ test('stacks purchase snackbars on mobile and undoes the selected purchase', asy
   await expect(second).toBeVisible();
 });
 
-for (const width of [320, 1280]) {
+for (const width of [320, 390, 1280]) {
 test(`purchase history displays responsive Undo and requires confirmation at ${width}px`, async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
   await mockGroceryApi(page);
@@ -285,6 +285,14 @@ test(`purchase history displays responsive Undo and requires confirmation at ${w
   await expect(page.getByText('1 events', { exact: false })).toHaveCount(0);
   if (width > 700) {
     await expect(history.getByRole('columnheader')).toHaveText(['Date', 'Item', 'Quantity', 'Store', 'Record']);
+    await expect(history.getByRole('columnheader', { name: 'Quantity' })).toHaveCSS('text-align', 'center');
+    for (const quantity of await history.getByRole('cell', { name: '2', exact: true }).all()) {
+      await expect(quantity).toHaveCSS('text-align', 'center');
+    }
+  } else {
+    for (const card of await history.getByRole('listitem').all()) {
+      await expect(card).toHaveCSS('border-color', 'rgb(74, 124, 89)');
+    }
   }
   const record = history.getByText('Purchase recorded', { exact: true });
   const undo = history.getByRole('button', { name: width > 700 ? 'Undo purchase' : 'Undo purchase of Green Apples' });
@@ -295,7 +303,18 @@ test(`purchase history displays responsive Undo and requires confirmation at ${w
   expect(recordBox!.x + recordBox!.width).toBeLessThanOrEqual(undoBox!.x);
   expect(recordBox!.y).toBeLessThan(undoBox!.y + undoBox!.height);
   expect(recordBox!.y + recordBox!.height).toBeGreaterThan(undoBox!.y);
-  expect(recordBox!.height).toBeLessThanOrEqual(24);
+  if (width > 700) expect(recordBox!.height).toBeLessThanOrEqual(24);
+  if (width <= 700) {
+    for (const label of await history.getByRole('term').filter({ hasText: /^Record$/ }).all()) {
+      const value = label.locator('..').getByRole('definition');
+      const [labelBox, valueBox] = await Promise.all([label.boundingBox(), value.boundingBox()]);
+      expect(labelBox).not.toBeNull();
+      expect(valueBox).not.toBeNull();
+      expect(labelBox!.x + labelBox!.width).toBeLessThanOrEqual(valueBox!.x);
+      expect(labelBox!.y).toBeLessThan(valueBox!.y + valueBox!.height);
+      expect(labelBox!.y + labelBox!.height).toBeGreaterThan(valueBox!.y);
+    }
+  }
   const recordContainer = record.locator('..');
   const containerBox = await recordContainer.boundingBox();
   expect(containerBox).not.toBeNull();

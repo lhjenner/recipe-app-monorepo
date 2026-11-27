@@ -51,3 +51,11 @@ test('displays separate columns and Auckland dates without times on both layouts
   const cards = screen.getByRole('list', { name: 'Purchase history' });
   expect(within(cards).getByText('5 Apr 2026')).toBeInTheDocument();
 });
+
+test('displays numeric quantities without purchase units on both layouts', () => {
+  render(<GroceryHistoryList events={[{ ...purchase, quantity: 1.5 }]} />);
+  const table = screen.getByRole('table', { name: 'Purchase history' });
+  expect(within(table).getByRole('cell', { name: '1.5', exact: true })).toBeInTheDocument();
+  const cards = screen.getByRole('list', { name: 'Purchase history' });
+  expect(within(cards).getByText('1.5', { exact: true })).toBeInTheDocument();
+});
