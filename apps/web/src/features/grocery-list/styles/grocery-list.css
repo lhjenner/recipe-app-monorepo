@@ -20,8 +20,7 @@
 }
 
 .grocery-page-heading p,
-.grocery-last-check,
-.grocery-history-count {
+.grocery-last-check {
   color: var(--color-text-muted);
 }
 
@@ -548,7 +547,6 @@
   transform: rotate(45deg);
 }
 
-.grocery-history-table th span,
 .grocery-history-table th small {
   display: block;
   margin-top: 4px;

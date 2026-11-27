@@ -1,0 +1,34 @@
+.grocery-history-record {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.grocery-history-record > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.grocery-history-record > .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+@media (min-width: 701px) {
+  .grocery-history-table .grocery-history-record {
+    align-items: flex-start;
+  }
+
+  .grocery-history-table .grocery-history-record > .btn {
+    padding: 0 8px;
+    font-size: var(--font-size-sm);
+  }
+}
+
+@media (max-width: 700px) {
+  .grocery-history-card dl > .grocery-history-record-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

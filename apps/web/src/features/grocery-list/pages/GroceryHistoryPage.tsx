@@ -97,9 +97,6 @@ function GroceryHistoryPage() {
           )}
           {history.data && validDateRange && history.data.items.length > 0 && (
             <>
-              <p className="grocery-history-count" role="status">
-                {allDates ? 'All dates' : `${from} to ${to} (Auckland time)`} · {history.data.totalCount} events
-              </p>
               <GroceryHistoryList
                 events={history.data.items}
                 onUndo={(event) => purchases.requestUndo(event.id, event.itemNameSnapshot)}

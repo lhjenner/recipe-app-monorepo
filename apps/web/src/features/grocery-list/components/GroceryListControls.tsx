@@ -45,12 +45,12 @@ function GroceryListControls({
           <button className="btn btn-primary" type="button" onClick={onAdd} disabled={!canAdd || disabled}>
             Add items
           </button>
+          <Link className="btn btn-secondary" to="/grocery-list/history">Purchase history</Link>
           {outstandingCount > 0 && (
-            <button className="btn btn-danger-secondary" type="button" onClick={onClear} disabled={disabled}>
+            <button className="btn btn-danger" type="button" onClick={onClear} disabled={disabled}>
               Clear outstanding list
             </button>
           )}
-          <Link className="btn btn-secondary" to="/grocery-list/history">Purchase history</Link>
         </div>
       </header>
 

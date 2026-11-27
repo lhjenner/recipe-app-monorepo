@@ -1,3 +1,5 @@
+import { Undo2 } from 'lucide-react';
+import IconButton from '../../../shared/components/IconButton';
 import type { GroceryHistoryEvent } from '../services/groceryListApi';
 import { toTitleCase } from '../../../shared/utils/titleCase';
 
@@ -14,7 +16,8 @@ function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistory
         <table className="grocery-history-table" aria-label="Purchase history">
           <thead>
             <tr>
-              <th scope="col">Date and item</th>
+              <th scope="col">Date</th>
+              <th scope="col">Item</th>
               <th scope="col">Quantity</th>
               <th scope="col">Store</th>
               <th scope="col">Record</th>
@@ -23,20 +26,22 @@ function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistory
           <tbody>
             {events.map((event) => (
               <tr key={event.id}>
+                <td>{formatDate(event.occurredAtUtc)}</td>
                 <th scope="row">
-                  {formatDate(event.occurredAtUtc)}
-                  <span>{toTitleCase(event.itemNameSnapshot)}</span>
+                  {toTitleCase(event.itemNameSnapshot)}
                   {event.noteSnapshot && <small>{event.noteSnapshot}</small>}
                 </th>
                 <td>{formatAmount(event.quantity)} {event.purchaseUnit}</td>
                 <td>{event.storeName ?? 'Store not recorded'}</td>
                 <td>
-                  <EventState event={event} />
-                  {onUndo && event.kind === 'purchase' && !event.isReversed && (
-                    <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onUndo(event)}>
-                      Undo purchase
-                    </button>
-                  )}
+                  <div className="grocery-history-record">
+                    <span><EventState event={event} /></span>
+                    {onUndo && event.kind === 'purchase' && !event.isReversed && (
+                      <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onUndo(event)}>
+                        Undo purchase
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -51,14 +56,19 @@ function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistory
               <div><dt>Date</dt><dd>{formatDate(event.occurredAtUtc)}</dd></div>
               <div><dt>Quantity</dt><dd>{formatAmount(event.quantity)} {event.purchaseUnit}</dd></div>
               <div><dt>Store</dt><dd>{event.storeName ?? 'Store not recorded'}</dd></div>
-              <div>
+              <div className="grocery-history-record-row">
                 <dt>Record</dt>
-                <dd>
-                  <EventState event={event} />
+                <dd className="grocery-history-record">
+                  <span><EventState event={event} /></span>
                   {onUndo && event.kind === 'purchase' && !event.isReversed && (
-                    <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onUndo(event)}>
-                      Undo purchase
-                    </button>
+                    <IconButton
+                      label={`Undo purchase of ${toTitleCase(event.itemNameSnapshot)}`}
+                      tooltip="Undo purchase"
+                      icon={<Undo2 aria-hidden="true" />}
+                      variant="btn-secondary"
+                      disabled={disabled}
+                      onClick={() => onUndo(event)}
+                    />
                   )}
                 </dd>
               </div>
@@ -73,7 +83,7 @@ function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistory
 
 function EventState({ event }: { event: GroceryHistoryEvent }) {
   if (event.kind === 'reversal') {
-    return <>Undo recorded ({event.origin === 'manual' ? 'manual' : 'online cart'})</>;
+    return <>Purchase undone</>;
   }
   return event.isReversed ? <>Purchase reversed</> : <>Purchase recorded</>;
 }
@@ -81,7 +91,6 @@ function EventState({ event }: { event: GroceryHistoryEvent }) {
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en-NZ', {
     dateStyle: 'medium',
-    timeStyle: 'short',
     timeZone: 'Pacific/Auckland',
   }).format(new Date(value));
 }

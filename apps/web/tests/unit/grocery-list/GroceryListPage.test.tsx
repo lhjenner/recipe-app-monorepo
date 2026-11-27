@@ -191,7 +191,11 @@ test('prevents repeated purchase requests while a purchase is in flight', () => 
 
 test('clears only outstanding demand after explicit confirmation', async () => {
   render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
-  fireEvent.click(screen.getByRole('button', { name: 'Clear outstanding list' }));
+  const clearButton = screen.getByRole('button', { name: 'Clear outstanding list' });
+  expect(clearButton).toHaveClass('btn-danger');
+  const historyLink = screen.getByRole('link', { name: 'Purchase history' });
+  expect(historyLink.compareDocumentPosition(clearButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.click(clearButton);
   expect(screen.getByRole('dialog', { name: 'Clear outstanding grocery list?' }))
     .toHaveTextContent('purchase history will remain');
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
