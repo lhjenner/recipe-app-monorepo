@@ -85,7 +85,9 @@ internal static class GroceryItemUpdateRules
                 && value.State == GroceryContributionState.Outstanding
                 && value.ManualPurchaseIncrement is not null)
             .Sum(value => value.ManualPurchaseIncrement!.Value);
-        return Math.Max(0, item.OutstandingPurchaseQuantity - outstandingManualDemand);
+        var ordinaryRecipeDemand = Math.Max(0,
+            item.OutstandingPurchaseQuantity - outstandingManualDemand - item.RestoredPurchaseQuantity);
+        return ordinaryRecipeDemand + GetProtectedRestoredDemand(item);
     }
 
     public static void AdjustManualDemand(
@@ -100,6 +102,7 @@ internal static class GroceryItemUpdateRules
             .OrderBy(value => value.CreatedAtUtc)
             .ThenBy(value => value.Id)
             .ToArray();
+        var protectedRestored = GetProtectedRestoredDemand(item);
         var remaining = desiredManualAmount;
         foreach (var contribution in manualContributions)
         {
@@ -114,6 +117,10 @@ internal static class GroceryItemUpdateRules
                 remaining -= retained;
             }
         }
+
+        var retainedRestored = Math.Min(item.RestoredPurchaseQuantity - protectedRestored, remaining);
+        item.RestoredPurchaseQuantity = protectedRestored + retainedRestored;
+        remaining -= retainedRestored;
 
         if (remaining > 0)
         {
@@ -133,6 +140,25 @@ internal static class GroceryItemUpdateRules
                 CreatedAtUtc = now
             });
         }
+    }
+
+    private static decimal GetProtectedRestoredDemand(GroceryItem item)
+    {
+        var restoredRecipes = item.Contributions
+            .Where(value => value.Origin == GroceryContributionOrigin.Recipe
+                && value.IsRestoredRecipeAssociation
+                && value.State == GroceryContributionState.Outstanding)
+            .ToArray();
+        if (restoredRecipes.Length == 0) return 0;
+        if (item.Dimension != QuantityDimension.Count) return item.RestoredPurchaseQuantity;
+        var matchingCounts = restoredRecipes.Where(value => value.Dimension == QuantityDimension.Count
+            && value.InterpretedAmount is not null
+            && string.Equals(value.CountLabel, item.CountLabel, StringComparison.Ordinal));
+        if (!GroceryCountRequirement.Sum(matchingCounts).TryCeiling(out var count))
+        {
+            throw new OverflowException("The restored Recipe count exceeds the supported range.");
+        }
+        return Math.Min(count, item.RestoredPurchaseQuantity);
     }
 
     private static GroceryWriteOutcome Invalid(string message, string field) =>

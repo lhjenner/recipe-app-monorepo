@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageTitle from '../../../shared/components/PageTitle';
+import { toTitleCase } from '../../../shared/utils/titleCase';
 import Pagination from '../../../shared/components/Pagination';
 import GroceryHistoryList from '../components/GroceryHistoryList';
 import { useGroceryHistory } from '../hooks/useGroceryHistory';
+import { useGroceryList } from '../hooks/useGroceryList';
+import { useGroceryPurchaseActions } from '../hooks/useGroceryPurchaseActions';
 import type { GroceryHistoryQuery } from '../services/groceryListApi';
+import { getAucklandToday } from '../models/groceryDate';
+import ConfirmDialog from '../../../shared/components/ConfirmDialog';
 
 const PAGE_SIZE = 25;
 
@@ -16,6 +21,8 @@ function GroceryHistoryPage() {
   const [page, setPage] = useState(1);
   const query: GroceryHistoryQuery = { allDates, from, to, page, pageSize: PAGE_SIZE };
   const history = useGroceryHistory(query);
+  const grocery = useGroceryList();
+  const purchases = useGroceryPurchaseActions(grocery, history.reload);
   const pageCount = Math.max(1, Math.ceil((history.data?.totalCount ?? 0) / PAGE_SIZE));
   const validDateRange = allDates || from <= to;
 
@@ -65,6 +72,28 @@ function GroceryHistoryPage() {
           </div>
 
           {!validDateRange && <p className="grocery-inline-error" role="alert">End date must not be before start date.</p>}
+          {purchases.error && (
+            <p className="grocery-inline-error" role="alert">
+              {purchases.error}
+              {purchases.canRetry && (
+                <button className="btn btn-secondary" type="button" onClick={purchases.retry}>
+                  {purchases.retryLabel}
+                </button>
+              )}
+            </p>
+          )}
+          {purchases.status && <p className="grocery-update-notice" role="status">{purchases.status}</p>}
+          {grocery.isLoading && !grocery.data && (
+            <p className="grocery-list-status" role="status">Loading grocery list for Undo…</p>
+          )}
+          {grocery.error && (
+            <div className="grocery-inline-error" role="alert">
+              <p>Unable to refresh the grocery list for Undo: {grocery.error}</p>
+              <button className="btn btn-secondary" type="button" onClick={() => grocery.reload()}>
+                Retry grocery list
+              </button>
+            </div>
+          )}
           {history.isLoading && validDateRange && <p className="grocery-list-status" role="status">Loading purchase history…</p>}
           {history.error && validDateRange && (
             <div className="grocery-inline-error" role="alert">
@@ -79,10 +108,11 @@ function GroceryHistoryPage() {
           )}
           {history.data && validDateRange && history.data.items.length > 0 && (
             <>
-              <p className="grocery-history-count" role="status">
-                {allDates ? 'All dates' : `${from} to ${to} (Auckland time)`} · {history.data.totalCount} events
-              </p>
-              <GroceryHistoryList events={history.data.items} />
+              <GroceryHistoryList
+                events={history.data.items}
+                onUndo={(event) => purchases.requestUndo(event.id, event.itemNameSnapshot)}
+                disabled={purchases.disabled}
+              />
               <Pagination
                 label="Purchase history pages"
                 page={page}
@@ -93,20 +123,16 @@ function GroceryHistoryPage() {
           )}
         </section>
       </main>
+      <ConfirmDialog
+        open={purchases.undoEventId !== null}
+        title="Undo purchase?"
+        message={`Restore the recorded quantity for ${purchases.undoItemName ? toTitleCase(purchases.undoItemName) : 'this item'} as outstanding demand? The original purchase will remain in history.`}
+        confirmLabel="Undo purchase"
+        onCancel={purchases.cancelUndo}
+        onConfirm={purchases.confirmUndo}
+      />
     </>
   );
-}
-
-function getAucklandToday(): string {
-  const parts = new Intl.DateTimeFormat('en-NZ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone: 'Pacific/Auckland',
-  }).formatToParts(new Date());
-  const part = (type: 'year' | 'month' | 'day') =>
-    parts.find((value) => value.type === type)?.value ?? '';
-  return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
 export default GroceryHistoryPage;

@@ -7,6 +7,8 @@ import IngredientMappingState from './IngredientMappingState';
 import { Link, useLocation } from 'react-router-dom';
 import { listLocationState } from '../models/ingredientListLocation';
 import { toTitleCase } from '../../../shared/utils/titleCase';
+import IconButton from '../../../shared/components/IconButton';
+import { Archive, Pencil } from '../../../shared/components/icons';
 
 interface IngredientCardsProps {
   ingredients: IngredientSummary[];
@@ -72,22 +74,22 @@ function IngredientCards({
               ) : (
                 <>
                   <Link
-                    className="btn btn-secondary"
+                    className="btn btn-secondary btn-icon"
                     to={`/ingredient-maintenance/${ingredient.id}`}
                     state={listLocationState(listSearch)}
                     aria-label={`Edit ${name}`}
                   >
-                    Edit
+                    <Pencil aria-hidden="true" />
+                    <span className="icon-button-tooltip" aria-hidden="true">Edit</span>
                   </Link>
-                  <button
-                    className="btn btn-danger-secondary"
-                    type="button"
+                  <IconButton
+                    variant="btn-danger-secondary"
                     disabled={pendingIngredientId === ingredient.id}
-                    aria-label={`Archive ${name}`}
+                    label={`Archive ${name}`}
+                    tooltip="Archive"
+                    icon={<Archive aria-hidden="true" />}
                     onClick={() => onArchive(ingredient.id, name)}
-                  >
-                    Archive
-                  </button>
+                  />
                 </>
               )}
             </div>

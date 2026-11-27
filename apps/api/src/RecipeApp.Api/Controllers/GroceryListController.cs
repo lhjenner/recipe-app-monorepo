@@ -118,6 +118,59 @@ public sealed class GroceryListController(
             detail: outcome.Detail);
     }
 
+    [HttpDelete("items")]
+    [EndpointSummary("Clear outstanding grocery items")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CancelAllItems(
+        [FromHeader(Name = "X-Command-Id")] Guid commandId,
+        [FromHeader(Name = "X-Expected-List-Version")] uint expectedListVersion,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await groceryWrites.CancelAllItemsAsync(
+            new GroceryCommandMetadata(commandId, expectedListVersion),
+            cancellationToken);
+        if (outcome.StatusCode == StatusCodes.Status204NoContent)
+        {
+            return NoContent();
+        }
+
+        return Problem(
+            statusCode: outcome.StatusCode,
+            title: outcome.Title,
+            detail: outcome.Detail);
+    }
+
+    [HttpPost("items/{id:guid}/purchases")]
+    [EndpointSummary("Purchase the entire outstanding grocery item")]
+    [ProducesResponseType<GroceryCommandReceiptResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<GroceryCommandReceiptResponse>> PurchaseItem(
+        Guid id,
+        GroceryPurchaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await groceryWrites.PurchaseItemAsync(id, request, cancellationToken);
+        return ToWriteResult(outcome);
+    }
+
+    [HttpPost("purchase-history/{id:guid}/reverse")]
+    [EndpointSummary("Undo a grocery purchase")]
+    [ProducesResponseType<GroceryCommandReceiptResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<GroceryCommandReceiptResponse>> ReversePurchase(
+        Guid id,
+        GroceryCommandMetadata command,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await groceryWrites.ReversePurchaseAsync(id, command, cancellationToken);
+        return ToWriteResult(outcome);
+    }
+
     [HttpGet]
     [EndpointSummary("Read the grocery list")]
     [EndpointDescription("Returns the authenticated user's outstanding items without creating a list.")]

@@ -6,14 +6,18 @@ import { GroceryListApiError } from '../../../src/features/grocery-list/services
 
 const mocks = vi.hoisted(() => ({
   cancelGroceryItem: vi.fn(),
+  cancelAllGroceryItems: vi.fn(),
   removeRecipeGroceryRequirements: vi.fn(),
   updateGroceryItem: vi.fn(),
+  purchaseGroceryItem: vi.fn(),
+  reverseGroceryPurchase: vi.fn(),
   useGroceryList: vi.fn(),
   useSupermarkets: vi.fn(),
 }));
 
 vi.mock('../../../src/features/grocery-list/hooks/useGroceryList', () => ({
   useGroceryList: mocks.useGroceryList,
+  isLocalChangeOnly: vi.fn(() => false),
 }));
 
 vi.mock('../../../src/features/ingredients/hooks/useSupermarkets', () => ({
@@ -22,8 +26,11 @@ vi.mock('../../../src/features/ingredients/hooks/useSupermarkets', () => ({
 
 vi.mock('../../../src/features/grocery-list/services/groceryListApi', () => ({
   cancelGroceryItem: mocks.cancelGroceryItem,
+  cancelAllGroceryItems: mocks.cancelAllGroceryItems,
   removeRecipeGroceryRequirements: mocks.removeRecipeGroceryRequirements,
   updateGroceryItem: mocks.updateGroceryItem,
+  purchaseGroceryItem: mocks.purchaseGroceryItem,
+  reverseGroceryPurchase: mocks.reverseGroceryPurchase,
   GroceryListApiError: class GroceryListApiError extends Error {
     readonly status: number;
     readonly fieldErrors: Record<string, string[]>;
@@ -47,6 +54,11 @@ vi.mock('../../../src/features/grocery-list/components/GroceryManualEntryModal',
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.removeRecipeGroceryRequirements.mockReset();
+  mocks.purchaseGroceryItem.mockReset();
+  mocks.reverseGroceryPurchase.mockReset();
+  mocks.cancelAllGroceryItems.mockResolvedValue(undefined);
+  mocks.purchaseGroceryItem.mockResolvedValue({ resultListVersion: 13, resultIds: ['purchase-event'] });
+  mocks.reverseGroceryPurchase.mockResolvedValue({ resultListVersion: 14, resultIds: ['reversal-event'] });
   mocks.updateGroceryItem.mockResolvedValue({ resultListVersion: 13 });
   mocks.useGroceryList.mockReturnValue({
     data: {
@@ -77,15 +89,168 @@ beforeEach(() => {
     error: null,
     isStale: false,
     lastSuccessfulAt: null,
-    updated: false,
+    updateCount: 0,
+    lastChange: null,
     reload: vi.fn(),
   });
+
   mocks.useSupermarkets.mockReturnValue({
     data: [],
     isLoading: false,
     error: null,
     reload: vi.fn(),
   });
+});
+
+test('purchases the whole line and undoes it directly from the snackbar', async () => {
+  const state = mocks.useGroceryList();
+  const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[0]);
+  expect(screen.queryByRole('dialog', { name: 'Mark item purchased?' })).not.toBeInTheDocument();
+  await waitFor(() => expect(mocks.purchaseGroceryItem).toHaveBeenCalledWith('item-id', {
+    commandId: expect.any(String),
+    expectedListVersion: 12,
+    expectedOutstandingQuantity: 2,
+    purchaseUnit: 'onion',
+    storeId: null,
+  }));
+  expect(state.reload).toHaveBeenCalled();
+  expect(await screen.findByText('Purchased: Onions')).toBeInTheDocument();
+
+  state.data.version = 13;
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  const undo = await screen.findByRole('button', { name: 'Undo purchase of Onions' });
+  await waitFor(() => expect(undo).toBeEnabled());
+  fireEvent.click(undo);
+  expect(screen.queryByRole('dialog', { name: 'Undo purchase?' })).not.toBeInTheDocument();
+  await waitFor(() => expect(mocks.reverseGroceryPurchase).toHaveBeenCalledWith('purchase-event', {
+    commandId: expect.any(String),
+    expectedListVersion: 13,
+  }));
+  await waitFor(() => expect(state.reload).toHaveBeenCalledWith({
+    kind: 'undo',
+    version: 14,
+    expectedVersion: 13,
+    item: expect.objectContaining({ id: 'item-id' }),
+  }));
+});
+
+test('keeps individual purchase snackbars and undoes the selected event', async () => {
+  const state = mocks.useGroceryList();
+  state.data.items.push({ ...state.data.items[0], id: 'item-2', name: 'potatoes' });
+  mocks.purchaseGroceryItem
+    .mockResolvedValueOnce({ resultListVersion: 13, resultIds: ['purchase-1'] })
+    .mockResolvedValueOnce({ resultListVersion: 14, resultIds: ['purchase-2'] });
+  const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[0]);
+  expect(await screen.findByText('Purchased: Onions')).toBeInTheDocument();
+  state.data.version = 13;
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[1]);
+  expect(await screen.findByText('Purchased: Potatoes')).toBeInTheDocument();
+  expect(screen.getByText('Purchased: Onions')).toBeInTheDocument();
+  state.data.version = 14;
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Undo purchase of Onions' }));
+  await waitFor(() => expect(mocks.reverseGroceryPurchase).toHaveBeenCalledWith('purchase-1', {
+    commandId: expect.any(String),
+    expectedListVersion: 14,
+  }));
+  await waitFor(() => expect(screen.queryByText('Purchased: Onions')).not.toBeInTheDocument());
+  expect(screen.getByText('Purchased: Potatoes')).toBeInTheDocument();
+});
+
+test('retries an uncertain snackbar undo using the same purchase and command', async () => {
+  const state = mocks.useGroceryList();
+  mocks.reverseGroceryPurchase
+    .mockRejectedValueOnce(new GroceryListApiError('Undo response lost', 0))
+    .mockResolvedValueOnce({ resultListVersion: 14, resultIds: ['reversal-event'] });
+  const { rerender } = render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[0]);
+  await screen.findByText('Purchased: Onions');
+  state.data.version = 13;
+  rerender(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Undo purchase of Onions' }));
+  await screen.findByText('Undo response lost');
+  const command = mocks.reverseGroceryPurchase.mock.calls[0];
+  fireEvent.click(screen.getByRole('button', { name: 'Retry Undo' }));
+  await waitFor(() => expect(mocks.reverseGroceryPurchase).toHaveBeenCalledTimes(2));
+  expect(mocks.reverseGroceryPurchase.mock.calls[1]).toEqual(command);
+});
+
+test('prevents repeated purchase requests while a purchase is in flight', () => {
+  mocks.purchaseGroceryItem.mockReturnValueOnce(new Promise(() => {}));
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  const purchase = screen.getAllByRole('button', { name: 'Mark purchased' })[0];
+  fireEvent.click(purchase);
+  fireEvent.click(purchase);
+  expect(mocks.purchaseGroceryItem).toHaveBeenCalledTimes(1);
+  expect(purchase).toBeDisabled();
+});
+
+test('clears only outstanding demand after explicit confirmation', async () => {
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  const clearButton = screen.getByRole('button', { name: 'Clear outstanding list' });
+  expect(clearButton).toHaveClass('btn-danger');
+  const historyLink = screen.getByRole('link', { name: 'Purchase history' });
+  expect(historyLink.compareDocumentPosition(clearButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.click(clearButton);
+  expect(screen.getByRole('dialog', { name: 'Clear outstanding grocery list?' }))
+    .toHaveTextContent('purchase history will remain');
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(mocks.cancelAllGroceryItems).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Clear outstanding list' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Clear outstanding list' }));
+  await waitFor(() => expect(mocks.cancelAllGroceryItems).toHaveBeenCalledWith(
+    expect.any(String),
+    12,
+  ));
+});
+
+test('shows completed rows only when enabled and requests the selected Auckland day', () => {
+  const state = mocks.useGroceryList();
+  state.data.completedItemCount = 1;
+  state.data.items.push({
+    ...state.data.items[0],
+    id: 'completed-item',
+    name: 'purchased tea',
+    state: 'completed',
+    outstandingPurchaseQuantity: 0,
+  });
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+  expect(screen.queryByRole('heading', { name: 'Completed items' })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show completed' }));
+  expect(screen.getByRole('heading', { name: 'Completed items' })).toBeInTheDocument();
+  const completedRegion = screen.getByRole('region', { name: 'Completed items' });
+  expect(within(completedRegion).getByRole('listitem')).toHaveTextContent('Purchased Tea');
+  const completedQuery = mocks.useGroceryList.mock.calls
+    .map(([query]) => query)
+    .find((query) => query?.includeCompleted);
+  expect(completedQuery).toMatchObject({
+    includeCompleted: true,
+    from: expect.any(String),
+    to: expect.any(String),
+  });
+  expect(completedQuery.from).toBe(completedQuery.to);
+});
+
+test('retries an uncertain purchase with the original command and blocks other changes', async () => {
+  mocks.purchaseGroceryItem
+    .mockRejectedValueOnce(new GroceryListApiError('Response lost', 0))
+    .mockResolvedValueOnce({ resultListVersion: 13, resultIds: ['purchase-event'] });
+  render(<MemoryRouter><GroceryListPage /></MemoryRouter>);
+
+  fireEvent.click(screen.getAllByRole('button', { name: 'Mark purchased' })[0]);
+  await screen.findByText('Response lost');
+  const retry = screen.getByRole('button', { name: 'Retry purchase' });
+  expect(screen.getByRole('button', { name: 'Add items' })).toBeDisabled();
+  const command = mocks.purchaseGroceryItem.mock.calls[0];
+  fireEvent.click(retry);
+  await waitFor(() => expect(mocks.purchaseGroceryItem).toHaveBeenCalledTimes(2));
+  expect(mocks.purchaseGroceryItem.mock.calls[1]).toEqual(command);
 });
 
 function addRecipeSources() {

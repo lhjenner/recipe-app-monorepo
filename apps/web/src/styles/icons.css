@@ -1,0 +1,37 @@
+.btn-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  flex: 0 0 40px;
+}
+
+.btn-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.icon-button-tooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 1;
+  visibility: hidden;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (min-width: 701px) and (hover: hover) {
+  .btn-icon:focus .icon-button-tooltip {
+    visibility: visible;
+  }
+
+  .btn-icon:hover .icon-button-tooltip {
+    visibility: visible;
+  }
+}

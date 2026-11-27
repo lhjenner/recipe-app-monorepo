@@ -1,6 +1,8 @@
 @import './colors.css';
 @import './typography.css';
 @import './buttons.css';
+@import './icons.css';
+@import './snackbar.css';
 @import './table.css';
 @import './cards.css';
 @import './badges.css';
@@ -11,6 +13,7 @@
 @import '../features/recipes/styles/recipe-list.css';
 @import '../features/recipes/styles/recipe-detail.css';
 @import '../features/grocery-list/styles/grocery-list.css';
+@import '../features/grocery-list/styles/grocery-history.css';
 
 *,
 *::before,

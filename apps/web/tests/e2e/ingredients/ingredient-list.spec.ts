@@ -7,6 +7,79 @@ import {
 } from '../support/mockIngredientListApi.ts';
 
 test.describe('Ingredient Maintenance list', () => {
+  for (const width of [320, 390]) {
+    test(`keeps mobile card actions at the top right while ingredient names wrap at ${width}px`, async ({ page }) => {
+      const names = [
+        'Basil',
+        'Extra Long Ingredient Name Spanning Several Lines',
+        'Extraordinarilylongunbrokeningredientnameforlayouttesting',
+      ];
+      await mockAuthApi(page, { hasSession: true });
+      await mockIngredientApi(page, names.map((name) => ingredient(name)));
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto('/ingredient-maintenance');
+      for (const name of names) {
+        const card = page.getByRole('article', { name, exact: true });
+        const heading = card.getByRole('heading', { name, exact: true });
+        const edit = card.getByRole('link', { name: `Edit ${name}`, exact: true });
+        const archive = card.getByRole('button', { name: `Archive ${name}`, exact: true });
+        await expect(card).toBeVisible();
+        const [cardBox, headingBox, editBox, archiveBox] = await Promise.all([
+          card.boundingBox(), heading.boundingBox(), edit.boundingBox(), archive.boundingBox(),
+        ]);
+        if (!cardBox || !headingBox || !editBox || !archiveBox) throw new Error('Missing ingredient card bounds.');
+        expect(Math.abs(headingBox.y - editBox.y)).toBeLessThanOrEqual(1);
+        expect(Math.abs(editBox.y - archiveBox.y)).toBeLessThanOrEqual(1);
+        expect(headingBox.x + headingBox.width).toBeLessThanOrEqual(editBox.x);
+        expect(editBox.x + editBox.width).toBeLessThanOrEqual(archiveBox.x);
+        expect(Math.abs(cardBox.x + cardBox.width - 17 - archiveBox.x - archiveBox.width)).toBeLessThanOrEqual(1);
+        expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(width);
+        if (name !== 'Basil') {
+          const lineHeight = await heading.evaluate((element) => Number.parseFloat(getComputedStyle(element).lineHeight));
+          expect(headingBox.height).toBeGreaterThan(lineHeight);
+        }
+      }
+    });
+  }
+
+  for (const width of [320, 390, 1280]) {
+    test(`shows accessible edit and archive icons at ${width}px`, async ({ page }) => {
+      await mockAuthApi(page, { hasSession: true });
+      await mockIngredientApi(page, [ingredient('Basil')]);
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto('/ingredient-maintenance');
+
+      const container = width > 700
+        ? page.getByRole('row', { name: /Basil/ })
+        : page.getByRole('article', { name: 'Basil' });
+      if (width <= 700) {
+        await expect(container).toHaveCSS('border-color', 'rgb(74, 124, 89)');
+      }
+      const edit = container.getByRole('link', { name: 'Edit Basil' });
+      const archive = container.getByRole('button', { name: 'Archive Basil' });
+      await expect(edit).toHaveAttribute('href', /\/ingredient-maintenance\/[^/]+$/);
+      for (const [action, label] of [[edit, 'Edit'], [archive, 'Archive']] as const) {
+        await expect(action.locator('svg')).toHaveCount(1);
+        const bounds = await action.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds!.width).toBeGreaterThanOrEqual(40);
+        expect(bounds!.height).toBeGreaterThanOrEqual(40);
+        const tooltip = action.getByText(label, { exact: true });
+        await expect(tooltip).toBeHidden();
+        await action.hover();
+        if (width > 700) {
+          await expect(tooltip).toBeVisible();
+          await page.mouse.move(0, 0);
+          await action.focus();
+          await expect(tooltip).toBeVisible();
+        } else {
+          await expect(tooltip).toBeHidden();
+        }
+        await action.blur();
+      }
+    });
+  }
+
   test('AC-05, AC-08, AC-09, and AC-10 show the desktop table and mapping states', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockIngredientApi(page, [

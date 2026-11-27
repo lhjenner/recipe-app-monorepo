@@ -1,0 +1,109 @@
+import ConfirmDialog from '../../../shared/components/ConfirmDialog';
+import { toTitleCase } from '../../../shared/utils/titleCase';
+import { useGroceryClearAll } from '../hooks/useGroceryClearAll';
+import { useGroceryItemRemoval } from '../hooks/useGroceryItemRemoval';
+import { useGroceryPurchaseActions } from '../hooks/useGroceryPurchaseActions';
+import { useGroceryQuantityUpdate } from '../hooks/useGroceryQuantityUpdate';
+import { useGroceryRecipeRemoval } from '../hooks/useGroceryRecipeRemoval';
+
+interface GroceryListOverlaysProps {
+  removal: ReturnType<typeof useGroceryItemRemoval>;
+  recipeRemoval: ReturnType<typeof useGroceryRecipeRemoval>;
+  quantityUpdate: ReturnType<typeof useGroceryQuantityUpdate>;
+  clearAll: ReturnType<typeof useGroceryClearAll>;
+  purchases: ReturnType<typeof useGroceryPurchaseActions>;
+}
+
+function GroceryListOverlays({
+  removal,
+  recipeRemoval,
+  quantityUpdate,
+  clearAll,
+  purchases,
+}: GroceryListOverlaysProps) {
+  return (
+    <>
+      {removal.error && (
+        <p className="grocery-inline-error" role="alert">
+          {removal.error}
+          {removal.canRetry && (
+            <button className="btn btn-secondary" type="button" onClick={removal.retry}>Retry removal</button>
+          )}
+          {removal.canRetry && removal.retryName && ` for ${toTitleCase(removal.retryName)}`}
+        </p>
+      )}
+      {recipeRemoval.error && (
+        <p className="grocery-inline-error" role="alert">
+          {recipeRemoval.error}
+          {recipeRemoval.canRetry && (
+            <button className="btn btn-secondary" type="button" onClick={recipeRemoval.retry}>
+              Retry Recipe removal
+            </button>
+          )}
+          {recipeRemoval.canRetry && recipeRemoval.retryName && ` for ${toTitleCase(recipeRemoval.retryName)}`}
+        </p>
+      )}
+      {quantityUpdate.error && (
+        <p className="grocery-inline-error" role="alert">
+          {quantityUpdate.error}
+          {quantityUpdate.canRetry && (
+            <button className="btn btn-secondary" type="button" onClick={quantityUpdate.retry}>
+              Retry quantity update
+            </button>
+          )}
+        </p>
+      )}
+      {clearAll.error && (
+        <p className="grocery-inline-error" role="alert">
+          {clearAll.error}
+          {clearAll.canRetry && (
+            <button className="btn btn-secondary" type="button" onClick={clearAll.retry}>Retry clear</button>
+          )}
+        </p>
+      )}
+      {purchases.error && (
+        <p className="grocery-inline-error" role="alert">
+          {purchases.error}
+          {purchases.canRetry && (
+            <button className="btn btn-secondary" type="button" onClick={purchases.retry}>
+              {purchases.retryLabel}
+            </button>
+          )}
+        </p>
+      )}
+      {purchases.status && <p className="grocery-update-notice" role="status">{purchases.status}</p>}
+      <ConfirmDialog
+        open={recipeRemoval.recipe !== null}
+        title="Remove Recipe from Grocery List?"
+        message={`Remove ${recipeRemoval.recipe ? toTitleCase(recipeRemoval.recipe.name) : 'this Recipe'} and its outstanding requirements? Manual additions, other Recipes, and purchase history will remain.`}
+        confirmLabel="Remove Recipe"
+        tone="danger"
+        confirmFirst
+        onCancel={recipeRemoval.cancel}
+        onConfirm={recipeRemoval.confirm}
+      />
+      <ConfirmDialog
+        open={removal.item !== null}
+        title="Remove grocery item?"
+        message={`Remove ${removal.item ? toTitleCase(removal.item.name) : 'this item'} and cancel its outstanding demand, including any Recipe contributions? Purchase history will be kept.`}
+        confirmLabel="Remove item"
+        tone="danger"
+        confirmFirst
+        onCancel={removal.cancel}
+        onConfirm={removal.confirm}
+      />
+      <ConfirmDialog
+        open={clearAll.isConfirming}
+        title="Clear outstanding grocery list?"
+        message="This cancels all outstanding demand only. Completed purchases and purchase history will remain."
+        confirmLabel="Clear outstanding list"
+        tone="danger"
+        confirmFirst
+        onCancel={clearAll.cancel}
+        onConfirm={clearAll.confirm}
+      />
+    </>
+  );
+}
+
+export default GroceryListOverlays;

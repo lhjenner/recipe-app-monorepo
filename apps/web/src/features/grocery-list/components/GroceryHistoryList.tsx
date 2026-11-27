@@ -1,18 +1,23 @@
+import { Undo2 } from 'lucide-react';
+import IconButton from '../../../shared/components/IconButton';
 import type { GroceryHistoryEvent } from '../services/groceryListApi';
 import { toTitleCase } from '../../../shared/utils/titleCase';
 
 interface GroceryHistoryListProps {
   events: GroceryHistoryEvent[];
+  onUndo?: (event: GroceryHistoryEvent) => void;
+  disabled?: boolean;
 }
 
-function GroceryHistoryList({ events }: GroceryHistoryListProps) {
+function GroceryHistoryList({ events, onUndo, disabled = false }: GroceryHistoryListProps) {
   return (
     <>
       <div className="grocery-history-table-wrap">
         <table className="grocery-history-table" aria-label="Purchase history">
           <thead>
             <tr>
-              <th scope="col">Date and item</th>
+              <th scope="col">Date</th>
+              <th scope="col">Item</th>
               <th scope="col">Quantity</th>
               <th scope="col">Store</th>
               <th scope="col">Record</th>
@@ -21,14 +26,23 @@ function GroceryHistoryList({ events }: GroceryHistoryListProps) {
           <tbody>
             {events.map((event) => (
               <tr key={event.id}>
+                <td>{formatDate(event.occurredAtUtc)}</td>
                 <th scope="row">
-                  {formatDate(event.occurredAtUtc)}
-                  <span>{toTitleCase(event.itemNameSnapshot)}</span>
+                  {toTitleCase(event.itemNameSnapshot)}
                   {event.noteSnapshot && <small>{event.noteSnapshot}</small>}
                 </th>
-                <td>{formatAmount(event.quantity)} {event.purchaseUnit}</td>
+                <td>{formatPurchaseQuantity(event)}</td>
                 <td>{event.storeName ?? 'Store not recorded'}</td>
-                <td><EventState event={event} /></td>
+                <td>
+                  <div className="grocery-history-record">
+                    <span><EventState event={event} /></span>
+                    {onUndo && event.kind === 'purchase' && !event.isReversed && (
+                      <button className="btn btn-secondary" type="button" disabled={disabled} onClick={() => onUndo(event)}>
+                        Undo purchase
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -40,9 +54,24 @@ function GroceryHistoryList({ events }: GroceryHistoryListProps) {
             <h2>{toTitleCase(event.itemNameSnapshot)}</h2>
             <dl>
               <div><dt>Date</dt><dd>{formatDate(event.occurredAtUtc)}</dd></div>
-              <div><dt>Quantity</dt><dd>{formatAmount(event.quantity)} {event.purchaseUnit}</dd></div>
+              <div><dt>Quantity</dt><dd>{formatPurchaseQuantity(event)}</dd></div>
               <div><dt>Store</dt><dd>{event.storeName ?? 'Store not recorded'}</dd></div>
-              <div><dt>Record</dt><dd><EventState event={event} /></dd></div>
+              <div className="grocery-history-record-row">
+                <dt>Record</dt>
+                <dd className="grocery-history-record">
+                  <span><EventState event={event} /></span>
+                  {onUndo && event.kind === 'purchase' && !event.isReversed && (
+                    <IconButton
+                      label={`Undo purchase of ${toTitleCase(event.itemNameSnapshot)}`}
+                      tooltip="Undo purchase"
+                      icon={<Undo2 aria-hidden="true" />}
+                      variant="btn-secondary"
+                      disabled={disabled}
+                      onClick={() => onUndo(event)}
+                    />
+                  )}
+                </dd>
+              </div>
             </dl>
             {event.noteSnapshot && <p>{event.noteSnapshot}</p>}
           </li>
@@ -54,7 +83,7 @@ function GroceryHistoryList({ events }: GroceryHistoryListProps) {
 
 function EventState({ event }: { event: GroceryHistoryEvent }) {
   if (event.kind === 'reversal') {
-    return <>Undo recorded ({event.origin === 'manual' ? 'manual' : 'online cart'})</>;
+    return <>Purchase undone</>;
   }
   return event.isReversed ? <>Purchase reversed</> : <>Purchase recorded</>;
 }
@@ -62,13 +91,13 @@ function EventState({ event }: { event: GroceryHistoryEvent }) {
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en-NZ', {
     dateStyle: 'medium',
-    timeStyle: 'short',
     timeZone: 'Pacific/Auckland',
   }).format(new Date(value));
 }
 
-function formatAmount(value: number): string {
-  return new Intl.NumberFormat('en-NZ', { maximumFractionDigits: 9 }).format(value);
+function formatPurchaseQuantity(event: GroceryHistoryEvent): string {
+  const amount = new Intl.NumberFormat('en-NZ', { maximumFractionDigits: 9 }).format(event.quantity);
+  return event.purchaseUnit.trim().toLowerCase() === 'item' ? amount : `${amount} ${event.purchaseUnit}`;
 }
 
 export default GroceryHistoryList;

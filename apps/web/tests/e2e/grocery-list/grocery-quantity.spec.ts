@@ -77,6 +77,7 @@ for (const width of [320, 390, 1280]) {
         decrease,
         quantity,
         card.getByRole('button', { name: 'Increase quantity for Table Salt' }),
+        card.getByRole('button', { name: 'Mark purchased', exact: true }),
         card.getByRole('button', { name: 'Edit', exact: true }),
         card.getByRole('button', { name: 'Remove table salt from Grocery List' }),
       ];
@@ -104,3 +105,65 @@ for (const width of [320, 390, 1280]) {
     await expect(quantity).toHaveValue('1');
   });
 }
+
+for (const width of [320, 390, 701, 1280]) {
+  test(`grocery action icons fit and expose desktop tooltips at ${width}px`, async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockGroceryApi(page);
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/grocery-list');
+
+    const item = width > 700
+      ? page.getByRole('row', { name: /Green Apples/ })
+      : page.locator('.grocery-item-card').filter({ has: page.getByRole('heading', { name: 'Green Apples' }) });
+    const container = width > 700 ? item.getByRole('cell').last() : item;
+    const bounds = await container.boundingBox();
+    expect(bounds).not.toBeNull();
+    const tableBounds = width > 700 ? await page.locator('.grocery-items-table-wrap').boundingBox() : bounds;
+    expect(tableBounds).not.toBeNull();
+    for (const [name, tooltip] of [
+      ['Mark purchased', 'Mark purchased'],
+      ['Edit', 'Edit'],
+      ['Remove green apples from Grocery List', 'Remove'],
+    ]) {
+      const button = item.getByRole('button', { name, exact: true });
+      await expect(button.locator('svg')).toHaveCount(1);
+      const box = await button.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.width).toBeGreaterThanOrEqual(40);
+      expect(box!.height).toBeGreaterThanOrEqual(40);
+      expect(box!.x).toBeGreaterThanOrEqual(bounds!.x);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(tableBounds!.x + tableBounds!.width);
+      const label = button.getByText(tooltip, { exact: true });
+      await expect(label).toBeHidden();
+      await button.hover();
+      if (width > 700) {
+        await expect(label).toBeVisible();
+        const labelBox = await label.boundingBox();
+        expect(labelBox).not.toBeNull();
+        expect(labelBox!.x).toBeGreaterThanOrEqual(tableBounds!.x);
+        expect(labelBox!.x + labelBox!.width).toBeLessThanOrEqual(tableBounds!.x + tableBounds!.width);
+        await page.mouse.move(0, 0);
+        await button.focus();
+        await expect(label).toBeVisible();
+      } else {
+        await expect(label).toBeHidden();
+      }
+    }
+  });
+}
+
+test.describe('wide touch-only device', () => {
+  test.use({ viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true });
+
+  test('does not show action tooltips', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockGroceryApi(page);
+    await page.goto('/grocery-list');
+    const button = page.getByRole('row', { name: /Green Apples/ })
+      .getByRole('button', { name: 'Mark purchased' });
+    await button.focus();
+    await expect(button.getByText('Mark purchased', { exact: true })).toBeHidden();
+  });
+});

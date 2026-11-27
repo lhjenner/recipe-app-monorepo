@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import IconButton from '../../../shared/components/IconButton';
+import { Trash2 } from '../../../shared/components/icons';
 import { toTitleCase } from '../../../shared/utils/titleCase';
 import type { RecipeSource } from '../hooks/useGroceryRecipeRemoval';
 import type { GroceryItem } from '../services/groceryListApi';
@@ -38,11 +40,14 @@ function GroceryRecipeSources({ items, disabled, onRemove }: GroceryRecipeSource
         {recipes.map((recipe) => (
           <li key={recipe.id}>
             <Link to={`/recipes/${recipe.id}`}>{toTitleCase(recipe.name)}</Link>
-            <button className="btn btn-danger-secondary" type="button" disabled={disabled}
-              aria-label={`Remove ${toTitleCase(recipe.name)} from Grocery List`}
-              onClick={() => onRemove(recipe)}>
-              Remove
-            </button>
+            <IconButton
+              label={`Remove ${toTitleCase(recipe.name)} from Grocery List`}
+              tooltip="Remove"
+              icon={<Trash2 aria-hidden="true" />}
+              variant="btn-danger-secondary"
+              disabled={disabled}
+              onClick={() => onRemove(recipe)}
+            />
           </li>
         ))}
       </ul>

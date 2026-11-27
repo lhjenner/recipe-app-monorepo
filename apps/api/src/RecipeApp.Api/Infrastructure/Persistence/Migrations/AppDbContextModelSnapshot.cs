@@ -249,6 +249,9 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                         .HasPrecision(28, 9)
                         .HasColumnType("numeric(28,9)");
 
+                    b.Property<bool>("IsRestoredRecipeAssociation")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal?>("ManualPurchaseIncrement")
                         .HasPrecision(28, 9)
                         .HasColumnType("numeric(28,9)");
@@ -375,6 +378,10 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<decimal>("RestoredPurchaseQuantity")
+                        .HasPrecision(28, 9)
+                        .HasColumnType("numeric(28,9)");
+
                     b.Property<int>("State")
                         .HasColumnType("integer");
 
@@ -400,13 +407,13 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IngredientId", "OwnerUserId");
 
+                    b.HasIndex("OwnerUserId", "GroceryListId", "State")
+                        .HasDatabaseName("IX_GroceryItems_OwnerUserId_GroceryListId_State");
+
                     b.HasIndex("OwnerUserId", "GroceryListId", "ConsolidationKey", "PurchaseUnit")
                         .IsUnique()
                         .HasDatabaseName("IX_GroceryItems_ActivePurchaseLineKey")
                         .HasFilter("\"State\" = 0");
-
-                    b.HasIndex("OwnerUserId", "GroceryListId", "State")
-                        .HasDatabaseName("IX_GroceryItems_OwnerUserId_GroceryListId_State");
 
                     b.ToTable("GroceryItems", null, t =>
                         {
@@ -415,6 +422,8 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_GroceryItems_NameAndUnit_NotBlank", "\"NormalizedName\" ~ '[^[:space:]]' AND \"PurchaseUnit\" ~ '[^[:space:]]' AND \"ConsolidationKey\" ~ '[^[:space:]]'");
 
                             t.HasCheckConstraint("CK_GroceryItems_OutstandingPurchaseQuantity_Nonnegative", "\"OutstandingPurchaseQuantity\" >= 0");
+
+                            t.HasCheckConstraint("CK_GroceryItems_RestoredPurchaseQuantity", "\"RestoredPurchaseQuantity\" >= 0 AND \"RestoredPurchaseQuantity\" <= \"OutstandingPurchaseQuantity\"");
 
                             t.HasCheckConstraint("CK_GroceryItems_State_Dimension", "\"State\" IN (0, 1, 2) AND (\"Dimension\" IS NULL OR \"Dimension\" IN (0, 1, 2))");
                         });
@@ -501,6 +510,10 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("StoreIdSnapshot")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("StoreNameSnapshot")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
 
@@ -1159,7 +1172,7 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                         .HasForeignKey("StoreId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Department", null)
+                    b.HasOne("RecipeApp.Api.Infrastructure.Persistence.Department", "Department")
                         .WithMany()
                         .HasForeignKey("DepartmentId", "OwnerUserId")
                         .HasPrincipalKey("Id", "OwnerUserId")
@@ -1177,6 +1190,8 @@ namespace RecipeApp.Api.Infrastructure.Persistence.Migrations
                         .HasForeignKey("IngredientId", "OwnerUserId")
                         .HasPrincipalKey("Id", "OwnerUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Department");
 
                     b.Navigation("GroceryList");
 

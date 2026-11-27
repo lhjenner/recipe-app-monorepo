@@ -2,7 +2,10 @@ import { expect, test } from '@playwright/test';
 import { mockAuthApi } from '../support/mockAuthApi.ts';
 import { groceryList, mockGroceryApi, selectedStoreId } from '../support/mockGroceryApi.ts';
 import { ingredient, mockIngredientApi } from '../support/mockIngredientListApi.ts';
-import type { GroceryManualEntryCommand } from '../../../src/features/grocery-list/services/groceryListApi.ts';
+import type {
+  GroceryHistoryEvent,
+  GroceryManualEntryCommand,
+} from '../../../src/features/grocery-list/services/groceryListApi.ts';
 
 test('requires confirmation before removing an item and allows cancellation with Escape', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
@@ -29,6 +32,362 @@ test('requires confirmation before removing an item and allows cancellation with
   await dialog.getByRole('button', { name: 'Remove item', exact: true }).click();
   await expect.poll(() => removals).toBe(1);
 });
+
+for (const width of [390, 1280]) {
+test(`records a whole-line purchase without confirmation and reverses it at ${width}px`, async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  const list = structuredClone(groceryList);
+  list.items[1].storeMappings.push({
+    storeId: '00000000-0000-7000-8000-000000000999',
+    state: 'unmapped',
+    departmentId: null,
+    departmentName: null,
+  });
+  const historyEvents: GroceryHistoryEvent[] = [];
+  let purchaseId = '';
+  await page.route('**/api/grocery-list', (route) => {
+    const response = structuredClone(list);
+    response.items = response.items.filter((item) => item.state === 'outstanding');
+    if (response.version > 1) response.items.find((item) => item.id === list.items[1].id)?.storeMappings.reverse();
+    return route.fulfill({ json: response });
+  });
+  await page.route('**/api/grocery-list/purchase-history**', (route) => route.fulfill({
+    json: { items: historyEvents, totalCount: historyEvents.length, page: 1, pageSize: 25 },
+  }));
+  await page.route('**/api/grocery-list/items/*/purchases', async (route) => {
+    expect(route.request().method()).toBe('POST');
+    const request = route.request().postDataJSON() as {
+      expectedListVersion: number;
+      expectedOutstandingQuantity: number;
+      purchaseUnit: string;
+      storeId: string | null;
+    };
+    expect(request).toMatchObject({
+      expectedListVersion: 1,
+      expectedOutstandingQuantity: 2,
+      purchaseUnit: 'item',
+      storeId: null,
+    });
+    purchaseId = '00000000-0000-7000-8000-000000000501';
+    historyEvents.push({
+      id: purchaseId,
+      groceryItemId: list.items[0].id,
+      kind: 'purchase',
+      quantity: 2,
+      purchaseUnit: 'item',
+      occurredAtUtc: new Date().toISOString(),
+      itemNameSnapshot: 'green apples',
+      noteSnapshot: null,
+      storeId: null,
+      storeName: null,
+      origin: 'manual',
+      reversesEventId: null,
+      isReversed: false,
+    });
+    list.version = 2;
+    list.completedItemCount = 1;
+    list.items[0].state = 'completed';
+    list.items[0].outstandingPurchaseQuantity = 0;
+    await route.fulfill({
+      json: {
+        commandId: '00000000-0000-7000-8000-000000000502',
+        resultListVersion: 2,
+        resultIds: [purchaseId],
+      },
+    });
+  });
+  await page.route('**/api/grocery-list/purchase-history/*/reverse', async (route) => {
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().url()).toContain(purchaseId);
+    historyEvents[0].isReversed = true;
+    historyEvents.push({
+      id: '00000000-0000-7000-8000-000000000504',
+      groceryItemId: list.items[0].id,
+      kind: 'reversal',
+      quantity: 2,
+      purchaseUnit: 'item',
+      occurredAtUtc: new Date().toISOString(),
+      itemNameSnapshot: 'green apples',
+      noteSnapshot: null,
+      storeId: null,
+      storeName: null,
+      origin: 'manual',
+      reversesEventId: purchaseId,
+      isReversed: false,
+    });
+    list.version = 3;
+    list.completedItemCount = 0;
+    list.items[0].state = 'outstanding';
+    list.items[0].outstandingPurchaseQuantity = 2;
+    await route.fulfill({
+      json: {
+        commandId: '00000000-0000-7000-8000-000000000503',
+        resultListVersion: 3,
+        resultIds: ['00000000-0000-7000-8000-000000000504'],
+      },
+    });
+  });
+
+  await page.setViewportSize({ width, height: 844 });
+  await page.goto('/grocery-list');
+  const itemRow = width > 700
+    ? page.getByRole('row', { name: /Green Apples/ })
+    : page.locator('.grocery-item-card').filter({ has: page.getByRole('heading', { name: 'Green Apples' }) });
+  await itemRow.getByRole('button', { name: 'Mark purchased' }).click();
+  await expect(page.getByRole('dialog', { name: 'Mark item purchased?' })).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Purchased: Green Apples' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo purchase of Green Apples' })).toBeEnabled();
+  await expect(itemRow).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Grocery list updated.' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Undo purchase of Green Apples' }).click();
+  await expect(page.getByRole('dialog', { name: 'Undo purchase?' })).toHaveCount(0);
+  await expect(page.getByText('Purchase undone.', { exact: true })).toBeVisible();
+  await expect(itemRow).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Grocery list updated.' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Purchase history' }).click();
+  const history = width > 700
+    ? page.getByRole('table', { name: 'Purchase history' })
+    : page.getByRole('list', { name: 'Purchase history' });
+  await expect(history.getByText('Purchase reversed')).toBeVisible();
+  await expect(history.getByText('Purchase undone')).toBeVisible();
+});
+}
+
+test('stacks purchase snackbars on mobile and undoes the selected purchase', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await page.clock.install({ time: new Date('2026-04-05T00:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-04-05T00:00:01Z'));
+  await page.setViewportSize({ width: 320, height: 844 });
+  const list = structuredClone(groceryList);
+  list.items[1].name = 'extraordinarilylongunbrokeningredientnameforpurchases';
+  const eventIds: string[] = [];
+  let undoneId = '';
+  await page.route('**/api/grocery-list', (route) => route.fulfill({ json: list }));
+  await page.route('**/api/grocery-list/items/*/purchases', async (route) => {
+    const itemId = new URL(route.request().url()).pathname.split('/').at(-2);
+    const item = list.items.find((candidate) => candidate.id === itemId);
+    if (!item) throw new Error('Unknown purchase item.');
+    const eventId = `00000000-0000-7000-8000-00000000050${eventIds.length + 1}`;
+    eventIds.push(eventId);
+    item.state = 'completed';
+    item.outstandingPurchaseQuantity = 0;
+    list.version += 1;
+    list.completedItemCount += 1;
+    await route.fulfill({ json: {
+      commandId: '00000000-0000-7000-8000-000000000511',
+      resultListVersion: list.version,
+      resultIds: [eventId],
+    } });
+  });
+  await page.route('**/api/grocery-list/purchase-history/*/reverse', async (route) => {
+    undoneId = new URL(route.request().url()).pathname.split('/').at(-2) ?? '';
+    list.version += 1;
+    list.completedItemCount -= 1;
+    list.items[0].state = 'outstanding';
+    list.items[0].outstandingPurchaseQuantity = 2;
+    await route.fulfill({ json: {
+      commandId: '00000000-0000-7000-8000-000000000512',
+      resultListVersion: list.version,
+      resultIds: ['00000000-0000-7000-8000-000000000513'],
+    } });
+  });
+  await page.goto('/grocery-list');
+  await page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Green Apples' }) })
+    .getByRole('button', { name: 'Mark purchased' }).click();
+  const first = page.getByRole('status').filter({ hasText: 'Purchased: Green Apples' }).locator('..');
+  await expect(first).toBeVisible();
+  await page.clock.fastForward(1_000);
+  const longName = 'Extraordinarilylongunbrokeningredientnameforpurchases';
+  await page.getByRole('article').filter({ has: page.getByRole('heading', { name: longName }) })
+    .getByRole('button', { name: 'Mark purchased' }).click();
+  const second = page.getByRole('status').filter({ hasText: `Purchased: ${longName}` }).locator('..');
+  await expect(second).toBeVisible();
+  const undo = second.getByRole('button', { name: `Undo purchase of ${longName}` });
+  await expect(undo).toBeEnabled();
+  const [firstBox, secondBox, textBox, undoBox] = await Promise.all([
+    first.boundingBox(), second.boundingBox(), second.getByRole('status').boundingBox(), undo.boundingBox(),
+  ]);
+  expect(firstBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  expect(textBox).not.toBeNull();
+  expect(undoBox).not.toBeNull();
+  expect(secondBox!.y + secondBox!.height).toBeLessThanOrEqual(firstBox!.y);
+  expect(textBox!.height).toBeGreaterThan(30);
+  expect(textBox!.x + textBox!.width).toBeLessThanOrEqual(undoBox!.x);
+  expect(undoBox!.x + undoBox!.width).toBeLessThanOrEqual(secondBox!.x + secondBox!.width);
+  await first.getByRole('button', { name: 'Undo purchase of Green Apples' }).click();
+  await expect.poll(() => undoneId).toBe(eventIds[0]);
+  await expect(page.getByRole('dialog', { name: 'Undo purchase?' })).toHaveCount(0);
+  await expect(first).toHaveCount(0);
+  await expect(second).toBeVisible();
+});
+
+test('allows retrying a failed grocery-list read needed for history Undo', async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  await page.route('**/api/grocery-list/purchase-history**', (route) => route.fulfill({
+    json: {
+      items: [{
+        id: '00000000-0000-7000-8000-000000000401',
+        groceryItemId: groceryList.items[0].id,
+        kind: 'purchase',
+        quantity: 2,
+        purchaseUnit: 'item',
+        occurredAtUtc: '2026-04-04T11:00:00Z',
+        itemNameSnapshot: 'green apples',
+        noteSnapshot: null,
+        storeId: null,
+        storeName: null,
+        origin: 'manual',
+        reversesEventId: null,
+        isReversed: false,
+      }],
+      totalCount: 1,
+      page: 1,
+      pageSize: 25,
+    },
+  }));
+  let listAvailable = false;
+  await page.route('**/api/grocery-list', (route) => {
+    return listAvailable
+      ? route.fulfill({ json: groceryList })
+      : route.fulfill({ status: 503, json: { title: 'List unavailable' } });
+  });
+  await page.goto('/grocery-list/history');
+  await expect(page.getByRole('alert')).toContainText('Unable to refresh the grocery list for Undo');
+  const undo = page.getByRole('table', { name: 'Purchase history' })
+    .getByRole('button', { name: 'Undo purchase' });
+  await expect(undo).toBeDisabled();
+  listAvailable = true;
+  await page.getByRole('button', { name: 'Retry grocery list' }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(undo).toBeEnabled();
+});
+
+for (const width of [320, 390, 1280]) {
+test(`purchase history displays responsive Undo and requires confirmation at ${width}px`, async ({ page }) => {
+  await mockAuthApi(page, { hasSession: true });
+  await mockGroceryApi(page);
+  let reversals = 0;
+  const eventId = '00000000-0000-7000-8000-000000000501';
+  const reversedEvent: GroceryHistoryEvent = {
+    id: '00000000-0000-7000-8000-000000000503',
+    groceryItemId: groceryList.items[0].id,
+    kind: 'purchase',
+    quantity: 2,
+    purchaseUnit: 'item',
+    occurredAtUtc: '2026-04-04T11:30:00Z',
+    itemNameSnapshot: 'green apples',
+    noteSnapshot: null,
+    storeId: null,
+    storeName: null,
+    origin: 'manual',
+    reversesEventId: null,
+    isReversed: true,
+  };
+  await page.route('**/api/grocery-list/purchase-history**', (route) => route.fulfill({
+    json: {
+      items: [{
+        id: eventId,
+        groceryItemId: groceryList.items[0].id,
+        kind: 'purchase',
+        quantity: 2,
+        purchaseUnit: 'item',
+        occurredAtUtc: '2026-04-04T11:30:00Z',
+        itemNameSnapshot: 'green apples',
+        noteSnapshot: null,
+        storeId: null,
+        storeName: null,
+        origin: 'manual',
+        reversesEventId: null,
+        isReversed: false,
+      }, reversedEvent],
+      totalCount: 2,
+      page: 1,
+      pageSize: 25,
+    },
+  }));
+  await page.route('**/api/grocery-list/purchase-history/*/reverse', async (route) => {
+    reversals++;
+    await route.fulfill({ json: {
+      commandId: '00000000-0000-7000-8000-000000000511',
+      resultListVersion: 2,
+      resultIds: ['00000000-0000-7000-8000-000000000512'],
+    } });
+  });
+  await page.setViewportSize({ width, height: 844 });
+  await page.goto('/grocery-list/history');
+  const history = width > 700
+    ? page.getByRole('table', { name: 'Purchase history' })
+    : page.getByRole('list', { name: 'Purchase history' });
+  await expect(history.getByText('5 Apr 2026', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('1 events', { exact: false })).toHaveCount(0);
+  if (width > 700) {
+    await expect(history.getByRole('columnheader')).toHaveText(['Date', 'Item', 'Quantity', 'Store', 'Record']);
+    await expect(history.getByRole('columnheader', { name: 'Quantity' })).toHaveCSS('text-align', 'center');
+    for (const quantity of await history.getByRole('cell', { name: '2', exact: true }).all()) {
+      await expect(quantity).toHaveCSS('text-align', 'center');
+    }
+  } else {
+    for (const card of await history.getByRole('listitem').all()) {
+      await expect(card).toHaveCSS('border-color', 'rgb(74, 124, 89)');
+    }
+  }
+  const record = history.getByText('Purchase recorded', { exact: true });
+  const undo = history.getByRole('button', { name: width > 700 ? 'Undo purchase' : 'Undo purchase of Green Apples' });
+  if (width <= 700) await expect(undo.locator('svg')).toBeVisible();
+  const [recordBox, undoBox] = await Promise.all([record.boundingBox(), undo.boundingBox()]);
+  expect(recordBox).not.toBeNull();
+  expect(undoBox).not.toBeNull();
+  expect(recordBox!.x + recordBox!.width).toBeLessThanOrEqual(undoBox!.x);
+  expect(recordBox!.y).toBeLessThan(undoBox!.y + undoBox!.height);
+  expect(recordBox!.y + recordBox!.height).toBeGreaterThan(undoBox!.y);
+  if (width > 700) expect(recordBox!.height).toBeLessThanOrEqual(24);
+  if (width <= 700) {
+    for (const label of await history.getByRole('term').filter({ hasText: /^Record$/ }).all()) {
+      const value = label.locator('..').getByRole('definition');
+      const [labelBox, valueBox] = await Promise.all([label.boundingBox(), value.boundingBox()]);
+      expect(labelBox).not.toBeNull();
+      expect(valueBox).not.toBeNull();
+      expect(labelBox!.x + labelBox!.width).toBeLessThanOrEqual(valueBox!.x);
+      expect(labelBox!.y).toBeLessThan(valueBox!.y + valueBox!.height);
+      expect(labelBox!.y + labelBox!.height).toBeGreaterThan(valueBox!.y);
+    }
+  }
+  const recordContainer = record.locator('..');
+  const containerBox = await recordContainer.boundingBox();
+  expect(containerBox).not.toBeNull();
+  expect(Math.abs(containerBox!.x + containerBox!.width - undoBox!.x - undoBox!.width)).toBeLessThanOrEqual(1);
+  if (width > 700) {
+    const purchaseRow = history.getByRole('row').filter({ hasText: 'Purchase recorded' });
+    const reversedRow = history.getByRole('row').filter({ hasText: 'Purchase reversed' });
+    const [purchaseRowBox, reversedRowBox, dateBox] = await Promise.all([
+      purchaseRow.boundingBox(),
+      reversedRow.boundingBox(),
+      purchaseRow.getByRole('cell').first().boundingBox(),
+    ]);
+    expect(purchaseRowBox).not.toBeNull();
+    expect(reversedRowBox).not.toBeNull();
+    expect(dateBox).not.toBeNull();
+    expect(Math.abs(purchaseRowBox!.height - reversedRowBox!.height)).toBeLessThanOrEqual(1);
+    const datePadding = await purchaseRow.getByRole('cell').first()
+      .evaluate((cell) => Number.parseFloat(getComputedStyle(cell).paddingTop));
+    expect(Math.abs(recordBox!.y - dateBox!.y - datePadding)).toBeLessThanOrEqual(1);
+    expect(undoBox!.height).toBeLessThanOrEqual(recordBox!.height);
+  }
+  await undo.click();
+  const dialog = page.getByRole('dialog', { name: 'Undo purchase?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  expect(reversals).toBe(0);
+  await undo.click();
+  await dialog.getByRole('button', { name: 'Undo purchase' }).click();
+  await expect.poll(() => reversals).toBe(1);
+});
+}
 
 test('grocery dialogs contain focus, close with Escape and restore the trigger', async ({ page }) => {
   await mockAuthApi(page, { hasSession: true });
@@ -650,6 +1009,9 @@ test.describe('Grocery list reads', () => {
     await expect(page.getByRole('table', { name: 'Outstanding grocery items' })).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Green Apples', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Not stocked here', exact: true })).toBeVisible();
+    for (const card of await page.getByRole('article').all()) {
+      await expect(card).toHaveCSS('border-color', 'rgb(74, 124, 89)');
+    }
 
     await page.getByRole('link', { name: 'Purchase history' }).click();
     await expect(page.getByRole('heading', { name: 'Purchase History' })).toBeVisible();
@@ -693,20 +1055,27 @@ test.describe('Grocery list reads', () => {
     });
     await page.goto('/grocery-list');
     await expect(page.getByText('There are no outstanding grocery items.', { exact: true })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole('status').filter({ hasText: 'There are no outstanding grocery items.' }))
+      .toHaveCSS('border-color', 'rgb(74, 124, 89)');
+    await page.setViewportSize({ width: 1280, height: 844 });
     const initialReadCount = readCount;
 
     secondDeviceUpdated = true;
     await page.clock.fastForward(15_000);
 
     const notice = page.getByRole('status').filter({ hasText: 'Grocery list updated.' });
+    const snackbar = notice.locator('..');
     await expect(notice).toBeVisible();
-    await expect(notice).toHaveCSS('background-color', 'rgb(255, 247, 225)');
-    await expect(notice).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
-    await expect(notice).toHaveCSS('color', 'rgb(67, 67, 67)');
+    await expect(snackbar.locator('..')).toHaveCSS('position', 'fixed');
+    await expect(snackbar).toHaveCSS('font-weight', '600');
+    await expect(snackbar).toHaveCSS('background-color', 'rgb(4, 219, 162)');
+    await expect(snackbar).toHaveCSS('border-top-color', 'rgb(4, 219, 162)');
+    await expect(snackbar).toHaveCSS('color', 'rgb(30, 30, 30)');
     await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
-    await expect(notice).toHaveCSS('background-color', 'rgb(73, 57, 31)');
-    await expect(notice).toHaveCSS('border-top-color', 'rgb(255, 213, 138)');
-    await expect(notice).toHaveCSS('color', 'rgb(198, 199, 198)');
+    await expect(snackbar).toHaveCSS('background-color', 'rgb(7, 84, 71)');
+    await expect(snackbar).toHaveCSS('border-top-color', 'rgb(7, 84, 71)');
+    await expect(snackbar).toHaveCSS('color', 'rgb(228, 233, 227)');
     await expect(page.getByRole('table', { name: 'Outstanding grocery items' })).toBeVisible();
     expect(readCount).toBeGreaterThan(initialReadCount);
     await page.clock.fastForward(4_000);

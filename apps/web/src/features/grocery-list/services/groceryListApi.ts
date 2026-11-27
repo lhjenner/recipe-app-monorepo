@@ -194,6 +194,20 @@ export interface GroceryItemUpdateRequest {
   adHocDepartmentId: string | null;
 }
 
+export interface GroceryPurchaseRequest {
+  commandId: string;
+  expectedListVersion: number;
+  expectedOutstandingQuantity: number;
+  purchaseUnit: string;
+  storeId: string | null;
+}
+
+export interface GroceryListQuery {
+  includeCompleted?: boolean;
+  from?: string;
+  to?: string;
+}
+
 export class GroceryListApiError extends Error {
   readonly status: number;
   readonly fieldErrors: Record<string, string[]>;
@@ -245,8 +259,22 @@ async function getJson<T>(
   return parsedResponse.data;
 }
 
-export function getGroceryList(signal?: AbortSignal): Promise<GroceryList> {
-  return getJson('/api/grocery-list', groceryListSchema, signal);
+export function getGroceryList(
+  signal?: AbortSignal,
+  query: GroceryListQuery = {},
+): Promise<GroceryList> {
+  const parameters = new URLSearchParams();
+  if (query.includeCompleted) {
+    parameters.set('includeCompleted', 'true');
+  }
+  if (query.from) {
+    parameters.set('from', query.from);
+  }
+  if (query.to) {
+    parameters.set('to', query.to);
+  }
+  const suffix = parameters.size > 0 ? `?${parameters.toString()}` : '';
+  return getJson(`/api/grocery-list${suffix}`, groceryListSchema, signal);
 }
 
 async function writeJson<T>(
@@ -371,6 +399,57 @@ export async function cancelGroceryItem(
     response.status,
     problem?.errors,
     problem?.duplicateReviews,
+  );
+}
+
+export async function cancelAllGroceryItems(
+  commandId: string,
+  expectedListVersion: number,
+): Promise<void> {
+  const response = await apiFetch('/api/grocery-list/items', {
+    method: 'DELETE',
+    headers: {
+      'X-Command-Id': commandId,
+      'X-Expected-List-Version': String(expectedListVersion),
+    },
+    requiresSession: true,
+  }).catch(() => {
+    throw new GroceryListApiError('Unable to reach the grocery service. Please try again.', 0);
+  });
+  if (response.status === 204) {
+    return;
+  }
+
+  const parsedProblem = problemDetailsSchema.safeParse(await response.json().catch(() => null));
+  const problem = parsedProblem.success ? parsedProblem.data : undefined;
+  throw new GroceryListApiError(
+    problem?.detail ?? problem?.title ?? 'The grocery request failed. Please try again.',
+    response.status,
+    problem?.errors,
+  );
+}
+
+export function purchaseGroceryItem(
+  itemId: string,
+  request: GroceryPurchaseRequest,
+): Promise<GroceryCommandReceipt> {
+  return writeJson(
+    `/api/grocery-list/items/${encodeURIComponent(itemId)}/purchases`,
+    'POST',
+    request,
+    commandReceiptSchema,
+  );
+}
+
+export function reverseGroceryPurchase(
+  eventId: string,
+  command: { commandId: string; expectedListVersion: number },
+): Promise<GroceryCommandReceipt> {
+  return writeJson(
+    `/api/grocery-list/purchase-history/${encodeURIComponent(eventId)}/reverse`,
+    'POST',
+    command,
+    commandReceiptSchema,
   );
 }
 

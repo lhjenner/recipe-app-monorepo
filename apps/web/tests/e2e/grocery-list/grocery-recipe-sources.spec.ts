@@ -17,6 +17,70 @@ function contrastRatio(foreground: string, background: string): number {
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
+for (const width of [320, 390, 1280]) {
+  test(`keeps recipe removal icons beside long names at ${width}px`, async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockGroceryApi(page);
+    const list = structuredClone(groceryList);
+    const names = [
+      'baby banana blueberry muffins with extra delicious berries',
+      'supercalifragilisticexpialidociousblueberrymuffins',
+    ];
+    list.items[0].contributions = names.map((name, index) => ({
+      id: `00000000-0000-7000-8000-00000000051${index}`,
+      origin: 'recipe' as const,
+      state: 'outstanding' as const,
+      originalAmountText: '1',
+      originalUnitText: 'item',
+      originalNotesText: null,
+      interpretedAmount: 1,
+      canonicalUnit: 'item',
+      unresolvedReason: null,
+      recipeId: `00000000-0000-7000-8000-00000000050${index}`,
+      recipeStepId: null,
+      recipeStepItemId: null,
+      recipeNameSnapshot: name,
+    }));
+    await page.route('**/api/grocery-list', (route) => route.fulfill({ json: list }));
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/grocery-list');
+    const accordion = page.locator('details.grocery-recipe-sources');
+    await expect(accordion).toHaveCSS('border-color', width <= 700
+      ? 'rgb(74, 124, 89)' : 'rgb(4, 219, 162)');
+    await accordion.getByText('Recipes on Grocery List').click();
+
+    const rows = accordion.getByRole('listitem');
+    await expect(rows).toHaveCount(2);
+    for (const row of await rows.all()) {
+      const link = row.getByRole('link');
+      const button = row.getByRole('button', { name: /Remove .* from Grocery List/ });
+      await expect(button.locator('svg')).toHaveCount(1);
+      const [rowBox, linkBox, buttonBox] = await Promise.all([
+        row.boundingBox(), link.boundingBox(), button.boundingBox(),
+      ]);
+      expect(rowBox).not.toBeNull();
+      expect(linkBox).not.toBeNull();
+      expect(buttonBox).not.toBeNull();
+      expect(buttonBox!.width).toBeGreaterThanOrEqual(40);
+      expect(buttonBox!.height).toBeGreaterThanOrEqual(40);
+      expect(linkBox!.x + linkBox!.width).toBeLessThanOrEqual(buttonBox!.x);
+      expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(rowBox!.x + rowBox!.width);
+      expect(Math.abs(buttonBox!.y + buttonBox!.height / 2 - rowBox!.y - rowBox!.height / 2))
+        .toBeLessThanOrEqual(1);
+      if (width <= 390) {
+        expect(linkBox!.height).toBeGreaterThan(30);
+      }
+      const tooltip = button.getByText('Remove', { exact: true });
+      await button.hover();
+      if (width > 700) {
+        await expect(tooltip).toBeVisible();
+      } else {
+        await expect(tooltip).toBeHidden();
+      }
+    }
+  });
+}
+
 for (const width of [320, 1280]) {
   test(`removes a contributing Recipe from the Grocery List at ${width}px`, async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
@@ -85,7 +149,7 @@ for (const width of [320, 1280]) {
         expect(header.background).not.toBe('rgb(4, 219, 162)');
         expect(content.background).not.toBe('rgb(174, 255, 234)');
       }
-      expect(content.border).toBe(header.background);
+      expect(content.border).toBe(width <= 700 ? 'rgb(74, 124, 89)' : header.background);
       expect(contrastRatio(header.color, header.background)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(content.color, content.background)).toBeGreaterThanOrEqual(4.5);
       await page.mouse.move(0, 0);

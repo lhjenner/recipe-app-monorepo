@@ -119,7 +119,7 @@ public sealed class GroceryReadService(
                 .ToHashSetAsync(cancellationToken);
 
         var storeIds = events
-            .Where(item => item.StoreIdSnapshot is not null)
+            .Where(item => item.StoreNameSnapshot is null && item.StoreIdSnapshot is not null)
             .Select(item => item.StoreIdSnapshot!.Value)
             .Distinct()
             .ToArray();
@@ -141,9 +141,10 @@ public sealed class GroceryReadService(
                 item.ItemNameSnapshot,
                 item.NoteSnapshot,
                 item.StoreIdSnapshot,
-                item.StoreIdSnapshot is not null && storeNames.TryGetValue(item.StoreIdSnapshot.Value, out var storeName)
-                    ? storeName
-                    : null,
+                item.StoreNameSnapshot
+                    ?? (item.StoreIdSnapshot is not null && storeNames.TryGetValue(item.StoreIdSnapshot.Value, out var storeName)
+                        ? storeName
+                        : null),
                 item.Origin,
                 item.ReversesEventId,
                 reversedPurchaseIds.Contains(item.Id))).ToArray(),

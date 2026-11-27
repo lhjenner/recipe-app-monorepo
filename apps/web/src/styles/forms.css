@@ -116,6 +116,7 @@
 @media (max-width: 700px) {
   .ingredient-editor fieldset {
     padding: 14px;
+    border-color: var(--color-primary);
   }
 
   .ingredient-store-editor,

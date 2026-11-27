@@ -20,8 +20,7 @@
 }
 
 .grocery-page-heading p,
-.grocery-last-check,
-.grocery-history-count {
+.grocery-last-check {
   color: var(--color-text-muted);
 }
 
@@ -66,7 +65,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -435,6 +433,7 @@
 
 .grocery-items-table {
   table-layout: fixed;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -455,7 +454,7 @@
 
 .grocery-items-table thead th:last-child {
   box-sizing: border-box;
-  width: 13rem;
+  width: 10rem;
 }
 
 .grocery-items-table .grocery-item-actions {
@@ -548,7 +547,6 @@
   transform: rotate(45deg);
 }
 
-.grocery-history-table th span,
 .grocery-history-table th small {
   display: block;
   margin-top: 4px;
@@ -561,6 +559,12 @@
 }
 
 @media (max-width: 700px) {
+  .grocery-recipe-sources,
+  .grocery-empty-state,
+  .grocery-department-confirmation {
+    border-color: var(--color-primary);
+  }
+
   .grocery-duplicate-dialog .confirm-dialog-actions.confirmation-actions {
     align-items: stretch;
     flex-direction: column;
@@ -700,7 +704,7 @@
   .grocery-item-card,
   .grocery-history-card {
     padding: 16px;
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid var(--color-primary);
     border-radius: 6px;
     background: var(--color-surface);
   }
@@ -733,7 +737,7 @@
     gap: 4px;
   }
 
-  .grocery-item-card-controls .grocery-item-actions .btn {
-    padding-inline: 3px;
+  .grocery-item-card-controls .grocery-quantity-stepper {
+    width: 112px;
   }
 }

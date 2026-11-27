@@ -17,6 +17,9 @@ public sealed class GroceryItemConfiguration : IEntityTypeConfiguration<GroceryI
                 "CK_GroceryItems_OutstandingPurchaseQuantity_Nonnegative",
                 "\"OutstandingPurchaseQuantity\" >= 0");
             table.HasCheckConstraint(
+                "CK_GroceryItems_RestoredPurchaseQuantity",
+                "\"RestoredPurchaseQuantity\" >= 0 AND \"RestoredPurchaseQuantity\" <= \"OutstandingPurchaseQuantity\"");
+            table.HasCheckConstraint(
                 "CK_GroceryItems_NameAndUnit_NotBlank",
                 "\"NormalizedName\" ~ '[^[:space:]]' AND \"PurchaseUnit\" ~ '[^[:space:]]' AND \"ConsolidationKey\" ~ '[^[:space:]]'");
             table.HasCheckConstraint(
@@ -34,6 +37,8 @@ public sealed class GroceryItemConfiguration : IEntityTypeConfiguration<GroceryI
         item.Property(entity => entity.Dimension).HasConversion<int?>();
         item.Property(entity => entity.State).HasConversion<int>();
         item.Property(entity => entity.OutstandingPurchaseQuantity)
+            .HasPrecision(GroceryDecimalContract.Precision, GroceryDecimalContract.Scale);
+        item.Property(entity => entity.RestoredPurchaseQuantity)
             .HasPrecision(GroceryDecimalContract.Precision, GroceryDecimalContract.Scale);
         item.Property(entity => entity.CreatedAtUtc).IsRequired();
         item.Property(entity => entity.UpdatedAtUtc).IsRequired();

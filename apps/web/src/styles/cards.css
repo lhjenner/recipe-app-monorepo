@@ -35,6 +35,24 @@
 }
 
 @media (max-width: 700px) {
+  .ingredient-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    align-items: start;
+    border-color: var(--color-primary);
+  }
+
+  .ingredient-card h2 {
+    grid-area: 1 / 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .ingredient-card-details {
+    grid-column: 1 / -1;
+  }
+
   .ingredient-table-wrap {
     display: none;
   }
@@ -45,6 +63,8 @@
   }
 
   .ingredient-card-actions {
+    grid-area: 1 / 2;
+    flex-wrap: nowrap;
     justify-content: flex-end;
   }
 }

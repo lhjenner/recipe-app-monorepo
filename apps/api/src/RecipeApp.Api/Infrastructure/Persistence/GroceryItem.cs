@@ -18,6 +18,7 @@ public sealed class GroceryItem
     public required string ConsolidationKey { get; set; }
     public required string PurchaseUnit { get; set; }
     public decimal OutstandingPurchaseQuantity { get; set; }
+    public decimal RestoredPurchaseQuantity { get; set; }
     public GroceryItemState State { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }

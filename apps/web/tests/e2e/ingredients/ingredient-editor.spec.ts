@@ -81,6 +81,27 @@ async function mockEditorLookups(page: Parameters<typeof mockAuthApi>[0]) {
 }
 
 test.describe('Ingredient create and edit', () => {
+  test('uses primary mobile container borders without changing desktop or input borders', async ({ page }) => {
+    await mockAuthApi(page, { hasSession: true });
+    await mockEditorLookups(page);
+    await page.route('**/api/ingredients/*', (route) => route.fulfill({ json: detail('Basil') }));
+    await page.goto('/ingredient-maintenance/00000000-0000-7000-8000-000000000001');
+    await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Basil');
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => document.documentElement.dataset.theme = value, theme);
+      for (const width of [320, 390, 1280]) {
+        await page.setViewportSize({ width, height: 844 });
+        for (const section of await page.getByRole('group').all()) {
+          await expect(section).toHaveCSS('border-color', width <= 700
+            ? 'rgb(74, 124, 89)'
+            : theme === 'light' ? 'rgb(225, 231, 223)' : 'rgb(70, 82, 72)');
+        }
+        await expect(page.getByRole('textbox', { name: 'Name', exact: true }))
+          .toHaveCSS('border-color', theme === 'light' ? 'rgb(169, 181, 170)' : 'rgb(100, 117, 104)');
+      }
+    }
+  });
+
   test('preserves newer edits when lookup creation finishes', async ({ page }) => {
     await mockAuthApi(page, { hasSession: true });
     await mockEditorLookups(page);
@@ -158,7 +179,14 @@ test.describe('Ingredient create and edit', () => {
     await page.getByRole('combobox', { name: 'New World Greenmeadows department' }).fill('Fruit');
     await page.getByRole('button', { name: "Create 'Fruit'" }).click();
     await page.getByRole('checkbox', { name: 'Not stocked' }).nth(1).check();
-    await page.getByRole('button', { name: 'Add product link' }).click();
+    const addProductLink = page.getByRole('button', { name: 'Add product link' });
+    await expect(addProductLink).toHaveClass(/btn-primary/);
+    await addProductLink.click();
+    const removeLink = page.getByRole('button', { name: 'Remove link' });
+    await expect(removeLink).toHaveClass(/btn-danger-secondary/);
+    await removeLink.click();
+    await expect(page.getByRole('textbox', { name: 'Product link 1 URL' })).toHaveCount(0);
+    await addProductLink.click();
     await page.getByRole('textbox', { name: 'Product link 1 URL' }).fill('https://example.com/green-apples');
     await page.getByRole('textbox', { name: 'Variant label (optional)' }).fill('Granny Smith');
     await page.getByRole('spinbutton', { name: 'Energy (kcal)' }).fill('52');
