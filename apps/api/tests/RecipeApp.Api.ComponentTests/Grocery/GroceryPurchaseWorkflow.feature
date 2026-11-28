@@ -12,6 +12,16 @@ Feature: Grocery purchases and history
     When I undo the synthetic purchase again
     Then the purchase still has exactly one reversal
 
+  Scenario: Grocery purchase and undo survive an API restart
+    Given a logged in user
+    When I add and purchase three synthetic tins
+    Then the whole line is completed with one immutable purchase event
+    When I undo the synthetic purchase
+    Then the purchase remains with one reversal and exactly three tins outstanding
+    When I restart the API against the existing PostgreSQL database
+    Then exactly three tins remain outstanding
+    And the purchase and one reversal remain in history
+
   Scenario: Undo keeps later demand on the outstanding line
     Given a logged in user
     When I add and purchase three synthetic tins

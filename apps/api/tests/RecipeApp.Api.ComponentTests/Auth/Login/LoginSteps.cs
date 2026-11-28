@@ -34,6 +34,15 @@ public class LoginSteps (ApiAuthContext context)
         context.Response = await context.Client.PostAsJsonAsync(
             "/api/auth/login",
             new LoginRequest(context.Email, context.Password));
+        if (context.Response.Headers.TryGetValues("Set-Cookie", out var setCookies))
+        {
+            var sessionCookie = setCookies.SingleOrDefault(
+                value => value.StartsWith("RecipeApp.Session=", StringComparison.Ordinal));
+            if (sessionCookie is not null)
+            {
+                context.OriginalSessionCookie = sessionCookie.Split(';', 2)[0];
+            }
+        }
     }
       
     [When("I submit a login request")]
