@@ -74,6 +74,28 @@ public sealed class GroceryPurchaseWorkflowSteps(ApiAuthContext context)
     [When("I undo the synthetic purchase again")]
     public Task UndoPurchaseAgainAsync() => UndoPurchaseAsync();
 
+    [When("I restart the API against the existing PostgreSQL database")]
+    public Task RestartApiAsync() => context.RestartApiAsync();
+
+    [Then("exactly three tins remain outstanding")]
+    public async Task AssertThreeTinsRemainOutstandingAfterRestartAsync()
+    {
+        using var list = await ReadListAsync();
+        var item = FindItem(list, _itemId);
+        item.GetProperty("state").GetString().Should().Be("outstanding");
+        item.GetProperty("outstandingPurchaseQuantity").GetDecimal().Should().Be(3);
+    }
+
+    [Then("the purchase and one reversal remain in history")]
+    public async Task AssertPurchaseAndReversalRemainAfterRestartAsync()
+    {
+        using var history = await ReadHistoryAsync();
+        var events = history.RootElement.GetProperty("items").EnumerateArray().ToArray();
+        events.Should().HaveCount(2);
+        events.Should().ContainSingle(value => value.GetProperty("kind").GetString() == "purchase");
+        events.Should().ContainSingle(value => value.GetProperty("kind").GetString() == "reversal");
+    }
+
     [When("I add two more synthetic tins")]
     public Task AddLaterDemandAsync() =>
         AddItemAsync(_itemName, 2, _purchaseUnit);

@@ -44,6 +44,34 @@ public sealed class ApiAuthContext : IAsyncDisposable
     {
         await _database.StartAsync();
 
+        await StartApiAsync();
+    }
+
+    public async Task RestartApiAsync()
+    {
+        if (_factory is not null)
+        {
+            var sessionCookie = Response?.Headers.TryGetValues("Set-Cookie", out var setCookies) == true
+                ? setCookies?.SingleOrDefault(value => value.StartsWith("RecipeApp.Session=", StringComparison.Ordinal))
+                    ?.Split(';', 2)[0]
+                : null;
+
+            Response?.Dispose();
+            Client?.Dispose();
+            await _factory.DisposeAsync();
+            await StartApiAsync();
+
+            sessionCookie ??= OriginalSessionCookie;
+            if (!string.IsNullOrWhiteSpace(sessionCookie))
+            {
+                Client!.DefaultRequestHeaders.Add("Cookie", sessionCookie);
+                OriginalSessionCookie = sessionCookie;
+            }
+        }
+    }
+
+    private async Task StartApiAsync()
+    {
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
